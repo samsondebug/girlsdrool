@@ -58,6 +58,13 @@ jobs:
           workspaces: src-tauri
       - uses: extractions/setup-just@v2
       - run: pnpm install --frozen-lockfile
+      # The E2E drives the real app; hosted runners ship Edge but not the WebView2 Evergreen
+      # runtime the app needs to start (the installer skips it too, docs/release.md).
+      - name: WebView2 Evergreen runtime
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://go.microsoft.com/fwlink/p/?LinkId=2124703 -OutFile MicrosoftEdgeWebview2Setup.exe
+          Start-Process -FilePath .\MicrosoftEdgeWebview2Setup.exe -ArgumentList '/silent','/install' -Wait
       - run: just check
       - run: pnpm tauri build
       - uses: actions/upload-artifact@v4
