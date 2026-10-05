@@ -150,6 +150,7 @@ pub fn run() {
             cmd::review_queue,
             cmd::spending_view,
             cmd::cash_view,
+            cmd::compare_views,
             cmd::list_ventures,
             cmd::create_venture,
             cmd::update_venture,

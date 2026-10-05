@@ -259,7 +259,7 @@ proptest! {
             category_id: Some(Some(groceries)),
             tags: Some(vec!["kept".into()]),
             ..Default::default()
-        }).unwrap();
+        }, date("2026-10-05")).unwrap();
         prop_assert_eq!(edited.payee_norm.as_str(), new_payee.as_str());
 
         let mut variant = text.clone();

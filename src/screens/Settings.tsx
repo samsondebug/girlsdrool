@@ -942,6 +942,29 @@ function initialSpec(state: EditorState): ProfileSpec {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** The shape the editor renders from; anything else stays in the textarea as an error. */
+function isProfileSpec(value: unknown): value is ProfileSpec {
+  if (!isRecord(value)) return false;
+  const header = value["header_signature"];
+  const date = value["date"];
+  const amount = value["amount"];
+  const sign = value["sign_convention"];
+  return (
+    Array.isArray(header) &&
+    header.every((h) => typeof h === "string") &&
+    isRecord(date) &&
+    typeof date["column"] === "string" &&
+    isRecord(amount) &&
+    typeof amount["kind"] === "string" &&
+    isRecord(value["payee"]) &&
+    (sign === "account_pov" || sign === "card_statement")
+  );
+}
+
 function payeeColumn(spec: ProfileSpec): string | null {
   return "column" in spec.payee ? spec.payee.column : null;
 }
@@ -958,6 +981,7 @@ function ProfileEditor({ state, onClose }: { state: EditorState; onClose: () => 
   const [json, setJson] = useState(() => JSON.stringify(initialSpec(state), null, 2));
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [sample, setSample] = useState<ImportSource | null>(state.sample);
+
   const [sampleError, setSampleError] = useState<string | null>(null);
 
   const setSpec = (next: ProfileSpec) => {
@@ -971,7 +995,13 @@ function ProfileEditor({ state, onClose }: { state: EditorState; onClose: () => 
   const onJson = (text: string) => {
     setJson(text);
     try {
-      const parsed = JSON.parse(text) as ProfileSpec;
+      const parsed: unknown = JSON.parse(text);
+      if (!isProfileSpec(parsed)) {
+        setJsonError(
+          "not a CSV mapping: header_signature (a list), date, amount and payee are required",
+        );
+        return;
+      }
       setSpecState(parsed);
       setJsonError(null);
     } catch (error: unknown) {

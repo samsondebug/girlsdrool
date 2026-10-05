@@ -349,6 +349,7 @@ fn second_import_of_everything_is_a_no_op_and_user_edits_survive() {
                 tags: Some(vec!["household".into()]),
                 ..Default::default()
             },
+            date("2026-09-30"),
         )
         .unwrap();
     }
@@ -443,6 +444,44 @@ fn second_import_of_everything_is_a_no_op_and_user_edits_survive() {
     assert_eq!(still.payee_norm, "amazon household");
     assert_eq!(still.memo, "paper towels");
     assert_eq!(still.tags, vec!["household".to_string()]);
+}
+
+#[test]
+fn a_row_cannot_be_posted_before_its_date() {
+    let mut conn = memory_db();
+    let accounts = fixture_accounts(&conn);
+    let nbc = account_id(&accounts, "nbc");
+    import(&mut conn, nbc, "northbank/northbank_checking_2026-07.csv");
+    let id: i64 = conn
+        .query_row("SELECT id FROM txn ORDER BY id LIMIT 1", [], |r| r.get(0))
+        .unwrap();
+    // a pending row dated after today (imports allow pending rows ahead of today)
+    let tomorrow = kept::dates::format_civil(date(TODAY) + chrono::Duration::days(1));
+    conn.execute(
+        "UPDATE txn SET status = 'pending', posted_date = ?1 WHERE id = ?2",
+        rusqlite::params![tomorrow, id],
+    )
+    .unwrap();
+    let cmd = kept::db::audit::begin(&conn, "test.post", kept::db::audit::Actor::User).unwrap();
+    let post = txn::TxnPatch {
+        status: Some("posted".into()),
+        ..Default::default()
+    };
+    assert!(matches!(
+        txn::apply_user_patch(&conn, &cmd, id, &post, date(TODAY)),
+        Err(AppError::Validation { .. })
+    ));
+    assert_eq!(txn::get(&conn, id).unwrap().status, "pending");
+    // the day after, it posts
+    let posted = txn::apply_user_patch(
+        &conn,
+        &cmd,
+        id,
+        &post,
+        date(TODAY) + chrono::Duration::days(1),
+    )
+    .unwrap();
+    assert_eq!(posted.status, "posted");
 }
 
 #[test]

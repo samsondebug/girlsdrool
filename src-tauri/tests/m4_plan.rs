@@ -295,6 +295,63 @@ fn plan_matches_the_written_receipts_and_payments_and_the_hero_equals_expected()
 type UpcomingRow = (String, String, i64, i64, i64, bool, bool, i64);
 
 #[test]
+fn a_receipt_is_never_a_pending_linked_or_borrowed_inflow() {
+    let mut conn = memory_db();
+    let accounts = fixture_accounts(&conn);
+    install_rules(&conn);
+    let file: PlanFile = load_json("plan.json");
+    import_everything(&mut conn, &accounts, &file.as_of);
+    install_plan(&mut conn, &accounts, &file);
+    let as_of = date(&file.as_of);
+    let cmd = kept::db::audit::begin(&conn, "test.receipts", kept::db::audit::Actor::User).unwrap();
+
+    let receipt = income::all_receipts(&conn).unwrap()[0].clone();
+    let is_receipt = |conn: &rusqlite::Connection| {
+        income::all_receipts(conn)
+            .unwrap()
+            .iter()
+            .any(|r| r.txn_id == receipt.txn_id)
+    };
+    let forget = |conn: &rusqlite::Connection| {
+        conn.execute(
+            "DELETE FROM income_receipt WHERE txn_id = ?1",
+            [receipt.txn_id],
+        )
+        .unwrap();
+    };
+
+    // flagged as borrowing: never income
+    forget(&conn);
+    conn.execute(
+        "UPDATE txn SET flags = flags | ?1 WHERE id = ?2",
+        rusqlite::params![i64::from(kept::import::csv::FLAG_BORROWING), receipt.txn_id],
+    )
+    .unwrap();
+    plan::match_all(&conn, &cmd, as_of).unwrap();
+    assert!(!is_receipt(&conn), "a borrowing-flagged inflow was matched");
+
+    // pending: not yet the posted row
+    forget(&conn);
+    conn.execute(
+        "UPDATE txn SET flags = flags & ~?1, status = 'pending' WHERE id = ?2",
+        rusqlite::params![i64::from(kept::import::csv::FLAG_BORROWING), receipt.txn_id],
+    )
+    .unwrap();
+    plan::match_all(&conn, &cmd, as_of).unwrap();
+    assert!(!is_receipt(&conn), "a pending inflow was matched");
+
+    // posted and clean again: matched as before
+    forget(&conn);
+    conn.execute(
+        "UPDATE txn SET status = 'posted' WHERE id = ?1",
+        [receipt.txn_id],
+    )
+    .unwrap();
+    plan::match_all(&conn, &cmd, as_of).unwrap();
+    assert!(is_receipt(&conn), "the posted row is the receipt again");
+}
+
+#[test]
 fn upcoming_lists_the_next_income_and_the_next_fourteen_days() {
     let mut conn = memory_db();
     let accounts = fixture_accounts(&conn);

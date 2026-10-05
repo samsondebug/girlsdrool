@@ -23,6 +23,7 @@ import { formatCents, parseCentsInput } from "../lib/money";
 import {
   useAccounts,
   useCategories,
+  useVentures,
   useDeleteView,
   useLedger,
   useRecategorize,
@@ -71,14 +72,15 @@ export function Ledger() {
   const [linking, setLinking] = useState<LedgerRow | null>(null);
   const [savingView, setSavingView] = useState(false);
   const propose = useCorrectionProposal();
+  const ventures = useVentures();
 
   const lookups = useMemo(
     () => ({
       accounts: (accounts.data ?? []).map((a) => ({ id: a.id, name: a.name })),
       categories: (categories.data ?? []).map((c) => ({ id: c.id, name: c.name, path: c.path })),
-      ventures: [],
+      ventures: (ventures.data ?? []).map((v) => ({ id: v.id, name: v.name })),
     }),
-    [accounts.data, categories.data],
+    [accounts.data, categories.data, ventures.data],
   );
   const compiled = useMemo(() => compileQuery(queryText, lookups), [queryText, lookups]);
   const ledger = useLedger(compiled.filter);

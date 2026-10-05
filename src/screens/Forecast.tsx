@@ -71,7 +71,12 @@ export function Forecast() {
               setScenario({ ...scenario, downside: e.target.checked });
             }}
           />
-          <SurpriseBillForm scenario={scenario} asOf={data?.as_of ?? ""} onChange={setScenario} />
+          <SurpriseBillForm
+            key={data?.as_of ?? "loading"}
+            scenario={scenario}
+            asOf={data?.as_of ?? ""}
+            onChange={setScenario}
+          />
           {isBaseline ? (
             <Chip tone="info">baseline</Chip>
           ) : (
@@ -142,10 +147,20 @@ export function Forecast() {
               </div>
             }
           >
+            {data.trust.hero.untrusted.length > 0 ? (
+              <p className="mb-1 text-12">
+                <Chip tone="untrusted">
+                  unreconciled: {data.trust.hero.untrusted.map((u) => u.account_name).join(", ")}
+                </Chip>
+              </p>
+            ) : null}
             {view === "days" ? (
-              <DaysTable days={data.days.slice(0, 30)} />
+              <DaysTable
+                days={data.days.slice(0, 30)}
+                untrusted={data.trust.hero.untrusted.length > 0}
+              />
             ) : (
-              <WeeksTable weeks={data.weeks} />
+              <WeeksTable weeks={data.weeks} untrusted={data.trust.hero.untrusted.length > 0} />
             )}
           </Panel>
 
@@ -286,11 +301,12 @@ const EVENT_TONE: Record<ForecastEvent["kind"], "dim" | "positive" | "negative" 
   pending: "dim",
   income: "positive",
   obligation: "negative",
+  informal: "negative",
   variable: "dim",
   surprise: "warning",
 };
 
-function DaysTable({ days }: { days: ForecastDay[] }) {
+function DaysTable({ days, untrusted }: { days: ForecastDay[]; untrusted: boolean }) {
   return (
     <table className="w-full text-14">
       <thead className="text-12 text-text-dim">
@@ -306,9 +322,7 @@ function DaysTable({ days }: { days: ForecastDay[] }) {
       </thead>
       <tbody>
         {days.map((d) => {
-          const variable = d.events
-            .filter((e) => e.kind === "variable")
-            .reduce((sum, e) => sum + e.cents, 0);
+          const variable = d.variable_cents;
           return (
             <tr
               key={d.day}
@@ -327,10 +341,10 @@ function DaysTable({ days }: { days: ForecastDay[] }) {
                 <Money cents={d.outflows_cents} tone={false} />
               </td>
               <td className="py-1 pr-2 text-right">
-                <Money cents={d.closing_cents} />
+                <Money cents={d.closing_cents} untrusted={untrusted} />
               </td>
               <td className="py-1 pr-2 text-right">
-                <Money cents={d.headroom_cents} />
+                <Money cents={d.headroom_cents} untrusted={untrusted} />
               </td>
               <td className="py-1">
                 <span className="flex flex-wrap gap-1">
@@ -352,7 +366,7 @@ function DaysTable({ days }: { days: ForecastDay[] }) {
   );
 }
 
-function WeeksTable({ weeks }: { weeks: ForecastWeek[] }) {
+function WeeksTable({ weeks, untrusted }: { weeks: ForecastWeek[]; untrusted: boolean }) {
   return (
     <table className="w-full text-14">
       <thead className="text-12 text-text-dim">
@@ -382,10 +396,10 @@ function WeeksTable({ weeks }: { weeks: ForecastWeek[] }) {
               <Money cents={w.outflows_cents} tone={false} />
             </td>
             <td className="py-1 pr-2 text-right">
-              <Money cents={w.closing_cents} />
+              <Money cents={w.closing_cents} untrusted={untrusted} />
             </td>
             <td className="py-1 text-right">
-              <Money cents={w.lowest_cents} />
+              <Money cents={w.lowest_cents} untrusted={untrusted} />
             </td>
           </tr>
         ))}

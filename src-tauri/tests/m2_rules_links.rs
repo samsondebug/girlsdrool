@@ -351,6 +351,7 @@ fn corrections_propose_rules_and_links_can_be_undone_and_remade_by_hand() {
             category_id: Some(Some(dining)),
             ..Default::default()
         },
+        date("2026-09-30"),
     )
     .unwrap();
     let rules_before = count(&conn, "SELECT count(*) FROM rule");
@@ -375,6 +376,31 @@ fn corrections_propose_rules_and_links_can_be_undone_and_remade_by_hand() {
     )
     .unwrap();
     let link_id = visa_09.transfer_link_id.expect("linked by automation");
+    // a linked row cannot be split: its children would carry no link and count as spending
+    let half = visa_09.amount_cents / 2;
+    let parts = [
+        txn::SplitPart {
+            amount_cents: half,
+            category_id: None,
+            memo: String::new(),
+        },
+        txn::SplitPart {
+            amount_cents: visa_09.amount_cents - half,
+            category_id: None,
+            memo: String::new(),
+        },
+    ];
+    assert!(matches!(
+        txn::split(&conn, &cmd, visa_09.id, &parts),
+        Err(AppError::Conflict(_))
+    ));
+    assert_eq!(
+        count(
+            &conn,
+            &format!("SELECT count(*) FROM txn WHERE parent_id = {}", visa_09.id)
+        ),
+        0
+    );
     let l = link::get_transfer(&conn, link_id).unwrap();
     link::remove_transfer(&conn, &cmd, link_id).unwrap();
     let out = txn::get(&conn, l.out_txn_id).unwrap();

@@ -36,6 +36,11 @@ export function formatCents(cents: Cents, options: FormatCentsOptions = {}): str
   return `${prefix}${symbol ? "$" : ""}${body}`;
 }
 
+/** `1999 → "19.99"`: the text a percent input starts with. */
+export function formatBpsInput(bps: number): string {
+  return formatBps(bps, 2).replace(/%$/, "");
+}
+
 /**
  * Basis points to a percentage string. `1999 → "19.99%"`. When fewer than two fraction digits
  * are requested the value is rounded half away from zero, the only rounding rule Kept uses.

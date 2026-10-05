@@ -118,6 +118,10 @@ pub struct DebtsStep {
     pub previous_review_id: Option<i64>,
     pub previous_total_debt_cents: Option<i64>,
     pub previous_informal_cents: Option<i64>,
+    /// `total − previous_total` when there is a previous review.
+    pub total_debt_delta_cents: Option<i64>,
+    /// `informal_remaining − previous_informal` when there is a previous review.
+    pub informal_delta_cents: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -476,12 +480,26 @@ pub fn steps(
         },
     };
     let totals = debt::totals(conn, today)?;
+    let previous_total_debt_cents = previous.map(|p| p.steps.debts.total_debt_cents);
+    let previous_informal_cents = previous.map(|p| p.steps.debts.informal_remaining_cents);
     let debts = DebtsStep {
         total_debt_cents: totals.total_debt_cents,
         informal_remaining_cents: totals.informal_remaining_cents,
         previous_review_id: previous.map(|p| p.id),
-        previous_total_debt_cents: previous.map(|p| p.steps.debts.total_debt_cents),
-        previous_informal_cents: previous.map(|p| p.steps.debts.informal_remaining_cents),
+        previous_total_debt_cents,
+        previous_informal_cents,
+        total_debt_delta_cents: match previous_total_debt_cents {
+            Some(c) => Some(Cents(totals.total_debt_cents).checked_sub(Cents(c))?.0),
+            None => None,
+        },
+        informal_delta_cents: match previous_informal_cents {
+            Some(c) => Some(
+                Cents(totals.informal_remaining_cents)
+                    .checked_sub(Cents(c))?
+                    .0,
+            ),
+            None => None,
+        },
     };
     let summary = venture::summary(conn, today)?;
     let ventures = VenturesStep {

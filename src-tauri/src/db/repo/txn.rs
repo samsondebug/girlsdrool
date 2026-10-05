@@ -4,7 +4,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::dates::{now_rfc3339, parse_civil};
+use crate::dates::{now_rfc3339, parse_civil, CivilDate};
 use crate::db::audit::{self, Action, CommandRecord};
 use crate::error::{AppError, AppResult};
 use crate::import::csv::{flag_bit, RowStatus, FLAG_NEEDS_REVIEW, FLAG_PAYMENT_APP_UNKNOWN};
@@ -314,6 +314,7 @@ pub fn apply_user_patch(
     cmd: &CommandRecord,
     id: i64,
     patch: &TxnPatch,
+    today: CivilDate,
 ) -> AppResult<TxnRecord> {
     let before = get(conn, id)?;
     let mut after = before.clone();
@@ -398,6 +399,15 @@ pub fn apply_user_patch(
         if s != "pending" && s != "posted" {
             return Err(AppError::validation("status", "must be pending or posted"));
         }
+        if s == "posted" && parse_civil(&after.posted_date)? > today {
+            return Err(AppError::validation(
+                "status",
+                format!(
+                    "a row dated {} cannot be posted before that day",
+                    after.posted_date
+                ),
+            ));
+        }
         after.status = s.clone();
         after.user_edited |= UE_STATUS;
     }
@@ -440,6 +450,11 @@ pub fn split(
         return Err(AppError::validation(
             "parent_id",
             "a split child cannot be split again",
+        ));
+    }
+    if parent.transfer_link_id.is_some() || parent.refund_link_id.is_some() {
+        return Err(AppError::Conflict(
+            "the row is linked; unlink it before splitting it".into(),
         ));
     }
     if parts.len() < 2 {

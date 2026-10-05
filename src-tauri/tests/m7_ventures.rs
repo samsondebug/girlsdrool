@@ -168,6 +168,7 @@ fn an_operating_expense_paid_from_a_personal_account_counts_toward_the_cap() {
             effective_date: None,
             status: None,
         },
+        as_of,
     )
     .unwrap();
     let after = rollup::summary(&conn, as_of).unwrap();

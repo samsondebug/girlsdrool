@@ -217,6 +217,7 @@ fn ofx_import_inserts_with_fitids_is_idempotent_and_upgrades_csv_rows() {
             memo: Some("my own note".into()),
             ..Default::default()
         },
+        date(&m9.as_of),
     )
     .unwrap();
     let before_rows = count(&conn, "SELECT count(*) FROM txn");

@@ -57,6 +57,11 @@ export const BASELINE: Scenario = { downside: false, surprise_bill: null };
 
 let nextNoticeId = 1;
 
+/** The stack never grows past this; the oldest notice leaves first. */
+export const MAX_NOTICES = 5;
+/** A notice with nothing to undo or act on leaves on its own after this long. */
+export const NOTICE_TTL_MS = 8000;
+
 export const useUiStore = create<UiState>((set) => ({
   screen: "dashboard",
   setScreen: (screen) => {
@@ -65,7 +70,12 @@ export const useUiStore = create<UiState>((set) => ({
   notices: [],
   pushNotice: (notice) => {
     const id = nextNoticeId++;
-    set((state) => ({ notices: [...state.notices, { ...notice, id }] }));
+    set((state) => ({ notices: [...state.notices, { ...notice, id }].slice(-MAX_NOTICES) }));
+    if (!notice.undo && !notice.action) {
+      window.setTimeout(() => {
+        set((state) => ({ notices: state.notices.filter((n) => n.id !== id) }));
+      }, NOTICE_TTL_MS);
+    }
   },
   dismissNotice: (id) => {
     set((state) => ({ notices: state.notices.filter((n) => n.id !== id) }));

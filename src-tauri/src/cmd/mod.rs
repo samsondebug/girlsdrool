@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::cash::recon::{self, DifferenceExplorer, ReconInput, Reconciliation, TrustReport};
 use crate::cash::safe::{self, SafeToSpend, Upcoming};
-use crate::cash::views::{self, CashView, SpendingView};
+use crate::cash::views::{self, CashView, SpendingView, ViewComparison};
 use crate::config::{self, DataPaths};
 use crate::dates::{parse_civil, parse_zone, today_in, CivilDate};
 use crate::db::audit::{self, Actor, CommandRecord};
@@ -127,11 +127,20 @@ fn write<T>(
     name: &str,
     f: impl FnOnce(&Transaction, &CommandRecord) -> AppResult<T>,
 ) -> AppResult<T> {
+    write_dated(state, name, |tx, cmd, _| f(tx, cmd))
+}
+
+/// `write` for a command whose validation needs today's civil date.
+fn write_dated<T>(
+    state: &AppState,
+    name: &str,
+    f: impl FnOnce(&Transaction, &CommandRecord, CivilDate) -> AppResult<T>,
+) -> AppResult<T> {
     with_db(state, |db| {
         let today = today(db)?;
         let tx = db.conn_mut().transaction()?;
         let cmd = audit::begin(&tx, name, Actor::User)?;
-        let out = f(&tx, &cmd)?;
+        let out = f(&tx, &cmd, today)?;
         recon::refresh_all(&tx, &cmd)?;
         crate::plan::match_all(&tx, &cmd, today)?;
         crate::debt::refresh(&tx, &cmd, today)?;
@@ -731,8 +740,8 @@ pub async fn update_txn(
     id: i64,
     patch: TxnPatch,
 ) -> AppResult<TxnRecord> {
-    let updated = write(&state, "txn.update", |tx, cmd| {
-        txn::apply_user_patch(tx, cmd, id, &patch)
+    let updated = write_dated(&state, "txn.update", |tx, cmd, today| {
+        txn::apply_user_patch(tx, cmd, id, &patch, today)
     })?;
     emit_changed(&app, &["txn"]);
     Ok(updated)
@@ -748,13 +757,13 @@ pub async fn recategorize(
     if ids.is_empty() {
         return Ok(0);
     }
-    let n = write(&state, "txn.recategorize", |tx, cmd| {
+    let n = write_dated(&state, "txn.recategorize", |tx, cmd, today| {
         let patch = TxnPatch {
             category_id: Some(category_id),
             ..Default::default()
         };
         for id in &ids {
-            txn::apply_user_patch(tx, cmd, *id, &patch)?;
+            txn::apply_user_patch(tx, cmd, *id, &patch, today)?;
         }
         Ok(ids.len())
     })?;
@@ -1097,6 +1106,16 @@ pub async fn cash_view(
 ) -> AppResult<CashView> {
     date_range(&from, &to)?;
     with_db(&state, |db| views::cash_view(db.conn(), &from, &to))
+}
+
+#[tauri::command]
+pub async fn compare_views(
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> AppResult<ViewComparison> {
+    date_range(&from, &to)?;
+    with_db(&state, |db| views::compare(db.conn(), &from, &to))
 }
 
 // ---- ventures -----------------------------------------------------------------------------------

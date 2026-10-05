@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use kept::cash::recon::{self, ReconInput};
 use kept::db::audit::{self, Actor, CommandRecord};
-use kept::db::repo::account::{self, AccountPatch};
+use kept::db::repo::account::{self, AccountPatch, NewAccount};
 use kept::error::AppError;
 use kept::import::{self, ImportInput};
 use rusqlite::Connection;
@@ -229,6 +229,29 @@ fn balanced_fixture_reconciles_every_period_and_the_hero_is_trusted() {
         0
     );
 
+    let trust = recon::trust(&conn, date(&file.trust.as_of), file.trust.stale_after_days).unwrap();
+    assert!(trust.hero.trusted, "{:?}", trust.hero);
+    assert!(trust.hero.untrusted.is_empty());
+
+    // a venture-owned checking account is outside the hero (ADR-0044 §3), so its being
+    // unreconciled cannot mark the hero untrusted
+    let cmd = command(&conn);
+    let venture = kept::db::repo::venture::list(&conn).unwrap()[0].clone();
+    let ops = account::create(
+        &conn,
+        &cmd,
+        &NewAccount {
+            name: "Ledgerline Ops".into(),
+            institution: "Northbank".into(),
+            kind: "checking".into(),
+            opening_balance_cents: 0,
+            opening_date: "2026-07-01".into(),
+            venture_id: Some(venture.id),
+            firewalled: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(ops.owner, "venture");
     let trust = recon::trust(&conn, date(&file.trust.as_of), file.trust.stale_after_days).unwrap();
     assert!(trust.hero.trusted, "{:?}", trust.hero);
     assert!(trust.hero.untrusted.is_empty());

@@ -860,6 +860,7 @@ pub fn undo(conn: &mut Connection, batch_id: i64, today: CivilDate) -> AppResult
         params![undo_cmd.id, b.command_id],
     )?;
     recon::refresh_all(&tx, &undo_cmd)?;
+    crate::plan::match_all(&tx, &undo_cmd, today)?;
     crate::debt::refresh(&tx, &undo_cmd, today)?;
     tx.commit()?;
     tracing::info!(

@@ -22,7 +22,7 @@ import type {
   MinimumRule,
   StrategyRun,
 } from "../lib/ipc";
-import { formatBps, formatCents, parseCentsInput } from "../lib/money";
+import { formatBps, formatBpsInput, formatCents, parseCentsInput } from "../lib/money";
 import {
   useAccounts,
   useAddInformalScheduleRow,
@@ -457,9 +457,9 @@ function DebtDialog({
       : "",
   );
   const [openingDate, setOpeningDate] = useState(debt?.standalone_opening_date ?? "");
-  const [apr, setApr] = useState(debt ? (debt.apr_bps / 100).toFixed(2) : "");
+  const [apr, setApr] = useState(debt ? formatBpsInput(debt.apr_bps) : "");
   const [promo, setPromo] = useState(
-    debt?.promo_apr_bps !== null && debt ? (debt.promo_apr_bps / 100).toFixed(2) : "",
+    debt?.promo_apr_bps !== null && debt ? formatBpsInput(debt.promo_apr_bps) : "",
   );
   const [promoEnd, setPromoEnd] = useState(debt?.promo_end ?? "");
   const [method, setMethod] = useState<InterestMethod>(debt?.interest_method ?? "monthly_nominal");
@@ -467,7 +467,7 @@ function DebtDialog({
   const [fixed, setFixed] = useState(
     debt ? formatCents(debt.minimum_fixed_cents, { symbol: false }) : "",
   );
-  const [bps, setBps] = useState(debt ? (debt.minimum_bps / 100).toFixed(2) : "");
+  const [bps, setBps] = useState(debt ? formatBpsInput(debt.minimum_bps) : "");
   const [floor, setFloor] = useState(
     debt ? formatCents(debt.minimum_floor_cents, { symbol: false }) : "",
   );

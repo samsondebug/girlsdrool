@@ -15,7 +15,7 @@ export function Notices() {
   if (notices.length === 0) return null;
   return (
     <div
-      className="fixed right-4 bottom-4 flex w-96 flex-col gap-2"
+      className="fixed right-4 bottom-4 flex max-h-[60vh] w-96 flex-col gap-2 overflow-auto"
       role="status"
       aria-live="polite"
     >

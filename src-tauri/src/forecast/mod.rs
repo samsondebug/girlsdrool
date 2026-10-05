@@ -68,6 +68,8 @@ pub struct Day {
     /// Earmark remaining projected by schedule + the timing buffer.
     pub committed_cents: i64,
     pub headroom_cents: i64,
+    /// Σ the day's variable-spend events (negative or zero).
+    pub variable_cents: i64,
     pub events: Vec<Event>,
 }
 
@@ -404,6 +406,12 @@ pub fn run(conn: &Connection, today: CivilDate, scenario: &Scenario) -> AppResul
             closing_cents: bal.0,
             committed_cents: committed.0,
             headroom_cents: headroom.0,
+            variable_cents: crate::money::sum(
+                evs.iter()
+                    .filter(|e| e.kind == "variable")
+                    .map(|e| Cents(e.cents)),
+            )?
+            .0,
             events: evs.clone(),
         });
     }

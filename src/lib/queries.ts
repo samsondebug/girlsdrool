@@ -69,6 +69,8 @@ export const keys = {
   spendingAll: ["spending_view"] as const,
   cash: (from: string, to: string) => ["cash_view", from, to] as const,
   cashAll: ["cash_view"] as const,
+  views: (from: string, to: string) => ["compare_views", from, to] as const,
+  viewsAll: ["compare_views"] as const,
   linkDetails: (txnId: number) => ["link_details", txnId] as const,
   linkDetailsAll: ["link_details"] as const,
   linkCandidates: (txnId: number) => ["link_candidates", txnId] as const,
@@ -99,6 +101,7 @@ export const keys = {
   debtPaymentsAll: ["debt_payments"] as const,
   debtPayments: (debtId: number) => ["debt_payments", debtId] as const,
   debtCandidates: (debtId: number) => ["debt_candidates", debtId] as const,
+  debtCandidatesAll: ["debt_candidates"] as const,
   informalLoans: ["informal_loans"] as const,
   debtComparisonAll: ["debt_comparison"] as const,
   debtComparison: (extra: number | null) => ["debt_comparison", extra] as const,
@@ -140,6 +143,11 @@ const rowDependent: readonly QueryKey[] = [
   keys.reviewQueue,
   keys.spendingAll,
   keys.cashAll,
+  keys.viewsAll,
+  // every write re-matches receipts and payments (ADR-0041 §1)
+  keys.receiptsAll,
+  keys.paymentsAll,
+  keys.occurrencesAll,
   keys.linkDetailsAll,
   keys.linkCandidatesAll,
   ...reconDependent,
@@ -149,12 +157,19 @@ const rowDependent: readonly QueryKey[] = [
 /** Which query keys an entity change invalidates. */
 const invalidationMap: Record<string, readonly QueryKey[]> = {
   setting: [keys.settings, keys.trust, ...heroDependent],
-  account: [keys.accounts, keys.ledgerAll, keys.cashAll, ...reconDependent, ...heroDependent],
+  account: [
+    keys.accounts,
+    keys.ledgerAll,
+    keys.cashAll,
+    keys.viewsAll,
+    ...reconDependent,
+    ...heroDependent,
+  ],
   reconciliation: [...reconDependent, ...heroDependent],
   income_stream: [keys.incomeStreams, keys.receiptsAll, keys.occurrencesAll, ...heroDependent],
   obligation: [keys.obligations, keys.paymentsAll, keys.occurrencesAll, ...heroDependent],
   earmark: [keys.earmarks, keys.entriesAll, ...heroDependent],
-  category: [keys.categories, keys.ledgerAll, keys.spendingAll],
+  category: [keys.categories, keys.ledgerAll, keys.spendingAll, keys.viewsAll],
   txn: rowDependent,
   transfer_link: rowDependent,
   refund_link: rowDependent,
@@ -169,10 +184,17 @@ const invalidationMap: Record<string, readonly QueryKey[]> = {
     keys.debts,
     keys.informalLoans,
     keys.debtComparisonAll,
+    keys.debtCandidatesAll,
     keys.obligations,
     ...heroDependent,
   ],
-  debt_payment: [keys.debts, keys.debtPaymentsAll, keys.informalLoans, keys.debtComparisonAll],
+  debt_payment: [
+    keys.debts,
+    keys.debtPaymentsAll,
+    keys.debtCandidatesAll,
+    keys.informalLoans,
+    keys.debtComparisonAll,
+  ],
   informal_loan: [keys.informalLoans, keys.debts, keys.debtComparisonAll, ...heroDependent],
   review: [keys.reviewAll],
   snapshot: [keys.forecastAll, keys.snapshots, keys.trends, keys.reviewAll],
@@ -256,11 +278,10 @@ export function useStatusMutation<TVariables>(fn: (variables: TVariables) => Pro
   return useMutation({
     mutationFn: fn,
     onSuccess: (status) => {
+      // Locking drops every cached read: the next unlock may open another folder, and an
+      // unlock itself takes the daily snapshot and backup, so nothing cached before it holds.
+      queryClient.removeQueries({ predicate: (q) => q.queryKey !== keys.status });
       queryClient.setQueryData(keys.status, status);
-      if (status.state !== "unlocked") {
-        queryClient.removeQueries({ queryKey: keys.settings });
-        queryClient.removeQueries({ queryKey: keys.ledgerAll });
-      }
     },
   });
 }
@@ -381,6 +402,15 @@ export function useCashView(from: string, to: string, enabled: boolean) {
   return useQuery({
     queryKey: keys.cash(from, to),
     queryFn: () => api.cashView(from, to),
+    enabled,
+    staleTime: Infinity,
+  });
+}
+
+export function useViewComparison(from: string, to: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.views(from, to),
+    queryFn: () => api.compareViews(from, to),
     enabled,
     staleTime: Infinity,
   });

@@ -125,6 +125,29 @@ pub struct CashView {
     pub by_account: Vec<AccountLine>,
 }
 
+/// Both views over one range and the difference between what was consumed and what left the
+/// cash accounts (transfers, card payments and anything not yet classified sit in that gap).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ViewComparison {
+    pub spending: SpendingView,
+    pub cash: CashView,
+    /// `spending.gross_outflows − cash.outflows`.
+    pub gross_minus_cash_outflows_cents: i64,
+}
+
+pub fn compare(conn: &Connection, from: &str, to: &str) -> AppResult<ViewComparison> {
+    let spending = spending_view(conn, from, to)?;
+    let cash = cash_view(conn, from, to)?;
+    let gross_minus_cash_outflows_cents = Cents(spending.gross_outflows_cents)
+        .checked_sub(Cents(cash.outflows_cents))?
+        .0;
+    Ok(ViewComparison {
+        spending,
+        cash,
+        gross_minus_cash_outflows_cents,
+    })
+}
+
 pub fn cash_view(conn: &Connection, from: &str, to: &str) -> AppResult<CashView> {
     let kinds = CASH_KINDS
         .iter()

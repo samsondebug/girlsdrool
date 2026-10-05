@@ -30,6 +30,8 @@ pub struct Earmark {
     pub active: bool,
     pub created_at: String,
     pub updated_at: String,
+    /// Σ every entry: what the earmark holds today, before any schedule projection.
+    pub held_cents: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -62,7 +64,7 @@ fn default_true() -> bool {
     true
 }
 
-const COLS: &str = "id, name, kind, funding_account_id, obligation_id, target_cents, target_date, schedule, schedule_amount_cents, schedule_day, schedule_income_stream_id, active, created_at, updated_at";
+const COLS: &str = "e.id, e.name, e.kind, e.funding_account_id, e.obligation_id, e.target_cents, e.target_date, e.schedule, e.schedule_amount_cents, e.schedule_day, e.schedule_income_stream_id, e.active, e.created_at, e.updated_at, (SELECT coalesce(SUM(amount_cents), 0) FROM earmark_entry WHERE earmark_id = e.id)";
 
 fn from_row(r: &rusqlite::Row) -> rusqlite::Result<Earmark> {
     Ok(Earmark {
@@ -80,12 +82,13 @@ fn from_row(r: &rusqlite::Row) -> rusqlite::Result<Earmark> {
         active: r.get::<_, i64>(11)? != 0,
         created_at: r.get(12)?,
         updated_at: r.get(13)?,
+        held_cents: r.get(14)?,
     })
 }
 
 pub fn list(conn: &Connection) -> AppResult<Vec<Earmark>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT {COLS} FROM earmark ORDER BY active DESC, kind, name"
+        "SELECT {COLS} FROM earmark e ORDER BY e.active DESC, e.kind, e.name"
     ))?;
     let rows = stmt
         .query_map([], from_row)?
@@ -95,7 +98,7 @@ pub fn list(conn: &Connection) -> AppResult<Vec<Earmark>> {
 
 pub fn get(conn: &Connection, id: i64) -> AppResult<Earmark> {
     conn.query_row(
-        &format!("SELECT {COLS} FROM earmark WHERE id = ?1"),
+        &format!("SELECT {COLS} FROM earmark e WHERE e.id = ?1"),
         [id],
         from_row,
     )

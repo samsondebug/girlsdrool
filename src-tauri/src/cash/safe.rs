@@ -27,6 +27,8 @@ pub struct AvailableAccount {
     pub posted_cents: i64,
     pub pending_in_cents: i64,
     pub pending_out_cents: i64,
+    /// `posted + pending_in − pending_out`: this account's share of `available`.
+    pub net_cents: i64,
     pub pending_row_ids: Vec<i64>,
 }
 
@@ -370,10 +372,10 @@ pub fn safe_to_spend(conn: &Connection, today: CivilDate) -> AppResult<SafeToSpe
     for acct in &contributing {
         let posted = posted_balance_as_of(conn, acct, today)?;
         let pending = pending_rows(conn, acct)?;
-        available = available
-            .checked_add(Cents(posted))?
+        let net = Cents(posted)
             .checked_add(Cents(pending.inflow))?
             .checked_sub(Cents(pending.outflow))?;
+        available = available.checked_add(net)?;
         pending_flagged.extend(pending.flagged);
         posted_flagged.extend(posted_flagged_inflows(conn, acct, today)?);
         accounts.push(AvailableAccount {
@@ -382,6 +384,7 @@ pub fn safe_to_spend(conn: &Connection, today: CivilDate) -> AppResult<SafeToSpe
             posted_cents: posted,
             pending_in_cents: pending.inflow,
             pending_out_cents: pending.outflow,
+            net_cents: net.0,
             pending_row_ids: pending.ids,
         });
     }
@@ -496,6 +499,8 @@ pub struct Upcoming {
     pub horizon_days: i64,
     pub next_income: Option<NextIncome>,
     pub obligations: Vec<UpcomingObligation>,
+    /// Σ expected of the listed occurrences.
+    pub total_expected_cents: i64,
 }
 
 /// The next confirmed income and the unpaid confirmed occurrences due within `horizon_days`,
@@ -529,10 +534,13 @@ pub fn upcoming(conn: &Connection, today: CivilDate, horizon_days: i64) -> AppRe
             source_account_name: acct.name,
         });
     }
+    let total_expected_cents =
+        crate::money::sum(obligations.iter().map(|o| Cents(o.expected_cents)))?.0;
     Ok(Upcoming {
         as_of: format_civil(today),
         horizon_days,
         next_income: next_income(conn, today)?,
         obligations,
+        total_expected_cents,
     })
 }

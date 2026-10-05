@@ -638,6 +638,12 @@ export interface AccountLine {
   net_cents: number;
 }
 
+export interface ViewComparison {
+  spending: SpendingView;
+  cash: CashView;
+  gross_minus_cash_outflows_cents: number;
+}
+
 export interface CashView {
   from: string;
   to: string;
@@ -861,6 +867,8 @@ export interface Earmark {
   active: boolean;
   created_at: string;
   updated_at: string;
+  /** Σ every entry, computed by the core. */
+  held_cents: number;
 }
 
 export interface EarmarkInput {
@@ -912,6 +920,8 @@ export interface AvailableAccount {
   posted_cents: number;
   pending_in_cents: number;
   pending_out_cents: number;
+  /** posted + pending_in − pending_out, computed by the core. */
+  net_cents: number;
   pending_row_ids: number[];
 }
 
@@ -1004,6 +1014,7 @@ export interface Upcoming {
   horizon_days: number;
   next_income: NextIncome | null;
   obligations: UpcomingObligation[];
+  total_expected_cents: number;
 }
 
 export interface SurpriseBill {
@@ -1016,7 +1027,8 @@ export interface Scenario {
   surprise_bill: SurpriseBill | null;
 }
 
-export type ForecastEventKind = "pending" | "income" | "obligation" | "variable" | "surprise";
+export type ForecastEventKind =
+  "pending" | "income" | "obligation" | "informal" | "variable" | "surprise";
 
 export interface ForecastEvent {
   kind: ForecastEventKind;
@@ -1034,6 +1046,7 @@ export interface ForecastDay {
   closing_cents: number;
   committed_cents: number;
   headroom_cents: number;
+  variable_cents: number;
   events: ForecastEvent[];
 }
 
@@ -1403,6 +1416,8 @@ export interface ReviewSteps {
     previous_review_id: number | null;
     previous_total_debt_cents: number | null;
     previous_informal_cents: number | null;
+    total_debt_delta_cents: number | null;
+    informal_delta_cents: number | null;
   };
   ventures: { cap_used_cents: number; cap_cents: number; ventures: ReviewVentureLine[] };
   flags: {
@@ -1560,6 +1575,7 @@ export const api = {
   reviewQueue: (limit?: number) => call<LedgerRow[]>("review_queue", { limit: limit ?? null }),
   spendingView: (from: string, to: string) => call<SpendingView>("spending_view", { from, to }),
   cashView: (from: string, to: string) => call<CashView>("cash_view", { from, to }),
+  compareViews: (from: string, to: string) => call<ViewComparison>("compare_views", { from, to }),
 
   listVentures: () => call<Venture[]>("list_ventures"),
   createVenture: (input: VentureInput) => call<Venture>("create_venture", { input }),

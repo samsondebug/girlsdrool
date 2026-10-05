@@ -541,6 +541,7 @@ fn candidate_payment(conn: &Connection, ob: &Obligation, due: CivilDate) -> AppR
         .query_row(
             "SELECT t.id FROM txn_leaf t
              WHERE t.account_id = ?1 AND t.amount_cents < 0 AND -t.amount_cents BETWEEN ?2 AND ?3
+               AND t.status = 'posted'
                AND t.posted_date BETWEEN ?4 AND ?5
                AND (?6 = '' OR instr(t.payee_norm, ?6) > 0)
                AND NOT EXISTS (SELECT 1 FROM obligation_payment p WHERE p.txn_id = t.id)

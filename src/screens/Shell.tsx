@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Component, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Button } from "../components/Button";
 import { Palette, type PaletteCommand } from "../components/Palette";
@@ -45,6 +45,46 @@ const navItems: { screen: Screen; label: string }[] = [
   { screen: "accounts", label: "Accounts" },
   { screen: "settings", label: "Settings" },
 ];
+
+interface BoundaryProps {
+  children: ReactNode;
+  onReset: () => void;
+}
+
+interface BoundaryState {
+  message: string | null;
+}
+
+/**
+ * A render error on one screen must not blank the whole window: the boundary names the error
+ * and offers the dashboard. The key on the boundary resets it when the screen changes.
+ */
+class ScreenBoundary extends Component<BoundaryProps, BoundaryState> {
+  override state: BoundaryState = { message: null };
+
+  static getDerivedStateFromError(error: unknown): BoundaryState {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+
+  override render(): ReactNode {
+    if (this.state.message === null) return this.props.children;
+    return (
+      <div role="alert" className="flex flex-col gap-2 p-6 text-14">
+        <p className="font-medium">This screen hit an error and stopped rendering.</p>
+        <p className="text-text-dim">{this.state.message}</p>
+        <p className="text-text-dim">
+          Nothing was written: every write is one audited command, and this error happened while
+          drawing the screen. Back to the dashboard, then try again.
+        </p>
+        <div>
+          <Button variant="primary" onClick={this.props.onReset}>
+            Back to dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+}
 
 function ActiveScreen({ screen, status }: { screen: Screen; status: AppStatus }) {
   switch (screen) {
@@ -295,7 +335,14 @@ export function Shell({ status }: ShellProps) {
         })}
       </nav>
       <main className="min-h-0 overflow-hidden">
-        <ActiveScreen screen={screen} status={status} />
+        <ScreenBoundary
+          key={screen}
+          onReset={() => {
+            setScreen("dashboard");
+          }}
+        >
+          <ActiveScreen screen={screen} status={status} />
+        </ScreenBoundary>
       </main>
       {paletteOpen ? (
         <Palette

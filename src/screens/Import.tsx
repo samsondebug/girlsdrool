@@ -10,6 +10,7 @@ import { Panel } from "../components/Panel";
 import { Select } from "../components/Select";
 import { PreviewView } from "../components/PreviewTable";
 import { toAppError, type ImportReport, type ImportSource, type Preview } from "../lib/ipc";
+import { formatBps } from "../lib/money";
 import {
   useAccounts,
   useBatches,
@@ -441,14 +442,14 @@ function ReportView({ report, accountId }: { report: ImportReport; accountId: nu
       ) : null}
       <p className="text-12 text-text-dim">
         batch #{report.batch_id} · profile {report.profile_name} · {report.date_from ?? "—"} …{" "}
-        {report.date_to ?? "—"} · threshold {(report.threshold_bps / 100).toFixed(2)}%
+        {report.date_to ?? "—"} · threshold {formatBps(report.threshold_bps)}
       </p>
       {report.updated.length > 0 ? (
         <ul className="text-12 text-text-dim">
           {report.updated.map((u) => (
             <li key={u.txn_id}>
               row {u.row} updated ledger row {u.txn_id} ({u.fields.join(", ")}), similarity{" "}
-              {(u.similarity_bps / 100).toFixed(2)}%
+              {formatBps(u.similarity_bps)}
             </li>
           ))}
         </ul>

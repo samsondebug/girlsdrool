@@ -16,12 +16,11 @@ import { formatCents } from "../lib/money";
 import {
   useAccounts,
   useAcknowledgeFirewall,
-  useCashView,
   useCategories,
   useReviewQueue,
-  useSpendingView,
   useTrust,
   useUpdateTxn,
+  useViewComparison,
 } from "../lib/queries";
 import { FLAG_BITS } from "../lib/query-chips";
 import { useUiStore } from "../lib/store";
@@ -269,11 +268,10 @@ function ViewsStrip() {
   const [range, setRange] = useState(monthRange);
   const [draft, setDraft] = useState(range);
   const valid = CIVIL_DATE.test(range.from) && CIVIL_DATE.test(range.to);
-  const spending = useSpendingView(range.from, range.to, valid);
-  const cash = useCashView(range.from, range.to, valid);
-  const s = spending.data;
-  const c = cash.data;
-  const error = spending.error ?? cash.error;
+  const views = useViewComparison(range.from, range.to, valid);
+  const s = views.data?.spending;
+  const c = views.data?.cash;
+  const error = views.error;
   const trust = useTrust();
   const allUntrusted = untrustedAmong(trust.data, null);
   const cashUntrusted = untrustedCash(trust.data);
@@ -358,9 +356,9 @@ function ViewsStrip() {
         <div className="flex flex-col gap-1">
           <p className="text-12 text-text-dim">Gross spending − cash outflows</p>
           <p className="text-20">
-            {s && c ? (
+            {views.data ? (
               <MarkedMoney
-                cents={s.gross_outflows_cents - c.outflows_cents}
+                cents={views.data.gross_minus_cash_outflows_cents}
                 size={20}
                 tone={false}
                 untrustedBy={allUntrusted}

@@ -273,7 +273,12 @@ fn debt_input(input: &InformalInput) -> DebtInput {
 }
 
 /// Mark the proceeds row: borrowing, never income, out of the review queue.
-fn mark_proceeds(conn: &Connection, cmd: &CommandRecord, txn_id: i64) -> AppResult<()> {
+fn mark_proceeds(
+    conn: &Connection,
+    cmd: &CommandRecord,
+    txn_id: i64,
+    today: CivilDate,
+) -> AppResult<()> {
     let row = txn::get(conn, txn_id)?;
     let cleared = i64::from(FLAG_NEEDS_REVIEW) | i64::from(FLAG_PAYMENT_APP_UNKNOWN);
     let flags = (row.flags & !cleared) | i64::from(FLAG_BORROWING);
@@ -295,6 +300,7 @@ fn mark_proceeds(conn: &Connection, cmd: &CommandRecord, txn_id: i64) -> AppResu
             effective_date: None,
             status: None,
         },
+        today,
     )?;
     Ok(())
 }
@@ -331,7 +337,7 @@ pub fn create(
         Some(&stored_json(&s, debt.id)),
     )?;
     if let Some(id) = input.proceeds_txn_id {
-        mark_proceeds(conn, cmd, id)?;
+        mark_proceeds(conn, cmd, id, today)?;
     }
     assemble(conn, &debt, today)
 }
@@ -370,7 +376,7 @@ pub fn update(
         Some(&stored_json(&after, debt_id)),
     )?;
     if let Some(id) = input.proceeds_txn_id {
-        mark_proceeds(conn, cmd, id)?;
+        mark_proceeds(conn, cmd, id, today)?;
     }
     assemble(conn, &debt, today)
 }
@@ -495,6 +501,7 @@ pub fn match_repayments(
                 .query_row(
                     "SELECT t.id, t.posted_date FROM txn_leaf t
                      WHERE t.account_id = ?1 AND t.amount_cents = ?2
+                       AND t.status = 'posted'
                        AND t.posted_date BETWEEN ?3 AND ?4
                        AND (?5 = '' OR instr(t.payee_norm, ?5) > 0)
                        AND NOT EXISTS (SELECT 1 FROM debt_payment d WHERE d.txn_id = t.id)

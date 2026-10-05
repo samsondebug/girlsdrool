@@ -31,3 +31,8 @@ new id, and the audit log keeps both steps.
 What is never destructive: the ledger is append-only in spirit, imports never delete rows, and
 every write is one transaction with one `command` row and an `audit_event` per touched row
 (ARCHITECTURE §11), so the audit log holds the before state of everything above.
+
+## Notice lifetime (ADR-0048 §9)
+
+A notice that names an undo or an action stays until it is dismissed or used. A notice with
+neither leaves after eight seconds. The stack holds the newest five; the oldest leaves first.

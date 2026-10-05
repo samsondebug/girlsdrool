@@ -470,10 +470,27 @@ pub fn parse(bytes: &[u8], spec: &ProfileSpec) -> AppResult<ParsedFile> {
         });
     }
 
-    let closing = rows
+    // The closing is the running balance after the last transaction of the latest date. Files
+    // arrive oldest-first or newest-first; among rows sharing the latest date the last one in an
+    // ascending file and the first one in a descending file is that transaction.
+    let dated: Vec<&ParsedRow> = rows
         .iter()
         .filter(|r| r.balance_cents.is_some() && r.skipped.is_none())
-        .max_by(|a, b| a.posted_date.cmp(&b.posted_date))
+        .collect();
+    let descending = matches!(
+        (dated.first(), dated.last()),
+        (Some(first), Some(last)) if first.posted_date > last.posted_date
+    );
+    let latest = dated.iter().map(|r| r.posted_date).max();
+    let closing = latest
+        .and_then(|day| {
+            let mut on_day = dated.iter().filter(|r| r.posted_date == day);
+            if descending {
+                on_day.next()
+            } else {
+                on_day.next_back()
+            }
+        })
         .and_then(|r| {
             r.balance_cents.map(|cents| FileClosing {
                 date: r.posted_date,
@@ -554,6 +571,44 @@ mod tests {
         assert_eq!(date_text(file.rows[0].posted_date), "2026-09-01");
         assert_eq!(file.rows[1].flags, FLAG_INTEREST);
         assert_eq!(file.rows[2].status, RowStatus::Pending);
+    }
+
+    #[test]
+    fn closing_is_the_last_transaction_of_the_latest_day_in_either_file_order() {
+        let spec = ProfileSpec::parse(
+            r#"{"header_signature":["Date","Description","Amount","Balance"],"date":{"column":"Date","format":"%Y-%m-%d"},"amount":{"kind":"single_signed","column":"Amount"},"payee":{"column":"Description"},"balance":{"column":"Balance"}}"#,
+        )
+        .unwrap();
+        // newest first, as most bank exports arrive: the first row is the closing
+        let newest_first = parse(
+            b"Date,Description,Amount,Balance
+2026-08-15,ATM,-163.42,1492.71
+2026-08-15,DEPOSIT,300.00,1656.13
+2026-08-12,COFFEE,-10.00,1356.13
+",
+            &spec,
+        )
+        .unwrap();
+        let closing = newest_first.closing.unwrap();
+        assert_eq!(
+            (date_text(closing.date), closing.cents),
+            ("2026-08-15".to_string(), 149_271)
+        );
+        // oldest first: the last row is the closing
+        let oldest_first = parse(
+            b"Date,Description,Amount,Balance
+2026-08-12,COFFEE,-10.00,1356.13
+2026-08-15,DEPOSIT,300.00,1656.13
+2026-08-15,ATM,-163.42,1492.71
+",
+            &spec,
+        )
+        .unwrap();
+        let closing = oldest_first.closing.unwrap();
+        assert_eq!(
+            (date_text(closing.date), closing.cents),
+            ("2026-08-15".to_string(), 149_271)
+        );
     }
 
     #[test]

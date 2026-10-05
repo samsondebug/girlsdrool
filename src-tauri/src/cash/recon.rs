@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::dates::{format_civil, now_rfc3339, parse_civil, CivilDate};
 use crate::db::audit::{self, Action, CommandRecord};
-use crate::db::repo::account::{self, Account, CASH_KINDS};
+use crate::db::repo::account::{self, Account};
 use crate::db::repo::batch::{self, QuarantineRow};
 use crate::db::repo::ledger::{self, LedgerFilter, LedgerRow};
 use crate::error::{AppError, AppResult};
@@ -521,9 +521,11 @@ pub struct TrustReport {
     pub hero: HeroTrust,
 }
 
-/// Whether an account is in the hero's `available` set: a cash kind, not firewalled, not archived.
+/// Whether an account is in the hero's `available` set: the one definition `safe::contributes`
+/// holds (cash kind, personal, not firewalled, not archived), so trust is judged over exactly
+/// the accounts the figure sums.
 pub fn contributes(acct: &Account) -> bool {
-    CASH_KINDS.contains(&acct.kind.as_str()) && !acct.firewalled && !acct.archived
+    super::safe::contributes(acct)
 }
 
 /// Trust per account as of `today`: `reconciled` iff the latest period is balanced and ended

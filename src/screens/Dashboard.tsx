@@ -103,7 +103,10 @@ export function Dashboard() {
 
       <Panel title="Next 14 days" className="col-span-4">
         {upcoming.data && upcoming.data.obligations.length > 0 ? (
-          <UpcomingList rows={upcoming.data.obligations} />
+          <UpcomingList
+            rows={upcoming.data.obligations}
+            total={upcoming.data.total_expected_cents}
+          />
         ) : (
           <EmptyState
             missing="No unpaid confirmed obligation is overdue or due in the next 14 days."
@@ -233,10 +236,12 @@ export function Dashboard() {
         }
       >
         {ventures.data && ventures.data.ventures.length > 0 ? (
-          <div className="flex flex-col gap-2 text-14">
-            {ventures.data.ventures.map((v) => (
-              <CapGauge key={v.id} venture={v} />
-            ))}
+          <div className="flex h-full min-h-0 flex-col gap-2 text-14">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+              {ventures.data.ventures.map((v) => (
+                <CapGauge key={v.id} venture={v} />
+              ))}
+            </div>
             <p className="text-12 text-text-dim">
               Venture spend {formatBps(ventures.data.spend_share_bps)} of trailing take-home.
             </p>
@@ -250,13 +255,15 @@ export function Dashboard() {
       </Panel>
       <Panel title="Firewall" className="col-span-3">
         {firewalled.length > 0 ? (
-          <div className="flex flex-col gap-1 text-14">
-            {firewalled.map((a) => (
-              <p key={a.id} className="flex items-center gap-2">
-                <span className="truncate">{a.name}</span>
-                <Chip tone="info">firewalled</Chip>
-              </p>
-            ))}
+          <div className="flex h-full min-h-0 flex-col gap-1 text-14">
+            <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto">
+              {firewalled.map((a) => (
+                <p key={a.id} className="flex items-center gap-2">
+                  <span className="truncate">{a.name}</span>
+                  <Chip tone="info">firewalled</Chip>
+                </p>
+              ))}
+            </div>
             <p className="text-12 text-text-dim">
               Not available cash. An outflow stays in the review queue until it is acknowledged
               (policy firewall_exclusion).
@@ -404,12 +411,7 @@ const TERM_DETAIL: Record<Term, (data: SafeToSpend) => ReactNode> = {
                   ) : null}
                 </span>
               }
-              right={
-                <Money
-                  cents={a.posted_cents + a.pending_in_cents - a.pending_out_cents}
-                  tone={false}
-                />
-              }
+              right={<Money cents={a.net_cents} tone={false} />}
             />
           ))}
         </ul>
@@ -629,8 +631,7 @@ function CapGauge({ venture: v }: { venture: VentureRollup }) {
   );
 }
 
-function UpcomingList({ rows }: { rows: UpcomingObligation[] }) {
-  const total = rows.reduce((sum, r) => sum + r.expected_cents, 0);
+function UpcomingList({ rows, total }: { rows: UpcomingObligation[]; total: number }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-1 text-14">
       <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto">
@@ -663,8 +664,5 @@ function UpcomingList({ rows }: { rows: UpcomingObligation[] }) {
 
 /** Unsigned figure for inline prose, where the sign is already in the words around it. */
 function formatPlain(cents: number): string {
-  return (Math.abs(cents) / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return formatCents(Math.abs(cents), { symbol: false });
 }

@@ -8,6 +8,7 @@ use crate::dates::{format_civil, now_rfc3339, parse_civil, CivilDate};
 use crate::db::audit::{self, Action, CommandRecord};
 use crate::db::repo::txn;
 use crate::error::{AppError, AppResult};
+use crate::import::csv::{FLAG_BORROWING, FLAG_SECURITIES_SALE};
 use crate::plan::occur::{self, IncomeRule};
 use crate::plan::{MATCH_AFTER_DAYS, MATCH_BEFORE_DAYS, MATCH_LOOKBACK_DAYS};
 
@@ -443,6 +444,8 @@ fn candidate_receipt(
         .query_row(
             "SELECT t.id FROM txn_leaf t
              WHERE t.amount_cents BETWEEN ?1 AND ?2 AND t.amount_cents > 0
+               AND t.status = 'posted' AND t.transfer_link_id IS NULL
+               AND (t.flags & ?8) = 0
                AND t.posted_date BETWEEN ?3 AND ?4
                AND (?5 IS NULL OR t.account_id = ?5)
                AND (?6 = '' OR instr(t.payee_norm, ?6) > 0)
@@ -456,7 +459,8 @@ fn candidate_receipt(
                 to,
                 stream.deposit_account_id,
                 needle,
-                format_civil(due)
+                format_civil(due),
+                i64::from(FLAG_BORROWING | FLAG_SECURITIES_SALE)
             ],
             |r| r.get(0),
         )

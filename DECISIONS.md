@@ -965,3 +965,72 @@ Status: Accepted · Date: 2026-10-05 · Source: product spec (M10) + tech lead (
 `release.yml` describe; nothing in M10 changed them. The v1 definition of done in
 `MILESTONES.md` is ticked against what this host could verify, with the Windows-only items
 named as such.
+
+## ADR-0048 — The post-v1 review: six core defects, the webview stops deriving money
+
+**Status.** Accepted (2026-10-05).
+
+**Context.** With M0–M10 complete, a read-only review of the core and of the webview against
+`CLAUDE.md`, `ARCHITECTURE.md` and the ADRs found defects no fixture had exercised, and the
+first CI runs on GitHub showed the workflows had never executed (a pnpm version named in both
+the workflow and `package.json`, then the vendored OpenSSL build using Git Bash's perl).
+
+**Decision.**
+
+1. **A linked row cannot be split.** `txn::split` refuses a row with a transfer or refund link
+   (`Conflict`): split children carried no link and the parent left `txn_leaf`, so a split
+   transfer became spending in both views and automation would recategorise its parts.
+   §6.5 states the rule in both directions now; `tests/m2_rules_links.rs` pins the refusal.
+2. **A receipt is a posted, unlinked, unflagged inflow.** `income::candidate_receipt` adds
+   `status = 'posted'`, `transfer_link_id IS NULL` and `(flags & (borrowing | securities_sale))
+= 0`, which ADR-0041 §1 and §5.5 already stated; without them a late paycheck could be
+   stood in for by a borrowing-flagged Zelle, a pending row or an internal transfer, and the
+   review's income and the venture spend share would carry borrowed money. The payment and
+   repayment matchers add `status = 'posted'` (transfers stay allowed there: card and loan
+   payments are transfers). `tests/m4_plan.rs` pins all three exclusions and the recovery.
+3. **One account set for the hero and its trust.** `recon::contributes` delegates to
+   `safe::contributes`: trust was judged over cash accounts of any owner, so an unreconciled
+   venture-owned checking account marked a hero it was not part of untrusted, and a data set
+   whose only cash accounts were venture-owned read as a trusted hero over an empty set.
+   `tests/m3_recon.rs` pins the venture account's exclusion.
+4. **A file's closing is the last transaction of its latest day in statement order.** The CSV
+   parser took the last row among equal latest dates, which is the closing only in an
+   oldest-first file; newest-first exports (the common bank order) prefilled Reconcile with the
+   balance before the last transaction. The parser decides the order from the first and last
+   dated rows; a unit test covers both orders with the same rows.
+5. **A user edit cannot post a row dated after today.** `apply_user_patch` takes today's civil
+   date (`cmd::write_dated`) and refuses `status = posted` on a later `posted_date`, the check
+   imports already made; `tests/m1_import.rs` pins it.
+6. **Import undo re-matches the plan** (`plan::match_all`), as ADR-0041 §1 lists for every
+   writing transaction; an occurrence freed by the undo was otherwise re-filled only by the next
+   write.
+7. **The webview derives no money figure.** Every sum, difference or net the screens computed
+   moves into the core's DTOs: `AvailableAccount.net_cents`, `Upcoming.total_expected_cents`,
+   `DebtsStep.total_debt_delta_cents` and `informal_delta_cents`, `Earmark.held_cents` (Σ its
+   entries, by SQL `SUM`), forecast `Day.variable_cents`, and `views::compare` with
+   `gross_minus_cash_outflows_cents` behind one `compare_views` command. The three places that
+   divided basis points or cents by 100 use `formatBps` / `formatCents`; `formatBpsInput` gives
+   a percent input its starting text.
+8. **The cache empties on lock and unlock.** Every cached read except the status leaves when
+   the status changes: the next unlock may open another folder, and an unlock takes the daily
+   snapshot and backup. A write invalidates receipts, payments and next occurrences too, since
+   every write re-matches (ADR-0041 §1), and recording a debt payment invalidates its
+   candidates. The Ledger's `venture:` chip resolves against the ventures list.
+9. **Notices are bounded.** The stack keeps the newest five; a notice with nothing to undo or
+   act on leaves after eight seconds; the column scrolls past 60% of the window. A notice that
+   names an undo stays until dismissed, as ADR-0047 requires.
+10. **A render error stops one screen, not the window.** A boundary around the active screen
+    names the error and offers the dashboard; the profile JSON editor accepts only a value
+    shaped like a CSV mapping, so typing `{}` or `null` mid-edit is an error in the textarea
+    rather than a blank window.
+11. **Marks and kinds.** The review's per-account balances and the trend table's hero, and the
+    forecast tables' closing, headroom and lowest figures carry the untrusted mark when the
+    balances behind them are unreconciled; the forecast event kind `informal` reaches the
+    webview's type and tone table; the dashboard's venture and firewall lists scroll inside
+    their panels; the surprise-bill form takes today's date once the forecast has loaded.
+12. **CI.** `pnpm/action-setup` reads the version from `package.json`; the Windows jobs set
+    `OPENSSL_SRC_PERL` to Strawberry Perl because `just` runs under Git Bash.
+
+**Consequences.** No fixture number changed; the new tests state the rules the fixtures had
+not reached. `EXPECTED.md` stands. The five derived fields are additive, so saved exports and
+the audit pack are unchanged.

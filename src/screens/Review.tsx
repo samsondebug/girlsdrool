@@ -140,7 +140,7 @@ function Walk({ review: r }: { review: ReviewData }) {
                   <span className="truncate">{a.name}</span>
                   <Chip tone={TRUST_TONE[a.trust]}>{TRUST_LABEL[a.trust]}</Chip>
                   <span className="ml-auto">
-                    <Money cents={a.balance_cents} />
+                    <Money cents={a.balance_cents} untrusted={a.trust !== "reconciled"} />
                   </span>
                 </li>
               ))}
@@ -195,15 +195,12 @@ function Walk({ review: r }: { review: ReviewData }) {
             <p className="flex items-baseline gap-2">
               <span className="text-text-dim">Total debt</span>
               <Money cents={s.debts.total_debt_cents} tone={false} />
-              <Delta now={s.debts.total_debt_cents} before={s.debts.previous_total_debt_cents} />
+              <Delta cents={s.debts.total_debt_delta_cents} />
             </p>
             <p className="flex items-baseline gap-2">
               <span className="text-text-dim">Informal remaining</span>
               <Money cents={s.debts.informal_remaining_cents} tone={false} />
-              <Delta
-                now={s.debts.informal_remaining_cents}
-                before={s.debts.previous_informal_cents}
-              />
+              <Delta cents={s.debts.informal_delta_cents} />
             </p>
             {s.debts.previous_review_id === null ? (
               <p className="text-12 text-text-dim">No earlier review to compare against.</p>
@@ -333,12 +330,11 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   );
 }
 
-function Delta({ now, before }: { now: number; before: number | null }) {
-  if (before === null) return null;
-  const d = now - before;
+function Delta({ cents }: { cents: number | null }) {
+  if (cents === null) return null;
   return (
     <span className="text-12 text-text-dim">
-      ({d === 0 ? "unchanged" : `${formatCents(d, { sign: "always" })} since last review`})
+      ({cents === 0 ? "unchanged" : `${formatCents(cents, { sign: "always" })} since last review`})
     </span>
   );
 }
@@ -566,6 +562,11 @@ function TrendTable({ points }: { points: TrendPoint[] }) {
             </td>
             <td className="py-1 pr-2 text-right">
               <Money cents={p.safe_cents} untrusted={!p.trusted} />
+              {p.trusted ? null : (
+                <span className="ml-1">
+                  <Chip tone="untrusted">untrusted</Chip>
+                </span>
+              )}
             </td>
             <td className="py-1 pr-2 text-right">
               <Money cents={p.available_cents} tone={false} />

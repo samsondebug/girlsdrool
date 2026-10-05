@@ -3,6 +3,38 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## Review after M10 — the fixes of ADR-0048 (unreleased)
+
+### What changed
+
+- A transfer- or refund-linked row can no longer be split (its parts would have counted as
+  spending); unlink first. Receipts match only posted, unlinked inflows that are not borrowing
+  or a securities sale; payments and repayments match posted rows only. The hero's trust is
+  judged over exactly the accounts the hero sums, so a venture-owned account never marks it.
+  A newest-first CSV prefills Reconcile with the right closing. A row cannot be posted before
+  its date by hand. Undoing an import re-matches the plan.
+- The webview derives no money figure any more: the per-account net, the next-14-days total,
+  the review's debt deltas, an earmark's held amount, a forecast day's variable total and the
+  spending-versus-cash difference all come from the core.
+- Locking empties the cache; a write refreshes receipts, payments and next occurrences; a debt
+  payment refreshes its candidates; the `venture:` ledger chip works. Notices are capped at
+  five and informational ones leave on their own. A render error on one screen shows the error
+  and a way back instead of a blank window.
+- CI runs at last: pnpm's version comes from `package.json` and the Windows jobs build OpenSSL
+  with Strawberry Perl.
+
+### Verified in this session (Linux dev container)
+
+- `just check` → exit 0 with `check-core: green` then `E2E NOT RUN`; 118 Rust tests (five new:
+  linked-row split refusal, receipt exclusions, venture account outside trust, CSV closing in
+  both orders, future-dated post), 45 vitest tests, clippy on both feature sets, gates clean.
+- GitHub `ci.yml` on this branch: `core-linux` green.
+
+### Not verified here
+
+- The Windows job (`just check` with the Playwright critical path, then the installer): read
+  from GitHub after the push; see MILESTONES.md for its box.
+
 ## M10 — Palette, shortcuts, undo coverage, 200k rows, the critical path (unreleased)
 
 ### Demo

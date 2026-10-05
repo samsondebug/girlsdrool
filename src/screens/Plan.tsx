@@ -1428,10 +1428,8 @@ function EarmarkRow({
   onEdit: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const entries = useEarmarkEntries(open ? e.id : null);
   const update = useUpdateEarmark();
   const pushNotice = useUiStore((s) => s.pushNotice);
-  const remaining = (entries.data ?? []).reduce((acc, en) => acc + en.amount_cents, 0);
   return (
     <li
       className={`flex flex-col gap-1 rounded-2 border border-line p-2 text-14 ${e.active ? "" : "text-text-dim"}`}
@@ -1476,7 +1474,7 @@ function EarmarkRow({
           ? ""
           : ` · ${label(e.schedule)}${e.schedule_amount_cents !== null ? ` ${formatCents(e.schedule_amount_cents)}` : ""}`}
         {e.target_date ? ` · by ${e.target_date}` : ""}
-        {open && entries.data ? ` · remaining ${formatCents(remaining)}` : ""}
+        {` · holds ${formatCents(e.held_cents)}`}
       </p>
       {open ? <Entries earmark={e} /> : null}
     </li>
