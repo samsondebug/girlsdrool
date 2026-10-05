@@ -140,7 +140,7 @@ fn empty_database_migrates_to_latest_with_seeds() {
     assert_eq!(settings.zone, "America/Chicago");
     assert_eq!(settings.timing_buffer_cents, 0);
     assert_eq!(settings.recon_stale_after_days, 45);
-    assert_eq!(settings.dedup_similarity_bps, 8000);
+    assert_eq!(settings.dedup_similarity_bps, 8500);
     assert_eq!(settings.theme, "dark");
     assert_eq!(settings.backup_keep_daily, 14);
 
@@ -154,9 +154,7 @@ fn wrong_passphrase_fails_closed_and_leaves_the_file_untouched() {
     drop(create(&paths));
     let before = file_sha256(&paths.db);
 
-    let err = Db::open(&paths, "wrong passphrase", OpenMode::Existing)
-        .err()
-        .expect("must fail");
+    let err = Db::open(&paths, "wrong passphrase", OpenMode::Existing).expect_err("must fail");
     assert!(matches!(err, AppError::WrongPassphrase), "got {err:?}");
     assert_eq!(
         file_sha256(&paths.db),
@@ -213,9 +211,7 @@ fn tampered_migration_checksum_refuses_to_open() {
         )
         .unwrap();
     }
-    let err = Db::open(&paths, PASS, OpenMode::Existing)
-        .err()
-        .expect("must refuse");
+    let err = Db::open(&paths, PASS, OpenMode::Existing).expect_err("must refuse");
     assert!(matches!(err, AppError::Migration(_)), "got {err:?}");
 }
 
@@ -227,9 +223,7 @@ fn newer_schema_than_the_binary_refuses_to_open() {
         let conn = db::open_keyed(&paths.db, PASS, false).unwrap();
         conn.pragma_update(None, "user_version", 99).unwrap();
     }
-    let err = Db::open(&paths, PASS, OpenMode::Existing)
-        .err()
-        .expect("must refuse");
+    let err = Db::open(&paths, PASS, OpenMode::Existing).expect_err("must refuse");
     assert!(matches!(err, AppError::Migration(_)), "got {err:?}");
 }
 

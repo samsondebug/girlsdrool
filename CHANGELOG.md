@@ -3,6 +3,50 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M1 — Accounts, CSV import with dedup, ledger (unreleased)
+
+### Demo
+
+1. Accounts: add the seven fixture accounts (name, institution, kind, opening balance and date,
+   firewalled). Accounts are archived, never deleted; kind and opening figures lock once rows exist.
+2. Import: drop, choose or paste a statement export; the profile is detected from the header
+   (five institution profiles plus `generic_csv`), the mapping preview shows the first 20 rows as
+   the ledger will see them, and commit writes one batch in one transaction with a prose report:
+   "Read 32 rows. Inserted 0. Skipped 31 already-imported rows. Held 1 suspected duplicate for
+   review (similarity ≥ 85.00%)."
+3. Dedup, exactly as `fixtures/EXPECTED.md` wrote down first: a byte-identical file is a recorded
+   no-op; an overlapping export skips 31 rows by hash and holds one descriptor variant for review
+   at Jaro–Winkler 0.9111; a card row that was pending in August and posted in September is
+   updated, not duplicated; a bank-funded Venmo payment is skipped by the profile's rule; a EUR
+   file is rejected before any write. Suspected duplicates are resolved (insert / discard) in
+   the Import screen; batches are undone from the batch list or the toast.
+4. Ledger: 104 fixture rows virtualized, query chips (`account:`, `cat:`, `tag:`, `>100`,
+   `needs:review`, `flag:borrowing`, `status:pending`, `date:2026-09`, free text), the core's
+   row count and Σ for the filter, inline edits of payee and memo (a dot marks a user-edited
+   field), per-row category select, multi-select recategorize, a split editor whose parts must
+   sum to the row, saved views.
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 37 unit (profile spec, CSV parsing, normalisation
+  table, dedup decisions, report prose), 7 property (`money_sum_conserves` incl. splits,
+  `import_idempotent`, `dedup_no_cross_account_collapse`, `user_edit_survives_reimport`, …),
+  1 logging, 9 M0 acceptance, 6 M1 acceptance (every fixture file imports; all 21 monthly
+  closings equal `EXPECTED.md`; duplicate/overlap/pending/skip/EUR outcomes; re-import of
+  everything inserts nothing and changes no user field; undo order and conflicts; preview).
+- `pnpm typecheck`, `pnpm lint`, `pnpm test` (42 Vitest cases incl. the chip grammar) — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice (fmt, clippy
+  for both feature sets, every Rust suite, tsc, eslint, prettier, vitest, gates).
+- `pnpm tauri build --debug --no-bundle` — exit 0; launched under Xvfb against a data folder seeded
+  with every fixture (`seed_fixture_data_folder`, an ignored test) and screenshotted:
+  `docs/screenshots/m1-ledger.png` (104 rows, Σ $16,257.00 from the core), `m1-import.png`
+  (one suspected duplicate held, 18 batches with undo), `m1-accounts.png`.
+
+### Not verified on this host
+
+- The Playwright critical path (Windows/WebView2 only) now needs its import → ledger steps written
+  against these screens; that lands with the reconciliation step in M3 when the path is complete.
+
 ## M0 — Scaffold, tokens, encrypted database (unreleased)
 
 ### Demo

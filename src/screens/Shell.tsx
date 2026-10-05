@@ -2,7 +2,10 @@ import { Button } from "../components/Button";
 import { api, type AppStatus } from "../lib/ipc";
 import { useStatusMutation } from "../lib/queries";
 import { useUiStore, type Screen } from "../lib/store";
+import { Accounts } from "./Accounts";
 import { Dashboard } from "./Dashboard";
+import { Import } from "./Import";
+import { Ledger } from "./Ledger";
 import { Settings } from "./Settings";
 
 interface ShellProps {
@@ -11,8 +14,26 @@ interface ShellProps {
 
 const navItems: { screen: Screen; label: string }[] = [
   { screen: "dashboard", label: "Dashboard" },
+  { screen: "ledger", label: "Ledger" },
+  { screen: "import", label: "Import" },
+  { screen: "accounts", label: "Accounts" },
   { screen: "settings", label: "Settings" },
 ];
+
+function ActiveScreen({ screen, status }: { screen: Screen; status: AppStatus }) {
+  switch (screen) {
+    case "dashboard":
+      return <Dashboard />;
+    case "ledger":
+      return <Ledger />;
+    case "import":
+      return <Import />;
+    case "accounts":
+      return <Accounts />;
+    case "settings":
+      return <Settings status={status} />;
+  }
+}
 
 /** The unlocked app: header, navigation, and the active screen. Screens own their scrolling. */
 export function Shell({ status }: ShellProps) {
@@ -62,7 +83,7 @@ export function Shell({ status }: ShellProps) {
         })}
       </nav>
       <main className="min-h-0 overflow-hidden">
-        {screen === "dashboard" ? <Dashboard /> : <Settings status={status} />}
+        <ActiveScreen screen={screen} status={status} />
       </main>
     </div>
   );

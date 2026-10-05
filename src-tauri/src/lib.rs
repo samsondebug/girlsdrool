@@ -7,6 +7,7 @@ pub mod dates;
 pub mod db;
 pub mod error;
 pub mod export;
+pub mod import;
 pub mod logging;
 pub mod money;
 pub mod secret;
@@ -88,6 +89,30 @@ pub fn run() {
             cmd::forget_remembered,
             cmd::get_settings,
             cmd::update_setting,
+            cmd::list_accounts,
+            cmd::create_account,
+            cmd::update_account,
+            cmd::list_categories,
+            cmd::create_category,
+            cmd::rename_category,
+            cmd::archive_category,
+            cmd::list_import_profiles,
+            cmd::import_preview,
+            cmd::import_commit,
+            cmd::undo_import_batch,
+            cmd::list_import_batches,
+            cmd::list_quarantine,
+            cmd::resolve_quarantine,
+            cmd::ledger_query,
+            cmd::ledger_children,
+            cmd::get_txn,
+            cmd::update_txn,
+            cmd::recategorize,
+            cmd::split_txn,
+            cmd::unsplit_txn,
+            cmd::list_saved_views,
+            cmd::save_view,
+            cmd::delete_saved_view,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

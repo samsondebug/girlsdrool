@@ -45,6 +45,9 @@ export default defineConfig([
     plugins: { "react-refresh": reactRefresh },
     rules: {
       "react-refresh/only-export-components": ["error", { allowConstantExport: true }],
+      // React Compiler diagnostics: Kept does not run the compiler, so "compilation skipped"
+      // notes about TanStack hooks are noise.
+      "react-hooks/incompatible-library": "off",
     },
   },
   {

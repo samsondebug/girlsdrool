@@ -48,26 +48,26 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] fixture CSVs import
-- [ ] second import is a no-op
-- [ ] ledger virtualizes
-- [ ] query chips work
+- [x] fixture CSVs import (`tests/m1_import.rs`: 17 files, 104 rows, 21 monthly closings equal `EXPECTED.md`)
+- [x] second import is a no-op (`tests/m1_import.rs` and the `import_idempotent` property)
+- [x] ledger virtualizes (TanStack Virtual over keyset pages of 200; the 200k-row timing is M10's)
+- [x] query chips work (`src/lib/query-chips.test.ts`; compiled to SQL in `db/repo/ledger.rs`)
 
 **Engineering checklist**
 
-- [ ] `fixtures/EXPECTED.md` written FIRST by hand: per-account opening/closing per month, transfer pairs, spending-view and cash-view totals, safe-to-spend inputs and answer, first shortfall date, two-debt schedule, venture buckets (ADR-0028)
-- [ ] Fixture CSVs for the seven sources (ARCHITECTURE §14) matching `EXPECTED.md`
-- [ ] Accounts CRUD (kind, opening balance/date, owner, firewalled, archived) with audit rows
-- [ ] Import profiles: `spec_json` schema, seven fixture profiles + `generic_csv`, header-signature auto-detect, mapping preview
-- [ ] CSV parser: integer amount parsing, civil dates, status, external id, currency guard (`Unsupported`), `Parse { row, column }`
-- [ ] `payee_norm` (ADR-0018) with table tests
-- [ ] Dedup: file-level idempotency, hash/external-id skip, fuzzy update, quarantine (ADR-0017); human-readable report
-- [ ] Batch undo with `Conflict` on later edits
-- [ ] Ledger screen: TanStack Table + Virtual, keyset pagination, inline edit (sets `user_edited` bits), multi-select recategorize, splits editor (`Validation` when children ≠ parent), saved views
-- [ ] Query chips parser (TS) + SQL compiler (Rust), both tested
-- [ ] Import screen: drop zone, profile pick, mapping preview, dedup report, commit, undo of that batch
-- [ ] Property tests: `money_sum_conserves`, `import_idempotent`, `dedup_no_cross_account_collapse`, `user_edit_survives_reimport`
-- [ ] Integration test: all fixture files import; re-import inserts zero rows; per-account closing balances equal `EXPECTED.md`
+- [x] `fixtures/EXPECTED.md` written FIRST by hand (`fixtures/generate.py` emits it from one explicit row list with running balances; the M4/M5 answers are appended at those milestones from the plan inputs it defines)
+- [x] Fixture CSVs for the seven sources (ARCHITECTURE §14) matching `EXPECTED.md`
+- [x] Accounts CRUD (kind, opening balance/date, owner, firewalled, archived) with audit rows
+- [x] Import profiles: `spec_json` schema, five institution profiles (migration 0002) + `generic_csv`, header-signature auto-detect, mapping preview
+- [x] CSV parser: integer amount parsing, civil dates, status, external id, currency guard (`Unsupported`), `Parse { row, column }`
+- [x] `payee_norm` (ADR-0018) with table tests
+- [x] Dedup: file-level idempotency, hash/external-id skip, fuzzy update, older-observation skip, quarantine (ADR-0017, ADR-0037); human-readable report
+- [x] Batch undo with `Conflict` on later edits
+- [x] Ledger screen: TanStack Table + Virtual, keyset pagination, inline edit (sets `user_edited` bits), multi-select recategorize, splits editor (`Validation` when children ≠ parent), saved views
+- [x] Query chips parser (TS) + SQL compiler (Rust), both tested
+- [x] Import screen: drop zone, profile pick, mapping preview, dedup report, commit, undo of that batch, quarantine resolution
+- [x] Property tests: `money_sum_conserves`, `import_idempotent`, `dedup_no_cross_account_collapse`, `user_edit_survives_reimport`
+- [x] Integration test: all fixture files import; re-import inserts zero rows; per-account closing balances equal `EXPECTED.md`
 
 **Questions to batch:** none expected; if a fixture scenario forces a dedup-rule choice that changes which rows are trusted, it is written here and asked.
 

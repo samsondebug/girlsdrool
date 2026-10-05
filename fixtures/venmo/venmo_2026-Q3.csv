@@ -1,0 +1,7 @@
+Account Statement - (@dave-kept) - Jul 1 2026 to Sep 30 2026
+Account Activity
+ID,Datetime,Type,Status,Note,From,To,Amount (total),Funding Source,Destination
+4211000001,2026-08-05T14:03:11,Payment,Complete,til payday,Chris Park,Dave Kept,+ $600.00,Venmo balance,
+4211000002,2026-08-06T09:15:40,Standard Transfer,Complete,,Dave Kept,,- $600.00,Venmo balance,Northbank Bank *1234
+4211000003,2026-09-13T19:42:05,Payment,Complete,concert tix,Dave Kept,Morgan Avery,- $85.00,Northbank Checking,
+4211000004,2026-09-20T20:11:37,Payment,Complete,dinner,Morgan Avery,Dave Kept,+ $42.00,Venmo balance,

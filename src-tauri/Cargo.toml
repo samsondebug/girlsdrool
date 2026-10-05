@@ -22,10 +22,10 @@ default = ["app"]
 app = ["dep:tauri", "dep:tauri-plugin-dialog", "dep:tauri-build"]
 
 [build-dependencies]
-tauri-build = { version = "2", optional = true }
+tauri-build = { version = "2", optional = true , features = [] }
 
 [dependencies]
-tauri = { version = "2", optional = true }
+tauri = { version = "2", optional = true , features = [] }
 tauri-plugin-dialog = { version = "2", optional = true }
 rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl", "backup"] }
 serde = { version = "1", features = ["derive"] }
@@ -39,6 +39,8 @@ tracing-appender = "0.2"
 sha2 = "0.11"
 hex = "0.4"
 zeroize = "1"
+csv = "1"
+strsim = "0.11"
 # Credential store (optional "remember passphrase"): keyring-core API + one platform store.
 # The `keyring` facade is not used: it requires its `v1`/`cli` feature sets and pulls stores we
 # do not want (see its lib.rs). Windows Credential Manager is the shipping store.

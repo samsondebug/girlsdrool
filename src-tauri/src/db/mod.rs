@@ -5,6 +5,7 @@
 
 pub mod audit;
 pub mod migrate;
+pub mod repo;
 pub mod settings;
 
 use std::path::Path;
@@ -19,6 +20,15 @@ pub struct Db {
     conn: Connection,
     passphrase: Zeroizing<String>,
     paths: DataPaths,
+}
+
+/// Never prints the passphrase: only the file the connection is bound to.
+impl std::fmt::Debug for Db {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Db")
+            .field("path", &self.paths.db)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,7 +153,7 @@ pub fn validate_passphrase(passphrase: &str) -> AppResult<()> {
     Ok(())
 }
 
-fn apply_pragmas(conn: &Connection) -> AppResult<()> {
+pub fn apply_pragmas(conn: &Connection) -> AppResult<()> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;

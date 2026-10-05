@@ -476,3 +476,47 @@ tauri-plugin-updater tauri-plugin-shell tauri-plugin-websocket` appears in the r
 (`cargo tree --all-features -i <crate>`) for the host or the Windows target. The lock file is
 not grepped. The webview-side grep for `fetch(`, `XMLHttpRequest`, `WebSocket`,
 `sendBeacon`, `navigator.onLine` and `EventSource` stands.
+
+## ADR-0037 — Dedup similarity is Jaro–Winkler; older observations skip; bank-funded app rows skip
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead (supersedes the similarity metric in ADR-0017)
+
+**Context.** Writing the fixtures showed how exports vary: a descriptor gains a location or a
+processor code as a suffix (`JEWEL-OSCO #3421` → `JEWEL-OSCO #3421 CHICAGO`), and a pending
+card row posts later with a longer descriptor. Normalised Levenshtein scores such pairs at 0.48;
+a prefix-weighted metric scores them at 0.91. Two more cases had no rule: re-importing an
+export that still shows a row as pending after the ledger already holds it posted, and a
+payment-app export that lists payments funded straight from a bank account.
+
+**Decision.**
+
+1. Payee similarity is Jaro–Winkler on `payee_norm`, threshold 0.85 (`dedup_similarity_bps`
+   8500, migration 0002), recorded per batch. The expected values in `fixtures/EXPECTED.md`
+   come from an independent implementation in `fixtures/generate.py`.
+2. An incoming **pending** row that fuzzy-matches a **posted** ledger row is skipped as an older
+   observation (`older_observation`), never quarantined: it carries no new information. Posted
+   vs posted still quarantines; pending → posted still updates; a gained `external_id` still
+   updates.
+3. A profile may declare `skip_when` (column, allowed values, reason): rows outside the allowed
+   values are skipped and reported (`profile_rule`). Venmo payments funded from a bank account
+   are the case: the bank's own row is the ledger entry, and the Venmo balance never moved.
+4. Profiles may also set `row_flags` (every row), `flags_by_type` (type column → flags), an
+   `effective_date` column, a counterparty payee (`inflow_column`/`outflow_column` with a
+   fallback), a multi-column memo, and `skip_rows` for preambles.
+5. A trailing newline is not a row; a record of empty cells is a blank row, counted and reported.
+
+**Consequences.** `import_idempotent` holds for the August-then-September card export pattern.
+ADR-0017's hash, file-level idempotency, quarantine and user-field rules stand unchanged.
+
+## ADR-0038 — TanStack Table stays on the v8 line
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** The spec names TanStack Table without a version. At M1 the registry's latest is
+9.x, a rewrite of the API (feature and row-model imports) that the author of this code cannot
+vouch for from memory; 8.21 is the long-stable line the ledger's needs (column definitions, row
+model, row selection) are well served by.
+
+**Decision.** `@tanstack/react-table` `^8.21` with `@tanstack/react-virtual` `^3.14`. Moving to
+v9 is a deliberate upgrade with its own ADR, not a routine bump. `@radix-ui/react-dialog` `^1.1`
+is the first Radix primitive in use (split editor, save-view dialog).

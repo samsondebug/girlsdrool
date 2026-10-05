@@ -19,11 +19,18 @@ pub struct Migration {
 
 /// Every migration this build knows, in order. A committed file is never edited: a mistake is
 /// fixed by the next migration.
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "init",
-    sql: include_str!("../../migrations/0001_init.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "init",
+        sql: include_str!("../../migrations/0001_init.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "institution_profiles",
+        sql: include_str!("../../migrations/0002_institution_profiles.sql"),
+    },
+];
 
 pub fn latest_version() -> i64 {
     MIGRATIONS.last().map_or(0, |m| m.version)
@@ -72,11 +79,7 @@ pub fn run(
         backup_path = Some(dest);
     }
 
-    let mut applied = Vec::new();
-    for m in &pending {
-        apply(conn, m)?;
-        applied.push(m.version);
-    }
+    let applied = apply_pending(conn)?;
 
     if let Some(dest) = &backup_path {
         backup::log_backup(conn, dest, backup::BackupKind::PreMigration, false)?;
@@ -131,6 +134,18 @@ fn verify_applied(conn: &Connection, current: i64) -> AppResult<()> {
     Ok(())
 }
 
+/// Apply every migration newer than the database's version, without the backup step (used by
+/// `run` after it has taken the backup, and by tests on fresh in-memory databases).
+pub fn apply_pending(conn: &mut Connection) -> AppResult<Vec<i64>> {
+    let current = current_version(conn)?;
+    let mut applied = Vec::new();
+    for m in MIGRATIONS.iter().filter(|m| m.version > current) {
+        apply(conn, m)?;
+        applied.push(m.version);
+    }
+    Ok(applied)
+}
+
 fn apply(conn: &mut Connection, m: &Migration) -> AppResult<()> {
     let tx = conn.transaction()?;
     tx.execute_batch(m.sql)
@@ -177,10 +192,16 @@ mod tests {
     #[test]
     fn migrations_do_not_manage_their_own_transactions() {
         for m in MIGRATIONS {
-            let upper = m.sql.to_ascii_uppercase();
-            assert!(!upper.contains("BEGIN;"), "{} opens a transaction", m.name);
+            let code: String = m
+                .sql
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n")
+                .to_ascii_uppercase();
+            assert!(!code.contains("BEGIN;"), "{} opens a transaction", m.name);
             assert!(
-                !upper.contains("COMMIT;"),
+                !code.contains("COMMIT;"),
                 "{} commits a transaction",
                 m.name
             );

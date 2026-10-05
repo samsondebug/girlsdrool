@@ -1,17 +1,19 @@
 /**
- * UI state only (ADR-0008): which screen is open and transient notices. Ledger rows, balances
- * and settings live in TanStack Query, never here.
+ * UI state only (ADR-0008): which screen is open, transient notices, the ledger query text.
+ * Ledger rows, balances and settings live in TanStack Query, never here.
  */
 import { create } from "zustand";
 
 import type { Theme } from "./ipc";
 
-export type Screen = "dashboard" | "settings";
+export type Screen = "dashboard" | "ledger" | "import" | "accounts" | "settings";
 
 export interface Notice {
   id: number;
   tone: "info" | "warning" | "negative" | "positive";
   text: string;
+  /** An undo the toast names (spec: toasts that name the undo). */
+  undo?: { label: string; run: () => void };
 }
 
 interface UiState {
@@ -20,6 +22,8 @@ interface UiState {
   notices: Notice[];
   pushNotice: (notice: Omit<Notice, "id">) => void;
   dismissNotice: (id: number) => void;
+  ledgerQuery: string;
+  setLedgerQuery: (text: string) => void;
 }
 
 let nextNoticeId = 1;
@@ -36,6 +40,10 @@ export const useUiStore = create<UiState>((set) => ({
   },
   dismissNotice: (id) => {
     set((state) => ({ notices: state.notices.filter((n) => n.id !== id) }));
+  },
+  ledgerQuery: "",
+  setLedgerQuery: (ledgerQuery) => {
+    set({ ledgerQuery });
   },
 }));
 
