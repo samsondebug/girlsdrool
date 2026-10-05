@@ -4,7 +4,7 @@
  */
 import { create } from "zustand";
 
-import type { Theme } from "./ipc";
+import type { Scenario, Theme } from "./ipc";
 
 export type Screen =
   | "dashboard"
@@ -13,6 +13,7 @@ export type Screen =
   | "rules"
   | "reconcile"
   | "plan"
+  | "forecast"
   | "import"
   | "accounts"
   | "settings";
@@ -44,7 +45,12 @@ interface UiState {
   setLedgerQuery: (text: string) => void;
   reconcileDraft: ReconcileDraft | null;
   setReconcileDraft: (draft: ReconcileDraft | null) => void;
+  /** The scenario the Forecast screen shows; the dashboard always shows the baseline. */
+  forecastScenario: Scenario;
+  setForecastScenario: (scenario: Scenario) => void;
 }
+
+export const BASELINE: Scenario = { downside: false, surprise_bill: null };
 
 let nextNoticeId = 1;
 
@@ -68,6 +74,10 @@ export const useUiStore = create<UiState>((set) => ({
   reconcileDraft: null,
   setReconcileDraft: (reconcileDraft) => {
     set({ reconcileDraft });
+  },
+  forecastScenario: BASELINE,
+  setForecastScenario: (forecastScenario) => {
+    set({ forecastScenario });
   },
 }));
 

@@ -276,7 +276,7 @@ pub fn next_income(conn: &Connection, today: CivilDate) -> AppResult<Option<Next
 
 /// Unpaid confirmed occurrences due in `[from, to]` (never before the source account's opening
 /// date), each reduced by what a counted earmark linked to it still holds.
-fn unpaid_occurrences(
+pub(crate) fn unpaid_occurrences(
     conn: &Connection,
     today: CivilDate,
     from: CivilDate,

@@ -542,3 +542,111 @@ proptest! {
         }
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(24))]
+
+    /// For every scenario, every day closes at `opening + inflows − outflows` and the horizon
+    /// ties out the same way; the lowest point, the shortfall and the buffer breach are read off
+    /// that same series. A scenario changes inputs, never arithmetic.
+    #[test]
+    fn forecast_ties(
+        rows in prop::collection::vec(gen_row(), 0..=12),
+        downside in any::<bool>(),
+        bill in prop::option::of((0i64..=90, 1i64..=500_000)),
+        buffer in 0i64..=50_000,
+        pending_day in prop::option::of(1u32..=28),
+    ) {
+        let mut conn = memory_db();
+        let accounts = fixture_accounts(&conn);
+        let nbc = account_id(&accounts, "nbc");
+        let profile = generic_with_memo(&conn);
+        import_text(&mut conn, nbc, profile, "a.csv", &csv_text(&rows));
+        kept::db::settings::update(&mut conn, "timing_buffer_cents", &serde_json::json!(buffer)).unwrap();
+        let today = date("2026-07-31");
+        if let (Some(day), false) = (pending_day, rows.is_empty()) {
+            // one imported row still pending, posting inside the window
+            conn.execute(
+                "UPDATE txn SET status = 'pending', effective_date = ?1 WHERE id = (SELECT MIN(id) FROM txn)",
+                [format!("2026-08-{day:02}")],
+            ).unwrap();
+        }
+        let cmd = audit::begin(&conn, "test.plan", Actor::User).unwrap();
+        kept::plan::income::create(&conn, &cmd, &kept::plan::income::IncomeInput {
+            name: "Pay".into(),
+            kind: "base".into(),
+            cycle: "biweekly".into(),
+            anchor_date: "2026-07-10".into(),
+            semimonthly_day_1: None,
+            semimonthly_day_2: None,
+            expected_net_cents: 300_000,
+            variability_cents: 0,
+            confidence: "confirmed".into(),
+            weekend_rule: "previous_business_day".into(),
+            deposit_account_id: Some(nbc),
+            match_payee_contains: Some("meridian cap".into()),
+            active: true,
+        }).unwrap();
+        kept::plan::obligation::create(&conn, &cmd, &kept::plan::obligation::ObligationInput {
+            name: "Rent".into(),
+            kind: "bill".into(),
+            status: "confirmed".into(),
+            due_rule: "monthly_day".into(),
+            due_day: Some(1),
+            due_month: None,
+            due_weekday: None,
+            due_nth: None,
+            anchor_date: None,
+            expected_cents: 240_000,
+            variability_cents: 0,
+            source_account_id: nbc,
+            autopay: false,
+            category_id: None,
+            debt_id: None,
+            match_payee_contains: Some("lakeshore".into()),
+        }).unwrap();
+        let scenario = kept::forecast::Scenario {
+            downside,
+            surprise_bill: bill.map(|(offset, cents)| kept::forecast::SurpriseBill {
+                date: kept::dates::format_civil(today + chrono::Duration::days(offset)),
+                cents,
+            }),
+        };
+        let f = kept::forecast::run(&conn, today, &scenario).unwrap();
+        prop_assert_eq!(f.days.len(), 91);
+        prop_assert_eq!(f.weeks.len(), 13);
+        let mut bal = f.opening_cents;
+        let (mut inflows, mut outflows) = (0i64, 0i64);
+        for (i, d) in f.days.iter().enumerate() {
+            prop_assert_eq!(d.day as usize, i);
+            prop_assert_eq!(d.opening_cents, bal);
+            prop_assert_eq!(d.inflows_cents, d.events.iter().filter(|e| e.cents > 0).map(|e| e.cents).sum::<i64>());
+            prop_assert_eq!(d.outflows_cents, -d.events.iter().filter(|e| e.cents < 0).map(|e| e.cents).sum::<i64>());
+            prop_assert_eq!(d.closing_cents, d.opening_cents + d.inflows_cents - d.outflows_cents);
+            prop_assert_eq!(d.headroom_cents, d.closing_cents - d.committed_cents);
+            prop_assert!(d.committed_cents >= buffer);
+            bal = d.closing_cents;
+            inflows += d.inflows_cents;
+            outflows += d.outflows_cents;
+        }
+        prop_assert_eq!((f.inflows_cents, f.outflows_cents), (inflows, outflows));
+        prop_assert_eq!(f.closing_cents, f.opening_cents + f.inflows_cents - f.outflows_cents);
+        prop_assert_eq!(f.closing_cents, bal);
+        let min = f.days.iter().map(|d| d.closing_cents).min().unwrap();
+        prop_assert_eq!(f.lowest.cents, min);
+        prop_assert_eq!(&f.lowest.date, &f.days.iter().find(|d| d.closing_cents == min).unwrap().date);
+        prop_assert_eq!(f.first_shortfall.as_ref().map(|p| p.date.clone()), f.days.iter().find(|d| d.closing_cents < 0).map(|d| d.date.clone()));
+        prop_assert_eq!(f.first_buffer_breach.as_ref().map(|p| p.date.clone()), f.days.iter().find(|d| d.headroom_cents < 0).map(|d| d.date.clone()));
+        prop_assert_eq!(f.weeks.iter().map(|w| w.inflows_cents).sum::<i64>(), f.inflows_cents);
+        prop_assert_eq!(f.weeks.iter().map(|w| w.outflows_cents).sum::<i64>(), f.outflows_cents);
+        prop_assert_eq!(f.weeks.last().unwrap().closing_cents, f.closing_cents);
+        // the scenario never invents pay: income is the confirmed stream's occurrences, shifted or not
+        let pay: i64 = f.days.iter().flat_map(|d| d.events.iter()).filter(|e| e.kind == "income").map(|e| e.cents).sum();
+        prop_assert_eq!(pay, 300_000 * f.pay_dates.len() as i64);
+        prop_assert_eq!(f.pay_dates.iter().filter(|p| p.shifted).count(), usize::from(downside && !f.pay_dates.is_empty()));
+        if let Some((_, cents)) = bill {
+            let surprise: i64 = f.days.iter().flat_map(|d| d.events.iter()).filter(|e| e.kind == "surprise").map(|e| e.cents).sum();
+            prop_assert_eq!(surprise, -cents);
+        }
+    }
+}

@@ -883,6 +883,102 @@ export interface Upcoming {
   obligations: UpcomingObligation[];
 }
 
+export interface SurpriseBill {
+  date: string;
+  cents: number;
+}
+
+export interface Scenario {
+  downside: boolean;
+  surprise_bill: SurpriseBill | null;
+}
+
+export type ForecastEventKind = "pending" | "income" | "obligation" | "variable" | "surprise";
+
+export interface ForecastEvent {
+  kind: ForecastEventKind;
+  name: string;
+  cents: number;
+  ref_id: number | null;
+}
+
+export interface ForecastDay {
+  day: number;
+  date: string;
+  opening_cents: number;
+  inflows_cents: number;
+  outflows_cents: number;
+  closing_cents: number;
+  committed_cents: number;
+  headroom_cents: number;
+  events: ForecastEvent[];
+}
+
+export interface ForecastWeek {
+  week: number;
+  start: string;
+  end: string;
+  inflows_cents: number;
+  outflows_cents: number;
+  closing_cents: number;
+  lowest_cents: number;
+}
+
+export interface ForecastPoint {
+  date: string;
+  cents: number;
+}
+
+export interface PayDate {
+  stream_id: number;
+  stream_name: string;
+  date: string;
+  shifted: boolean;
+}
+
+export interface PlanOverlay {
+  snapshot_id: number;
+  taken_at: string;
+  civil_date: string;
+  days: ForecastPoint[];
+}
+
+export interface VariableBucket {
+  start: string;
+  end: string;
+  net_outflow_cents: number;
+}
+
+export interface CategoryModel {
+  category_id: number;
+  code: string | null;
+  name: string;
+  buckets: VariableBucket[];
+  median_cents: number;
+  override_cents: number | null;
+  per_30_days_cents: number;
+}
+
+export interface Forecast {
+  as_of: string;
+  horizon_days: number;
+  scenario: Scenario;
+  opening_cents: number;
+  inflows_cents: number;
+  outflows_cents: number;
+  closing_cents: number;
+  lowest: ForecastPoint;
+  first_shortfall: ForecastPoint | null;
+  first_buffer_breach: ForecastPoint | null;
+  days: ForecastDay[];
+  weeks: ForecastWeek[];
+  model: CategoryModel[];
+  model_total_cents: number;
+  pay_dates: PayDate[];
+  plan: PlanOverlay | null;
+  trust: TrustReport;
+}
+
 export const api = {
   appStatus: () => call<AppStatus>("app_status"),
   chooseDataDir: (path: string) => call<AppStatus>("choose_data_dir", { path }),
@@ -1005,6 +1101,12 @@ export const api = {
   listPolicies: () => call<Policy[]>("list_policies"),
   safeToSpend: () => call<SafeToSpend>("safe_to_spend"),
   upcoming: (days?: number) => call<Upcoming>("upcoming", { days: days ?? null }),
+
+  forecast: (scenario: Scenario) => call<Forecast>("forecast", { scenario }),
+  variableSpendModel: () => call<CategoryModel[]>("variable_spend_model"),
+  setVariableSpendOverride: (categoryId: number, per30DaysCents: number | null) =>
+    call<CategoryModel[]>("set_variable_spend_override", { categoryId, per30DaysCents }),
+  saveForecastPlan: () => call<PlanOverlay>("save_forecast_plan"),
 };
 
 export const CHANGED_EVENT = "kept://changed";

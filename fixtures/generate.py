@@ -300,6 +300,130 @@ EARMARKS = [
 
 CASH_KINDS = ("checking", "savings", "cash", "payment_app")
 
+# ---------------------------------------------------------------------------------------------
+# M5: the forecast as of AS_OF — variable-spend model, 91-day daily engine, scenarios — computed
+# here from ROWS and the plan, emitted to EXPECTED.md and forecast.json.
+# ---------------------------------------------------------------------------------------------
+
+HORIZON_DAYS = 90        # the engine runs days 0..=90; the 30-day view is days 0..29, the 13-week view is 13 seven-day buckets
+BUCKET_DAYS = 30
+PAY_SHIFT_DAYS = 7       # downside: the next confirmed base-pay occurrence lands this many civil days late
+SURPRISE_BILLS = {
+    "downside_bill": ("2026-10-05", 1_500_000),   # dents the committed buffer, never the balance
+    "bill": ("2026-10-05", 3_000_000),            # overdraws the balance by a few dollars until the next pay
+}
+SCENARIOS = {
+    "baseline": dict(downside=False, surprise=None),
+    "downside": dict(downside=True, surprise=None),
+    "downside_bill": dict(downside=True, surprise=SURPRISE_BILLS["downside_bill"]),
+    "bill": dict(downside=False, surprise=SURPRISE_BILLS["bill"]),
+}
+# every child of the variable root, in seed sort order (migrations 0001 and 0003)
+VARIABLE_CATEGORIES = ["variable.cash", "variable.uncategorized", "variable.groceries", "variable.dining", "variable.fuel",
+                       "variable.transport", "variable.shopping", "variable.health", "variable.entertainment", "variable.personal"]
+
+
+def allocate(total: int, parts: int) -> list[int]:
+    """Largest remainder, earlier parts first — the same answer as money::allocate (total >= 0 here)."""
+    base, rem = divmod(total, parts)
+    return [base + (1 if i < rem else 0) for i in range(parts)]
+
+
+def variable_model(as_of: date) -> list[dict]:
+    """Per variable category: three 30-day buckets ending yesterday, net outflow of posted, non-transfer rows
+    (refunds net against their category) floored at 0, and the median of the three."""
+    out = []
+    for code in VARIABLE_CATEGORIES:
+        buckets = []
+        for k in range(3):
+            end = as_of - timedelta(days=1 + BUCKET_DAYS * k)
+            start = end - timedelta(days=BUCKET_DAYS - 1)
+            net = -sum(r.amount for r in ROWS if r.pair is None and automation(r)[0] == code
+                       and start <= date.fromisoformat(r.posted) <= end)
+            buckets.append({"start": start.isoformat(), "end": end.isoformat(), "net_outflow_cents": max(0, net)})
+        out.append({"category": code, "buckets": buckets, "median_cents": sorted(b["net_outflow_cents"] for b in buckets)[1]})
+    return out
+
+
+def forecast_run(scenario: dict, as_of: date, received: set, paid: set, model: list[dict]) -> dict:
+    """One scenario of the daily engine (ARCHITECTURE §5.6): events per day, running balance, committed, headroom."""
+    horizon = as_of + timedelta(days=HORIZON_DAYS)
+    days = [as_of + timedelta(days=i) for i in range(HORIZON_DAYS + 1)]
+    a_accounts = [k for k, a in ACCOUNTS.items() if a.kind in CASH_KINDS and not a.firewalled]
+    opening = sum(ACCOUNTS[k].opening_cents + sum(r.amount for r in rows_for(k) if r.posted <= as_of.isoformat()) for k in a_accounts)
+    events: dict[date, list] = {d: [] for d in days}
+    # income: confirmed streams only, unreceived occurrences; the downside shifts the next base-pay occurrence
+    pay_dates: dict[str, list[date]] = {}
+    for st in INCOME_STREAMS:
+        if st["confidence"] != "confirmed":
+            continue
+        occs = [d for d in income_occurrences(st, as_of, horizon) if (st["name"], d.isoformat()) not in received]
+        if scenario["downside"] and st["kind"] == "base" and occs:
+            occs[0] = occs[0] + timedelta(days=PAY_SHIFT_DAYS)
+        occs = [d for d in occs if d <= horizon]
+        pay_dates[st["name"]] = occs
+        for d in occs:
+            events[d].append(("income", st["name"], st["expected_net_cents"]))
+    # obligations: unpaid confirmed occurrences; an overdue one lands on day 0
+    for ob in OBLIGATIONS:
+        opened = date.fromisoformat(ACCOUNTS[ob["source_account"]].opening_date)
+        for due in obligation_occurrences(ob, max(as_of - timedelta(days=OVERDUE_LOOKBACK_DAYS), opened), horizon):
+            if (ob["name"], due.isoformat()) in paid:
+                continue
+            events[max(due, as_of)].append(("obligation", ob["name"], -ob["expected_cents"]))
+    # variable spend: each category's model allocated over every 30-day block by largest remainder
+    for m in model:
+        if m["median_cents"] == 0:
+            continue
+        parts = allocate(m["median_cents"], BUCKET_DAYS)
+        for i, d in enumerate(days):
+            events[d].append(("variable", m["category"], -parts[i % BUCKET_DAYS]))
+    if scenario["surprise"]:
+        sd, cents = scenario["surprise"]
+        events[date.fromisoformat(sd)].append(("surprise", "Surprise bill", -cents))
+    # committed = buffer + each earmark's remaining projected by its schedule: released when its obligation
+    # falls due, funded per paycheck on the scenario's pay dates (capped at the target); none = constant
+    remaining = {em["name"]: sum(c for (dt, k, c, n) in em["entries"] if dt <= as_of.isoformat()) for em in EARMARKS}
+    series, bal, lowest, first_shortfall, first_breach = [], opening, None, None, None
+    for i, d in enumerate(days):
+        inflow = sum(c for (_, _, c) in events[d] if c > 0)
+        outflow = -sum(c for (_, _, c) in events[d] if c < 0)
+        bal = bal + inflow - outflow
+        for em in EARMARKS:
+            r = remaining[em["name"]]
+            if em["obligation"] and any(k == "obligation" and n == em["obligation"] for (k, n, _) in events[d]):
+                r -= min(max(0, r), next(o for o in OBLIGATIONS if o["name"] == em["obligation"])["expected_cents"])
+            if em["schedule"] == "per_paycheck" and d in pay_dates.get(em["schedule_income_stream"], []):
+                r += min(em["schedule_amount_cents"], max(0, em["target_cents"] - max(0, r)))
+            remaining[em["name"]] = r
+        committed = TIMING_BUFFER_CENTS + sum(max(0, r) for r in remaining.values())
+        headroom = bal - committed
+        series.append({"day": i, "date": d.isoformat(), "inflows_cents": inflow, "outflows_cents": outflow, "closing_cents": bal,
+                       "committed_cents": committed, "headroom_cents": headroom,
+                       "events": [{"kind": k, "name": n, "cents": c} for (k, n, c) in events[d]]})
+        if lowest is None or bal < lowest["cents"]:
+            lowest = {"date": d.isoformat(), "cents": bal}
+        if first_shortfall is None and bal < 0:
+            first_shortfall = {"date": d.isoformat(), "cents": bal}
+        if first_breach is None and headroom < 0:
+            first_breach = {"date": d.isoformat(), "cents": headroom}
+    inflows_total = sum(x["inflows_cents"] for x in series)
+    outflows_total = sum(x["outflows_cents"] for x in series)
+    assert series[-1]["closing_cents"] == opening + inflows_total - outflows_total   # forecast_ties
+    weeks = []
+    for w in range(13):
+        chunk = series[7 * w: 7 * w + 7]
+        weeks.append({"week": w, "start": chunk[0]["date"], "end": chunk[-1]["date"],
+                      "inflows_cents": sum(x["inflows_cents"] for x in chunk), "outflows_cents": sum(x["outflows_cents"] for x in chunk),
+                      "closing_cents": chunk[-1]["closing_cents"], "lowest_cents": min(x["closing_cents"] for x in chunk)})
+    return {"downside": scenario["downside"],
+            "surprise": None if not scenario["surprise"] else {"date": scenario["surprise"][0], "cents": scenario["surprise"][1]},
+            "opening_cents": opening, "inflows_cents": inflows_total, "outflows_cents": outflows_total,
+            "closing_cents": series[-1]["closing_cents"], "lowest": lowest, "first_shortfall": first_shortfall,
+            "first_buffer_breach": first_breach, "pay_dates": {k: [d.isoformat() for d in v] for k, v in pay_dates.items()},
+            "days": series, "weeks": weeks}
+
+
 
 def business_day_before(x: date) -> date:
     while x.weekday() >= 5:
@@ -1158,6 +1282,80 @@ def expected_md(files: dict[str, str]) -> str:
         "candidates": cands, "candidates_with_plan": [c["payee_norm"] for c in cands_with_plan],
     }
 
+    # Forecast (M5)
+    p("## Forecast (M5)")
+    p("")
+    horizon_d = as_of_d + timedelta(days=HORIZON_DAYS)
+    model = variable_model(as_of_d)
+    runs = {name: forecast_run(sc, as_of_d, received, paid, model) for name, sc in SCENARIOS.items()}
+    base = runs["baseline"]
+    p(f"As of **{AS_OF}**, days 0..={HORIZON_DAYS} ({AS_OF} .. {horizon_d.isoformat()}). Opening = Σ posted balance of nbc, nbs, rvc, vm")
+    p(f"= **{money(base['opening_cents'])}** (no pending rows in those accounts). Only confirmed streams are income; expected or rumored")
+    p("streams never enter; nothing is invented to avoid a low point. Every day: closing = opening + inflows − outflows (`forecast_ties`).")
+    p("")
+    p("### Variable-spend model (ARCHITECTURE §5.7)")
+    p("")
+    b = model[0]["buckets"]
+    p(f"Three 30-day buckets ending yesterday: [{b[0]['start']}..{b[0]['end']}], [{b[1]['start']}..{b[1]['end']}], [{b[2]['start']}..{b[2]['end']}].")
+    p("Net outflow of posted, non-transfer rows per category (the Target return nets against August shopping), floored at 0;")
+    p("the model is the median of the three. Rows still in review (ATM cash, Venmo) have no category and count for nothing.")
+    p("")
+    p("| category | bucket 1 | bucket 2 | bucket 3 | median per 30 days |")
+    p("|---|---:|---:|---:|---:|")
+    for m in model:
+        bb = m["buckets"]
+        p(f"| `{m['category']}` | {money(bb[0]['net_outflow_cents'])} | {money(bb[1]['net_outflow_cents'])} | {money(bb[2]['net_outflow_cents'])} | **{money(m['median_cents'])}** |")
+    model_total = sum(m["median_cents"] for m in model)
+    day0_variable = sum(allocate(m["median_cents"], BUCKET_DAYS)[0] for m in model if m["median_cents"])
+    p("")
+    p(f"Σ model = **{money(model_total)}** per 30 days. Each category is allocated over every 30-day block by largest remainder")
+    p(f"(`money::allocate(median, 30)`): day 0 carries {money(day0_variable)}, days 0..29 sum to the model exactly, days 30..59 and 60..89 repeat it,")
+    p(f"day 90 opens a fourth block. A `variable_spend_override` replaces a category's median.")
+    p("")
+    p("### Scheduled events in the window")
+    p("")
+    pays = base["pay_dates"]["Meridian payroll"]
+    p(f"- Income: Meridian payroll on {', '.join(d[5:] for d in pays)} ({len(pays)} × {money(INCOME_STREAMS[0]['expected_net_cents'])} = {money(base['inflows_cents'] - 0)} of inflows; nothing else is income).")
+    ob_total = sum(-e["cents"] for x in base["days"] for e in x["events"] if e["kind"] == "obligation")
+    p(f"- Obligations: Rent on the 1st (2,400.00), ComEd 7th (125.00), Xfinity 12th (89.99), T-Mobile 18th (75.00), Peoples Gas 21st (40.00),")
+    p(f"  each three times; GEICO's next occurrence is 2027-09-22. Σ = {money(ob_total)}. Variable spend over 91 days = {money(base['outflows_cents'] - ob_total)}.")
+    p(f"- Committed = buffer {money(TIMING_BUFFER_CENTS)} + Emergency reserve {money(1_200_000)} + the Rent earmark projected: released when rent")
+    p("  falls due, funded 1,200.00 on each pay date up to its 2,400.00 target. Headroom = closing − committed.")
+    p(f"- Downside: the next base-pay occurrence ({pays[0]}) lands {PAY_SHIFT_DAYS} civil days late ({runs['downside']['pay_dates']['Meridian payroll'][0]}); later occurrences keep their dates.")
+    p(f"- Surprise bills (scenario inputs, not ledger rows): {money(SURPRISE_BILLS['downside_bill'][1])} on {SURPRISE_BILLS['downside_bill'][0]} with the downside;")
+    p(f"  {money(SURPRISE_BILLS['bill'][1])} on {SURPRISE_BILLS['bill'][0]} on the baseline.")
+    p("")
+    p("### Scenarios")
+    p("")
+    p("| scenario | Σ inflows | Σ outflows | closing day 90 | lowest balance | first shortfall (closing < 0) | first buffer breach (headroom < 0) |")
+    p("|---|---:|---:|---:|---|---|---|")
+    def pt(x):
+        return "none" if x is None else f"{x['date']} ({money(x['cents'])})"
+    for name, r in runs.items():
+        p(f"| {name} | {money(r['inflows_cents'])} | {money(r['outflows_cents'])} | {money(r['closing_cents'])} | **{money(r['lowest']['cents'])} on {r['lowest']['date']}** | {pt(r['first_shortfall'])} | {pt(r['first_buffer_breach'])} |")
+    p("")
+    p("The downside moves the lowest point down (and here later: seven more days of bills and spending before the pay lands).")
+    p("")
+    p("### First 14 days, baseline")
+    p("")
+    p("| day | date | inflows | outflows | closing | committed | headroom | events |")
+    p("|---:|---|---:|---:|---:|---:|---:|---|")
+    for x in base["days"][:14]:
+        named = [f"{e['name']} {money(e['cents'])}" for e in x["events"] if e["kind"] != "variable"]
+        named.append(f"variable {money(sum(e['cents'] for e in x['events'] if e['kind'] == 'variable'))}")
+        p(f"| {x['day']} | {x['date']} | {money(x['inflows_cents'])} | {money(x['outflows_cents'])} | {money(x['closing_cents'])} | {money(x['committed_cents'])} | {money(x['headroom_cents'])} | {'; '.join(named)} |")
+    p("")
+    p("### 13 weeks, baseline")
+    p("")
+    p("| week | start | end | inflows | outflows | closing | lowest |")
+    p("|---:|---|---|---:|---:|---:|---:|")
+    for w in base["weeks"]:
+        p(f"| {w['week']} | {w['start']} | {w['end']} | {money(w['inflows_cents'])} | {money(w['outflows_cents'])} | {money(w['closing_cents'])} | {money(w['lowest_cents'])} |")
+    p("")
+    global FORECAST_JSON
+    FORECAST_JSON = {"as_of": AS_OF, "horizon_days": HORIZON_DAYS, "bucket_days": BUCKET_DAYS, "pay_shift_days": PAY_SHIFT_DAYS,
+                     "timing_buffer_cents": TIMING_BUFFER_CENTS, "model": model, "model_total_cents": model_total, "scenarios": runs}
+
     return "\n".join(out) + "\n"
 
 
@@ -1175,10 +1373,15 @@ def emit_rules_json() -> None:
 
 RECON_JSON: dict = {}
 PLAN_JSON: dict = {}
+FORECAST_JSON: dict = {}
 
 
 def emit_plan_json() -> None:
     write("plan.json", json.dumps(PLAN_JSON, indent=1) + "\n")
+
+
+def emit_forecast_json() -> None:
+    write("forecast.json", json.dumps(FORECAST_JSON, indent=1) + "\n")
 
 
 def emit_recon_json() -> None:
@@ -1219,7 +1422,8 @@ def main() -> None:
     write("EXPECTED.md", expected_md(files))
     emit_recon_json()
     emit_plan_json()
-    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json and EXPECTED.md ({len(ROWS)} ledger rows)")
+    emit_forecast_json()
+    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

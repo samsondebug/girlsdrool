@@ -140,19 +140,19 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] lowest balance date matches the fixture
-- [ ] downside toggle moves it in the expected direction
-- [ ] tie-out test green
+- [x] lowest balance date matches the fixture
+- [x] downside toggle moves it in the expected direction
+- [x] tie-out test green
 
 **Engineering checklist**
 
-- [ ] Daily engine over 91 days; 30-day table and 13-week table; variable-spend model with override (ARCHITECTURE §5.6–5.7)
-- [ ] Scenarios: downside (pay +7 days, no expected/rumored, surprise bill), plan overlay from `plan` snapshot
-- [ ] Forecast screen: visx chart with lowest point marked, table, toggles; dashboard sparkline
-- [ ] Property test: `forecast_ties` for every scenario
-- [ ] Integration tests: lowest balance and date, first shortfall date and amount equal `EXPECTED.md`; downside moves the lowest point down and/or earlier
+- [x] Daily engine over 91 days; 30-day table and 13-week table; variable-spend model with override (ARCHITECTURE §5.6–5.7)
+- [x] Scenarios: downside (pay +7 days, no expected/rumored, surprise bill), plan overlay from `plan` snapshot
+- [x] Forecast screen: visx chart with lowest point marked, table, toggles; dashboard sparkline
+- [x] Property test: `forecast_ties` for every scenario
+- [x] Integration tests: lowest balance and date, first shortfall date and amount equal `EXPECTED.md`; downside moves the lowest point down and/or earlier
 
-**Questions to batch (ADR-0023):** median of three 30-day buckets vs weekly; shortfall shown as overdraft date vs buffer breach.
+**Questions to batch (ADR-0023, defaults in force; see ADR-0042 for the mechanics):** median of three 30-day buckets vs weekly; shortfall shown as overdraft date vs buffer breach.
 
 ---
 

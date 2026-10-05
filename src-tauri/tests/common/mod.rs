@@ -3,6 +3,7 @@
 
 #![allow(dead_code)]
 
+pub mod forecast;
 pub mod plan;
 
 use std::path::{Path, PathBuf};

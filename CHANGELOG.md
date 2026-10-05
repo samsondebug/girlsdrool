@@ -3,6 +3,50 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M5 — Forecast + scenarios (unreleased)
+
+### Demo
+
+1. Forecast: one daily engine over the next 91 days from today, drawn as a line with the lowest
+   point marked (red dot and label), the committed line dashed (earmarks projected by their
+   schedules + the timing buffer), the zero line when the balance dips below it. Inflows are the
+   confirmed streams' unreceived occurrences; outflows are unpaid confirmed obligations (an
+   overdue one lands today), pending rows on the day they post, and the variable-spend model.
+   Nothing is invented to avoid a low point.
+2. Variable spend: per category, three 30-day buckets ending yesterday with the median as the
+   model — on the fixture ledger 532.04 per 30 days (groceries 367.67, fuel 50.33, shopping
+   42.99, dining 29.15, transport 23.14, health 18.76; `fixtures/EXPECTED.md` "Forecast (M5)").
+   Each 30 forecast days spend it exactly, by largest remainder. An override replaces one
+   category's figure and is audited like every write; Clear returns to the median.
+3. Scenarios: the downside toggle delays the next confirmed base pay by seven days (the fixture's
+   lowest point moves from 26,629.68 on 2026-10-01 to 26,380.38 on 2026-10-08); a surprise bill
+   is one outflow on a date inside the window. Both report the first shortfall (closing < 0) and
+   the first buffer breach (headroom < 0): with the downside, 15,000.00 on 2026-10-05 dents the
+   buffer by 941.37 without overdrawing; 30,000.00 on the baseline overdraws by 28.60 that day.
+4. Tables: the next 30 days (inflows, outflows, closing, headroom, the events behind each day)
+   and 13 weeks (inflows, outflows, closing, lowest). "Save baseline as plan" stores today's
+   series as a `plan` snapshot; later forecasts draw it dotted against the live line.
+5. Dashboard: the Forecast panel is the baseline's sparkline with its lowest point, the lowest
+   balance and date (with the untrusted marking whenever an account behind it is not reconciled),
+   and the first shortfall or buffer breach if there is one.
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 42 unit, 13 property (new `forecast_ties` over
+  random ledgers, pending rows, the downside and surprise bills), 1 logging, 9 M0, 6 M1, 3 M2,
+  3 M3, 3 M4 and 5 M5 acceptance (`tests/m5_forecast.rs`: the model's buckets and medians; every
+  day and week of the four fixture scenarios with their lowest point, shortfall and breach; the
+  downside and bill directions; the override; the plan overlay).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check`, `pnpm test` (42) — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against the seeded folder: `docs/screenshots/m5-forecast.png` (the
+  Forecast screen) and `m5-dashboard.png` (the sparkline panel).
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only); the Windows netstat observation.
+
 ## M4 — Earmarks, obligations, income streams, safe-to-spend, dashboard (unreleased)
 
 ### Demo

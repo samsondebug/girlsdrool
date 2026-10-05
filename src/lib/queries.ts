@@ -34,6 +34,7 @@ import {
   type ReconInput,
   type TxnPatch,
   type VentureInput,
+  type Scenario,
 } from "./ipc";
 import type { LedgerFilter } from "./query-chips";
 import { reportError } from "./report";
@@ -86,10 +87,18 @@ export const keys = {
   policies: ["policies"] as const,
   safe: ["safe_to_spend"] as const,
   upcoming: ["upcoming"] as const,
+  forecastAll: ["forecast"] as const,
+  forecast: (scenario: Scenario) => ["forecast", scenario] as const,
+  variableModel: ["variable_spend_model"] as const,
 };
 
 /** The hero and the upcoming panel read the plan and the ledger; anything there moves them. */
-const heroDependent: readonly QueryKey[] = [["safe_to_spend"], ["upcoming"]];
+const heroDependent: readonly QueryKey[] = [
+  ["safe_to_spend"],
+  ["upcoming"],
+  ["forecast"],
+  ["variable_spend_model"],
+];
 
 /** Reconciliation periods, the explorer and trust move whenever a ledger row does. */
 const reconDependent: readonly QueryKey[] = [
@@ -129,6 +138,8 @@ const invalidationMap: Record<string, readonly QueryKey[]> = {
   saved_view: [keys.savedViews],
   rule: [keys.rules],
   venture: [keys.ventures, keys.accounts],
+  variable_spend_override: [keys.variableModel, keys.forecastAll],
+  snapshot: [keys.forecastAll],
 };
 
 const LEDGER_PAGE = 200;
@@ -535,6 +546,33 @@ export function usePolicies() {
 
 export function useSafeToSpend() {
   return useQuery({ queryKey: keys.safe, queryFn: api.safeToSpend, staleTime: Infinity });
+}
+
+export function useForecast(scenario: Scenario) {
+  return useQuery({
+    queryKey: keys.forecast(scenario),
+    queryFn: () => api.forecast(scenario),
+    staleTime: Infinity,
+  });
+}
+
+export function useVariableModel() {
+  return useQuery({
+    queryKey: keys.variableModel,
+    queryFn: api.variableSpendModel,
+    staleTime: Infinity,
+  });
+}
+
+export function useSetVariableOverride() {
+  return useMutation({
+    mutationFn: (input: { categoryId: number; cents: number | null }) =>
+      api.setVariableSpendOverride(input.categoryId, input.cents),
+  });
+}
+
+export function useSaveForecastPlan() {
+  return useMutation({ mutationFn: () => api.saveForecastPlan() });
 }
 
 export function useUpcoming(days = 14) {

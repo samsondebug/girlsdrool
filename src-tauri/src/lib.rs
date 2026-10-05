@@ -8,6 +8,7 @@ pub mod dates;
 pub mod db;
 pub mod error;
 pub mod export;
+pub mod forecast;
 pub mod import;
 pub mod logging;
 pub mod money;
@@ -166,6 +167,10 @@ pub fn run() {
             cmd::list_policies,
             cmd::safe_to_spend,
             cmd::upcoming,
+            cmd::forecast,
+            cmd::variable_spend_model,
+            cmd::set_variable_spend_override,
+            cmd::save_forecast_plan,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

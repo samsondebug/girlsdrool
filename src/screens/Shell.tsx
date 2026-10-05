@@ -4,6 +4,7 @@ import { useStatusMutation } from "../lib/queries";
 import { useUiStore, type Screen } from "../lib/store";
 import { Accounts } from "./Accounts";
 import { Dashboard } from "./Dashboard";
+import { Forecast } from "./Forecast";
 import { Import } from "./Import";
 import { Ledger } from "./Ledger";
 import { Plan } from "./Plan";
@@ -23,6 +24,7 @@ const navItems: { screen: Screen; label: string }[] = [
   { screen: "rules", label: "Rules" },
   { screen: "reconcile", label: "Reconcile" },
   { screen: "plan", label: "Plan" },
+  { screen: "forecast", label: "Forecast" },
   { screen: "import", label: "Import" },
   { screen: "accounts", label: "Accounts" },
   { screen: "settings", label: "Settings" },
@@ -42,6 +44,8 @@ function ActiveScreen({ screen, status }: { screen: Screen; status: AppStatus })
       return <Reconcile />;
     case "plan":
       return <Plan />;
+    case "forecast":
+      return <Forecast />;
     case "import":
       return <Import />;
     case "accounts":

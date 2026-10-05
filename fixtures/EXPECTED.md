@@ -595,3 +595,91 @@ A candidate never enters the hero until it is confirmed.
 | sv | `netflix com` | 3 | 26 | 15.49 | 0.00 | no |
 | sv | `uber trip` | 3 | 12 | 23.14 | 4.46 | no |
 
+## Forecast (M5)
+
+As of **2026-09-30**, days 0..=90 (2026-09-30 .. 2026-12-29). Opening = Σ posted balance of nbc, nbs, rvc, vm
+= **29,065.22** (no pending rows in those accounts). Only confirmed streams are income; expected or rumored
+streams never enter; nothing is invented to avoid a low point. Every day: closing = opening + inflows − outflows (`forecast_ties`).
+
+### Variable-spend model (ARCHITECTURE §5.7)
+
+Three 30-day buckets ending yesterday: [2026-08-31..2026-09-29], [2026-08-01..2026-08-30], [2026-07-02..2026-07-31].
+Net outflow of posted, non-transfer rows per category (the Target return nets against August shopping), floored at 0;
+the model is the median of the three. Rows still in review (ATM cash, Venmo) have no category and count for nothing.
+
+| category | bucket 1 | bucket 2 | bucket 3 | median per 30 days |
+|---|---:|---:|---:|---:|
+| `variable.cash` | 0.00 | 0.00 | 0.00 | **0.00** |
+| `variable.uncategorized` | 0.00 | 0.00 | 0.00 | **0.00** |
+| `variable.groceries` | 387.00 | 237.98 | 367.67 | **367.67** |
+| `variable.dining` | 14.95 | 76.27 | 29.15 | **29.15** |
+| `variable.fuel` | 50.33 | 48.90 | 52.18 | **50.33** |
+| `variable.transport` | 27.60 | 18.90 | 23.14 | **23.14** |
+| `variable.shopping` | 62.50 | 0.00 | 42.99 | **42.99** |
+| `variable.health` | 22.10 | 0.00 | 18.76 | **18.76** |
+| `variable.entertainment` | 0.00 | 0.00 | 0.00 | **0.00** |
+| `variable.personal` | 0.00 | 0.00 | 0.00 | **0.00** |
+
+Σ model = **532.04** per 30 days. Each category is allocated over every 30-day block by largest remainder
+(`money::allocate(median, 30)`): day 0 carries 17.77, days 0..29 sum to the model exactly, days 30..59 and 60..89 repeat it,
+day 90 opens a fourth block. A `variable_spend_override` replaces a category's median.
+
+### Scheduled events in the window
+
+- Income: Meridian payroll on 10-02, 10-16, 10-30, 11-13, 11-27, 12-11, 12-25 (7 × 3,412.77 = 23,889.39 of inflows; nothing else is income).
+- Obligations: Rent on the 1st (2,400.00), ComEd 7th (125.00), Xfinity 12th (89.99), T-Mobile 18th (75.00), Peoples Gas 21st (40.00),
+  each three times; GEICO's next occurrence is 2027-09-22. Σ = 8,189.97. Variable spend over 91 days = 1,613.89.
+- Committed = buffer 500.00 + Emergency reserve 12,000.00 + the Rent earmark projected: released when rent
+  falls due, funded 1,200.00 on each pay date up to its 2,400.00 target. Headroom = closing − committed.
+- Downside: the next base-pay occurrence (2026-10-02) lands 7 civil days late (2026-10-09); later occurrences keep their dates.
+- Surprise bills (scenario inputs, not ledger rows): 15,000.00 on 2026-10-05 with the downside;
+  30,000.00 on 2026-10-05 on the baseline.
+
+### Scenarios
+
+| scenario | Σ inflows | Σ outflows | closing day 90 | lowest balance | first shortfall (closing < 0) | first buffer breach (headroom < 0) |
+|---|---:|---:|---:|---|---|---|
+| baseline | 23,889.39 | 9,803.86 | 43,150.75 | **26,629.68 on 2026-10-01** | none | none |
+| downside | 23,889.39 | 9,803.86 | 43,150.75 | **26,380.38 on 2026-10-08** | none | none |
+| downside_bill | 23,889.39 | 24,803.86 | 28,150.75 | **11,380.38 on 2026-10-08** | none | 2026-10-05 (-941.37) |
+| bill | 23,889.39 | 39,803.86 | 13,150.75 | **-421.02 on 2026-10-15** | 2026-10-05 (-28.60) | 2026-10-05 (-13,728.60) |
+
+The downside moves the lowest point down (and here later: seven more days of bills and spending before the pay lands).
+
+### First 14 days, baseline
+
+| day | date | inflows | outflows | closing | committed | headroom | events |
+|---:|---|---:|---:|---:|---:|---:|---|
+| 0 | 2026-09-30 | 0.00 | 17.77 | 29,047.45 | 13,700.00 | 15,347.45 | variable -17.77 |
+| 1 | 2026-10-01 | 0.00 | 2,417.77 | 26,629.68 | 12,500.00 | 14,129.68 | Rent -2,400.00; variable -17.77 |
+| 2 | 2026-10-02 | 3,412.77 | 17.77 | 30,024.68 | 13,700.00 | 16,324.68 | Meridian payroll 3,412.77; variable -17.77 |
+| 3 | 2026-10-03 | 0.00 | 17.77 | 30,006.91 | 13,700.00 | 16,306.91 | variable -17.77 |
+| 4 | 2026-10-04 | 0.00 | 17.76 | 29,989.15 | 13,700.00 | 16,289.15 | variable -17.76 |
+| 5 | 2026-10-05 | 0.00 | 17.75 | 29,971.40 | 13,700.00 | 16,271.40 | variable -17.75 |
+| 6 | 2026-10-06 | 0.00 | 17.75 | 29,953.65 | 13,700.00 | 16,253.65 | variable -17.75 |
+| 7 | 2026-10-07 | 0.00 | 142.75 | 29,810.90 | 13,700.00 | 16,110.90 | ComEd -125.00; variable -17.75 |
+| 8 | 2026-10-08 | 0.00 | 17.75 | 29,793.15 | 13,700.00 | 16,093.15 | variable -17.75 |
+| 9 | 2026-10-09 | 0.00 | 17.74 | 29,775.41 | 13,700.00 | 16,075.41 | variable -17.74 |
+| 10 | 2026-10-10 | 0.00 | 17.74 | 29,757.67 | 13,700.00 | 16,057.67 | variable -17.74 |
+| 11 | 2026-10-11 | 0.00 | 17.74 | 29,739.93 | 13,700.00 | 16,039.93 | variable -17.74 |
+| 12 | 2026-10-12 | 0.00 | 107.73 | 29,632.20 | 13,700.00 | 15,932.20 | Xfinity -89.99; variable -17.74 |
+| 13 | 2026-10-13 | 0.00 | 17.74 | 29,614.46 | 13,700.00 | 15,914.46 | variable -17.74 |
+
+### 13 weeks, baseline
+
+| week | start | end | inflows | outflows | closing | lowest |
+|---:|---|---|---:|---:|---:|---:|
+| 0 | 2026-09-30 | 2026-10-06 | 3,412.77 | 2,524.34 | 29,953.65 | 26,629.68 |
+| 1 | 2026-10-07 | 2026-10-13 | 0.00 | 339.19 | 29,614.46 | 29,614.46 |
+| 2 | 2026-10-14 | 2026-10-20 | 3,412.77 | 199.09 | 32,828.14 | 29,578.98 |
+| 3 | 2026-10-21 | 2026-10-27 | 0.00 | 163.99 | 32,664.15 | 32,664.15 |
+| 4 | 2026-10-28 | 2026-11-03 | 3,412.77 | 2,524.26 | 33,552.66 | 32,628.73 |
+| 5 | 2026-11-04 | 2026-11-10 | 0.00 | 249.22 | 33,303.44 | 33,303.44 |
+| 6 | 2026-11-11 | 2026-11-17 | 3,412.77 | 214.12 | 36,502.09 | 33,177.97 |
+| 7 | 2026-11-18 | 2026-11-24 | 0.00 | 239.01 | 36,263.08 | 36,263.08 |
+| 8 | 2026-11-25 | 2026-12-01 | 3,412.77 | 2,524.15 | 37,151.70 | 36,227.66 |
+| 9 | 2026-12-02 | 2026-12-08 | 0.00 | 249.27 | 36,902.43 | 36,902.43 |
+| 10 | 2026-12-09 | 2026-12-15 | 3,412.77 | 214.16 | 40,101.04 | 36,866.95 |
+| 11 | 2026-12-16 | 2026-12-22 | 0.00 | 239.03 | 39,862.01 | 39,862.01 |
+| 12 | 2026-12-23 | 2026-12-29 | 3,412.77 | 124.03 | 43,150.75 | 39,826.59 |
+

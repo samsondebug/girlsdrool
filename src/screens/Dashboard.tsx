@@ -3,12 +3,13 @@ import { useState, type ReactNode } from "react";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
 import { EmptyState } from "../components/EmptyState";
+import { ForecastChart } from "../components/ForecastChart";
 import { Money } from "../components/Money";
 import { Panel } from "../components/Panel";
 import { MarkedMoney } from "../components/Untrusted";
-import type { SafeToSpend, UpcomingObligation } from "../lib/ipc";
-import { useAccounts, useSafeToSpend, useTrust, useUpcoming } from "../lib/queries";
-import { useUiStore } from "../lib/store";
+import type { Forecast, SafeToSpend, UpcomingObligation } from "../lib/ipc";
+import { useAccounts, useForecast, useSafeToSpend, useTrust, useUpcoming } from "../lib/queries";
+import { BASELINE, useUiStore } from "../lib/store";
 import { TRUST_LABEL, TRUST_TONE } from "../lib/trust";
 
 /**
@@ -20,6 +21,7 @@ export function Dashboard() {
   const upcoming = useUpcoming(14);
   const trust = useTrust();
   const accounts = useAccounts();
+  const forecast = useForecast(BASELINE);
   const firewalled = (accounts.data ?? []).filter((a) => a.firewalled && !a.archived);
   const setScreen = useUiStore((s) => s.setScreen);
   const nextIncome = safe.data?.terms.obligations.next_income ?? null;
@@ -124,11 +126,28 @@ export function Dashboard() {
           />
         )}
       </Panel>
-      <Panel title="Forecast" className="col-span-4">
-        <EmptyState
-          missing="No forecast: it needs balances, income and obligations."
-          fix="Forecast (M5) draws 30 days and 13 weeks once the plan exists."
-        />
+      <Panel
+        title="Forecast"
+        className="col-span-4"
+        aside={
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setScreen("forecast");
+            }}
+          >
+            Forecast…
+          </Button>
+        }
+      >
+        {forecast.data && safe.data && safe.data.terms.available.accounts.length > 0 ? (
+          <ForecastSummary data={forecast.data} />
+        ) : (
+          <EmptyState
+            missing="No forecast: it needs a cash account to start from."
+            fix="Add accounts and import statements; confirm income and obligations under Plan so the 91 days have something to draw."
+          />
+        )}
       </Panel>
 
       <Panel title="Debt total" className="col-span-3">
@@ -446,6 +465,40 @@ const TERM_DETAIL: Record<Term, (data: SafeToSpend) => ReactNode> = {
     </div>
   ),
 };
+
+/** The baseline's 91 days as a sparkline, its lowest point, and the first shortfall or breach. */
+function ForecastSummary({ data }: { data: Forecast }) {
+  const untrustedBy = data.trust.hero.untrusted.map((u) => u.account_name);
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2 text-14">
+      <div className="h-14 w-full">
+        <ForecastChart days={data.days} lowest={data.lowest} width={360} height={56} compact />
+      </div>
+      <p className="flex items-baseline gap-2">
+        <span className="text-text-dim">Lowest</span>
+        <MarkedMoney cents={data.lowest.cents} untrustedBy={untrustedBy} />
+        <span className="money text-12 text-text-dim">on {data.lowest.date}</span>
+      </p>
+      {data.first_shortfall ? (
+        <p className="flex items-center gap-2">
+          <Chip tone="negative">shortfall</Chip>
+          <span className="money text-12">{data.first_shortfall.date}</span>
+          <Money cents={data.first_shortfall.cents} size={14} />
+        </p>
+      ) : data.first_buffer_breach ? (
+        <p className="flex items-center gap-2">
+          <Chip tone="warning">buffer breach</Chip>
+          <span className="money text-12">{data.first_buffer_breach.date}</span>
+          <Money cents={data.first_buffer_breach.cents} size={14} />
+        </p>
+      ) : (
+        <p className="text-12 text-text-dim">
+          No shortfall and no buffer breach in the next {String(data.horizon_days)} days.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function UpcomingList({ rows }: { rows: UpcomingObligation[] }) {
   const total = rows.reduce((sum, r) => sum + r.expected_cents, 0);

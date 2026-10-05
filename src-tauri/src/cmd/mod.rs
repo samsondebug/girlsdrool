@@ -27,6 +27,7 @@ use crate::db::repo::venture::{self, Venture, VentureInput};
 use crate::db::settings::{self, Settings};
 use crate::db::{Db, OpenMode};
 use crate::error::{AppError, AppResult};
+use crate::forecast::{self, variable::CategoryModel, Forecast, PlanOverlay, Scenario};
 use crate::import::profile::{self, Profile};
 use crate::import::report::ImportReport;
 use crate::import::{self, ImportInput, Preview, QuarantineAction, UndoReport};
@@ -1247,4 +1248,65 @@ pub async fn upcoming(state: State<'_, AppState>, days: Option<i64>) -> AppResul
         let today = today(db)?;
         safe::upcoming(db.conn(), today, days.unwrap_or(14).clamp(1, 400))
     })
+}
+
+// ---- forecast (M5) ---------------------------------------------------------------------------
+
+/// The 91-day daily forecast for a scenario (the baseline when none is given).
+#[tauri::command]
+pub async fn forecast(
+    state: State<'_, AppState>,
+    scenario: Option<Scenario>,
+) -> AppResult<Forecast> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        forecast::run(db.conn(), today, &scenario.unwrap_or_default())
+    })
+}
+
+/// Every variable category's three trailing buckets, median and override.
+#[tauri::command]
+pub async fn variable_spend_model(state: State<'_, AppState>) -> AppResult<Vec<CategoryModel>> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        forecast::variable::model(db.conn(), today)
+    })
+}
+
+/// Replace (or with `null` restore) the per-30-days figure the forecast spends for a category.
+#[tauri::command]
+pub async fn set_variable_spend_override(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    category_id: i64,
+    per_30_days_cents: Option<i64>,
+) -> AppResult<Vec<CategoryModel>> {
+    let model = with_db(&state, |db| {
+        let today = today(db)?;
+        let tx = db.conn_mut().transaction()?;
+        let cmd = audit::begin(&tx, "forecast.set_variable_override", Actor::User)?;
+        forecast::variable::set_override(&tx, &cmd, category_id, per_30_days_cents)?;
+        tx.commit()?;
+        forecast::variable::model(db.conn(), today)
+    })?;
+    emit_changed(&app, &["variable_spend_override"]);
+    Ok(model)
+}
+
+/// Store today's baseline as the plan later forecasts are drawn against.
+#[tauri::command]
+pub async fn save_forecast_plan(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<PlanOverlay> {
+    let plan = with_db(&state, |db| {
+        let today = today(db)?;
+        let tx = db.conn_mut().transaction()?;
+        let cmd = audit::begin(&tx, "forecast.save_plan", Actor::User)?;
+        let plan = forecast::save_plan(&tx, &cmd, today)?;
+        tx.commit()?;
+        Ok(plan)
+    })?;
+    emit_changed(&app, &["snapshot"]);
+    Ok(plan)
 }

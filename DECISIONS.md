@@ -658,3 +658,56 @@ answers of `fixtures/EXPECTED.md` (`fixtures/plan.json` is the machine-readable 
 The batched M4 questions (ADR-0022: venture accounts excluded, posted flagged proceeds inside the
 balance, emergency reserve as an earmark, 30-day window without confirmed income) stay open with
 their defaults in force.
+
+## ADR-0042 — Forecast mechanics: blocks, committed projection, overdue day 0, pending rows, scenarios
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** ADR-0023 fixed the model (one daily engine, median of three 30-day buckets, the
+downside, `forecast_ties`). Building M5 left open how the model is spread over days, what
+"committed" means day by day, where overdue and pending rows land, which rows the buckets read,
+and what the plan overlay is.
+
+**Decision.**
+
+1. **The model is spent in 30-day blocks.** Each variable category's per-30-days figure (its
+   override, else its median) is allocated over days 0..29 by `money::allocate(figure, 30)` and
+   the same allocation repeats for days 30..59 and 60..89; day 90 opens a fourth block. Every
+   30-day view therefore spends the model exactly once, to the cent.
+2. **Buckets read posted, non-transfer leaf rows only.** `net_outflow = max(0, −Σ amount)` over
+   rows with the category whose `status = 'posted'` and `transfer_link_id IS NULL`, so refunds net
+   against their category and a pending row is never counted twice (it is a day-0 event instead).
+   Rows without a category (review queue) count for nothing until classified. Only the children
+   of the variable root have a model; the root itself does not.
+3. **Pending rows are events.** A pending leaf row lands on its `effective_date` (day 0 when that
+   is today or past), with the §5.1 sign rules: every outflow, inflows unless flagged borrowing or
+   securities-sale. One dated beyond the horizon is left out.
+4. **Unpaid obligations use the hero's window.** Occurrences come from `cash::safe`'s unpaid list
+   (`today − 120` days to the horizon, bounded by the account's opening date); an overdue one
+   lands on day 0; the forecast spends the full expected amount (earmark coverage is a hero
+   concept: the cash still leaves).
+5. **Committed is projected by schedule.** `committed(d) = timing_buffer + Σ max(0, remaining_e(d))`
+   over active earmarks funded from the hero's accounts. From today's remaining, an earmark is
+   released by `min(remaining, expected)` on each day its obligation falls due in the forecast,
+   and funded by its schedule: `per_paycheck` on the scenario's pay dates of its stream,
+   `monthly` on its day, `by_date` as one funding of the gap on the target date; a positive
+   target caps every funding. `headroom = closing − committed`; `first_buffer_breach` is the
+   first day it is negative, `first_shortfall` the first day closing is.
+6. **Scenarios change inputs only.** The downside shifts the next unreceived occurrence of each
+   confirmed base stream by +7 civil days (later ones keep their dates; the earmark funding
+   follows the shifted date); a surprise bill is one outflow on its date and must fall inside the
+   window with a positive amount. Expected and rumored streams are out of every scenario. The
+   same code path produces every scenario, so `forecast_ties` holds for all of them.
+7. **The plan overlay is a snapshot.** "Save baseline as plan" stores today's baseline closings
+   as a `snapshot` of kind `plan` (with the hero's figures; debt, informal and venture columns
+   are 0 until their engines exist); the latest one is drawn dotted against the live series.
+8. **Charts are visx.** `@visx/{shape,scale,axis,group,curve}` were added at M5 as ADR-0034
+   planned; colors come from the tokens through Tailwind's stroke and fill utilities; nothing is
+   computed in the chart.
+
+**Consequences.** `tests/m5_forecast.rs` pins every day and week of the four fixture scenarios,
+the model, the override and the plan overlay against `fixtures/forecast.json` (the twin of
+`EXPECTED.md` "Forecast (M5)"); the `forecast_ties` property covers random ledgers, pending rows,
+the downside and surprise bills. The batched M5 questions (ADR-0023: median of three 30-day
+buckets vs weekly; overdraft vs buffer breach as "shortfall") stay open with their defaults in
+force: the dashboard shows the overdraft as the shortfall and the buffer breach as a warning.
