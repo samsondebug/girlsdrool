@@ -9,3 +9,8 @@
 *.yml text eol=lf
 justfile text eol=lf
 fixtures/**/*.csv text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+.prettierrc text eol=lf
+.prettierignore text eol=lf
+.gitattributes text eol=lf
