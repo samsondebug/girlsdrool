@@ -195,6 +195,7 @@ interface PeriodRowProps {
 
 function PeriodRow({ period: p, selected, deletable, onSelect }: PeriodRowProps) {
   const remove = useDeleteReconciliation();
+  const reconcile = useReconcile();
   const pushNotice = useUiStore((s) => s.pushNotice);
   return (
     <tr className={`border-b border-line ${selected ? "bg-bg-inset" : ""}`}>
@@ -229,7 +230,25 @@ function PeriodRow({ period: p, selected, deletable, onSelect }: PeriodRowProps)
                 onSuccess: () => {
                   pushNotice({
                     tone: "info",
-                    text: `Removed the period ending ${p.period_end}; enter its statement again to redo it.`,
+                    text: `Removed the period ending ${p.period_end}.`,
+                    undo: {
+                      label: "Undo",
+                      run: () => {
+                        reconcile.mutate(
+                          {
+                            account_id: p.account_id,
+                            period_end: p.period_end,
+                            statement_closing_cents: p.statement_closing_cents,
+                            statement_source: p.statement_source,
+                          },
+                          {
+                            onError: (error) => {
+                              pushNotice({ tone: "negative", text: error.message });
+                            },
+                          },
+                        );
+                      },
+                    },
                   });
                 },
                 onError: (error) => {

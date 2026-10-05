@@ -68,10 +68,11 @@ pub fn record(
     before: Option<&serde_json::Value>,
     after: Option<&serde_json::Value>,
 ) -> AppResult<()> {
-    conn.execute(
+    conn.prepare_cached(
         "INSERT INTO audit_event (command_id, at, entity, entity_id, action, before_json, after_json)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![
+    )?
+    .execute(params![
             cmd.id,
             now_rfc3339(),
             entity,

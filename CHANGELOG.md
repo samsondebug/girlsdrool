@@ -3,6 +3,54 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M10 — Palette, shortcuts, undo coverage, 200k rows, the critical path (unreleased)
+
+### Demo
+
+1. `Ctrl K` anywhere: the palette lists every screen and the main commands (lock, back up now,
+   start the weekly review, take a snapshot, import a statement, write the audit pack); type to
+   filter, `Enter` runs. `F1` or `?` shows every shortcut; `Ctrl Shift L` locks; `/` focuses the
+   Ledger query box; `Esc` closes anything. Every action is a button or a form control, so `Tab`
+   reaches it, and the focus ring is the accent color everywhere.
+2. Every destructive action names its undo on its toast and runs the inverse command as a new
+   audited step: delete a rule, remove a reconciled period, unmatch a receipt or payment, delete
+   a candidate, remove an earmark entry, remove a debt payment or a schedule row, unlink a
+   transfer or refund, set or clear a forecast override, delete a profile. `docs/undo.md` is the
+   full table, including the few actions that have no undo and what stands in for them.
+3. 200 000 rows: `KEPT_PERF=1 cargo test --no-default-features --test perf_200k -- --ignored
+--nocapture` derives the rows from one formula, imports them through the real pipeline into a
+   real encrypted file, and prints the timings `docs/performance.md` records with this host's
+   specification.
+4. The light theme is checked as a token swap (`src/tokens.test.ts`), and the Playwright critical
+   path (create → account → paste July → reconcile with the fixture's 5,647.48 → trusted hero,
+   dashboard fits 1440×900; the palette and the overlay) is written for the Windows run.
+
+### Verified in this session (Linux dev container)
+
+- `KEPT_PERF=1 cargo test --release --no-default-features --test perf_200k -- --ignored
+--nocapture` — exit 0 on the shipped code: 200 000 rows in 70 batches imported in 40.8 s
+  (slowest batch 0.8 s), first page 31 ms, the page at row 100 000 34 ms, the `jewel` text
+  filter 319 ms, the hero 92 ms cold and 65 ms warm; every number and the steps that got there
+  are in `docs/performance.md`. The first run of this test was quadratic and was stopped after
+  40 minutes; migration 0006 (four indexes, the cheaper leaf view), cached statements and a
+  64 MB page cache are the fixes.
+- `cargo test --no-default-features` — exit 0: 51 unit, 13 property, 1 logging, 9 M0, 6 M1, 3 M2, 3 M3, 3 M4, 5 M5, 5 M6, 3 M7,
+  4 M8, 4 M9 backup/export and 3 M9 OFX/profiles acceptance (113), with `perf_200k` ignored
+  unless asked for.
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check`, `pnpm test` (45: the token-swap test joins the chips and money tests),
+  `scripts/gates.sh` — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against the seeded folder: `docs/screenshots/m10-palette.png` (Ctrl K
+  with `re` typed: Review, Reconcile, Forecast, Ventures, the review and snapshot commands),
+  `m10-shortcuts.png` (F1); the `/` shortcut focused the Ledger query box.
+
+### Not verified on this host
+
+- The Playwright critical path and the unsigned NSIS installer build (Windows/WebView2 only, run
+  by CI's Windows job); scroll smoothness is a judgment the Windows run makes by eye, the
+  virtualizer and keyset paging are what make it possible.
+
 ## M9 — OFX/QFX, institution profiles, backup and restore, exports (unreleased)
 
 ### Demo

@@ -178,6 +178,9 @@ pub fn apply_pragmas(conn: &Connection) -> AppResult<()> {
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.pragma_update(None, "temp_store", "MEMORY")?;
     conn.pragma_update(None, "busy_timeout", 5000)?;
+    // 64 MB of decrypted pages (ADR-0047): every page read from disk costs an AES decrypt and an
+    // HMAC check, so a cache that holds the hot indexes of a 200k-row ledger pays for itself.
+    conn.pragma_update(None, "cache_size", -65536)?;
     Ok(())
 }
 

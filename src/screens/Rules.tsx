@@ -95,6 +95,7 @@ export function Rules() {
   const ventures = useVentures();
   const reorder = useReorderRules();
   const remove = useDeleteRule();
+  const create = useCreateRule();
   const apply = useApplyRules();
   const update = useUpdateRule();
   const pushNotice = useUiStore((s) => s.pushNotice);
@@ -260,6 +261,12 @@ export function Rules() {
                                   pushNotice({
                                     tone: "info",
                                     text: `Deleted rule "${rule.name}". Rows it placed keep their category until rules run again.`,
+                                    undo: {
+                                      label: "Undo",
+                                      run: () => {
+                                        create.mutate(toInput(rule), { onError: fail });
+                                      },
+                                    },
                                   });
                                   setConfirmDelete(null);
                                 },

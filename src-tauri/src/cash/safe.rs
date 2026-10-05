@@ -221,7 +221,7 @@ fn posted_flagged_inflows(
     let excluded_bits = i64::from(FLAG_BORROWING) | i64::from(FLAG_SECURITIES_SALE);
     let mut stmt = conn.prepare(
         "SELECT id, posted_date, amount_cents, flags FROM txn_leaf
-         WHERE account_id = ?1 AND status = 'posted' AND amount_cents > 0 AND (flags & ?2) <> 0 AND posted_date <= ?3
+         WHERE account_id = ?1 AND status = 'posted' AND flags <> 0 AND amount_cents > 0 AND (flags & ?2) <> 0 AND posted_date <= ?3
          ORDER BY posted_date, id",
     )?;
     let rows = stmt

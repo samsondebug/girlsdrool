@@ -479,9 +479,19 @@ function OverrideForm({ model }: { model: CategoryModel }) {
           { categoryId: model.category_id, cents },
           {
             onSuccess: () => {
+              const previous = model.override_cents;
               pushNotice({
                 tone: "info",
                 text: `${model.name}: the forecast now spends ${formatCents(cents)} per 30 days.`,
+                undo: {
+                  label: "Undo",
+                  run: () => {
+                    setOverride.mutate(
+                      { categoryId: model.category_id, cents: previous },
+                      { onError: fail },
+                    );
+                  },
+                },
               });
             },
             onError: fail,
@@ -519,7 +529,20 @@ function OverrideForm({ model }: { model: CategoryModel }) {
               { categoryId: model.category_id, cents: null },
               {
                 onSuccess: () => {
-                  pushNotice({ tone: "info", text: `${model.name}: back to the median.` });
+                  const previous = model.override_cents;
+                  pushNotice({
+                    tone: "info",
+                    text: `${model.name}: back to the median.`,
+                    undo: {
+                      label: "Undo",
+                      run: () => {
+                        setOverride.mutate(
+                          { categoryId: model.category_id, cents: previous },
+                          { onError: fail },
+                        );
+                      },
+                    },
+                  });
                 },
                 onError: fail,
               },

@@ -45,7 +45,7 @@ pub fn transfer_candidates(conn: &Connection, row: &txn::TxnRecord) -> AppResult
     let from = format_civil(posted - Duration::days(TRANSFER_WINDOW_DAYS));
     let to = format_civil(posted + Duration::days(TRANSFER_WINDOW_DAYS));
     let opposite = row.amount_cents.checked_neg().unwrap_or(0);
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare_cached(
         "SELECT t.id, t.account_id, a.name, t.posted_date, t.amount_cents, t.payee_norm FROM txn t
          JOIN account a ON a.id = t.account_id
          WHERE t.account_id <> ?1 AND t.amount_cents = ?2 AND t.parent_id IS NULL AND t.transfer_link_id IS NULL
@@ -83,7 +83,7 @@ pub fn refund_candidates(
     let posted = parse_civil(&row.posted_date)?;
     let from = format_civil(posted - Duration::days(REFUND_WINDOW_DAYS));
     let opposite = row.amount_cents.checked_neg().unwrap_or(0);
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare_cached(
         "SELECT t.id, t.account_id, a.name, t.posted_date, t.amount_cents, t.payee_norm FROM txn t
          JOIN account a ON a.id = t.account_id
          WHERE t.account_id = ?1 AND t.amount_cents = ?2 AND t.parent_id IS NULL AND t.transfer_link_id IS NULL

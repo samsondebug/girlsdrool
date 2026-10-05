@@ -148,14 +148,14 @@ fn build_where(f: &LedgerFilter) -> AppResult<Built> {
         }
     }
     if f.needs_review {
-        conds.push("(t.flags & 1) <> 0".into());
+        conds.push("t.flags <> 0 AND (t.flags & 1) <> 0".into());
     }
     if f.unclassified {
         conds.push("t.classification = 'unclassified'".into());
     }
     if f.flags_any != 0 {
         let ph = p.push(Value::Integer(f.flags_any));
-        conds.push(format!("(t.flags & {ph}) <> 0"));
+        conds.push(format!("t.flags <> 0 AND (t.flags & {ph}) <> 0"));
     }
     if let Some(s) = &f.status {
         if s != "pending" && s != "posted" {
@@ -258,12 +258,9 @@ pub fn query(
         params.push(Value::Text(c.posted_date.clone()));
         params.push(Value::Integer(c.id));
         let n = params.len();
-        cursor_sql = format!(
-            " AND (t.posted_date < ?{} OR (t.posted_date = ?{} AND t.id < ?{}))",
-            n - 1,
-            n - 1,
-            n
-        );
+        // a row-value comparison, so the (posted_date, id) index seeks to the page instead of
+        // scanning from the newest row
+        cursor_sql = format!(" AND (t.posted_date, t.id) < (?{}, ?{})", n - 1, n);
     }
     params.push(Value::Integer(
         i64::try_from(limit + 1).map_err(|_| AppError::Overflow)?,

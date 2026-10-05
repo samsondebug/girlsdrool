@@ -333,7 +333,7 @@ fn fuzzy_candidates(
 ) -> AppResult<Vec<Candidate>> {
     let from = format_civil(posted - Duration::days(dedup::FUZZY_WINDOW_DAYS));
     let to = format_civil(posted + Duration::days(dedup::FUZZY_WINDOW_DAYS));
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare_cached(
         "SELECT id, status, payee_norm, external_id, posted_date FROM txn
          WHERE account_id = ?1 AND amount_cents = ?2 AND parent_id IS NULL AND posted_date BETWEEN ?3 AND ?4
          ORDER BY id",
@@ -373,22 +373,16 @@ fn exact_match(
 ) -> AppResult<Option<(i64, &'static str)>> {
     if let Some(ext) = external_id {
         let hit: Option<i64> = conn
-            .query_row(
-                "SELECT id FROM txn WHERE account_id = ?1 AND external_id = ?2",
-                params![account_id, ext],
-                |r| r.get(0),
-            )
+            .prepare_cached("SELECT id FROM txn WHERE account_id = ?1 AND external_id = ?2")?
+            .query_row(params![account_id, ext], |r| r.get(0))
             .optional()?;
         if let Some(id) = hit {
             return Ok(Some((id, "external_id")));
         }
     }
     let hit: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM txn WHERE account_id = ?1 AND source_row_hash = ?2",
-            params![account_id, hash],
-            |r| r.get(0),
-        )
+        .prepare_cached("SELECT id FROM txn WHERE account_id = ?1 AND source_row_hash = ?2")?
+        .query_row(params![account_id, hash], |r| r.get(0))
         .optional()?;
     Ok(hit.map(|id| (id, "hash")))
 }

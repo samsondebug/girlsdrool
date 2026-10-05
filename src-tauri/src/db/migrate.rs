@@ -45,6 +45,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "ofx_profile",
         sql: include_str!("../../migrations/0005_ofx_profile.sql"),
     },
+    Migration {
+        version: 6,
+        name: "ledger_performance",
+        sql: include_str!("../../migrations/0006_ledger_performance.sql"),
+    },
 ];
 
 pub fn latest_version() -> i64 {

@@ -769,6 +769,7 @@ function ProfilesPanel() {
   const profiles = useProfiles();
   const draft = useDraftProfile();
   const remove = useDeleteProfile();
+  const create = useCreateProfile();
   const pushNotice = useUiStore((s) => s.pushNotice);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
@@ -869,9 +870,27 @@ function ProfilesPanel() {
                         variant="quiet"
                         disabled={remove.isPending}
                         onClick={() => {
+                          const spec = p.spec;
+                          if (!isCsvSpec(spec)) return;
                           remove.mutate(p.id, {
                             onSuccess: () => {
-                              pushNotice({ tone: "info", text: `Deleted profile ${p.name}.` });
+                              pushNotice({
+                                tone: "info",
+                                text: `Deleted profile ${p.name}.`,
+                                undo: {
+                                  label: "Undo",
+                                  run: () => {
+                                    create.mutate(
+                                      { name: p.name, institution: p.institution, spec },
+                                      {
+                                        onError: (error) => {
+                                          pushNotice({ tone: "negative", text: error.message });
+                                        },
+                                      },
+                                    );
+                                  },
+                                },
+                              });
                             },
                             onError: (error) => {
                               pushNotice({ tone: "negative", text: error.message });

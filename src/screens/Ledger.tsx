@@ -356,6 +356,7 @@ export function Ledger() {
       <form onSubmit={applyQuery} className="flex items-end gap-2">
         <TextField
           label="Query"
+          data-shortcut="query"
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);

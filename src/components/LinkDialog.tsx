@@ -99,6 +99,19 @@ export function LinkDialog({ row, onClose }: LinkDialogProps) {
                       pushNotice({
                         tone: "info",
                         text: "Transfer unlinked; both rows are back in the review queue.",
+                        undo: {
+                          label: "Undo",
+                          run: () => {
+                            linkTransfer.mutate(
+                              {
+                                outTxnId: transfer.out_txn_id,
+                                inTxnId: transfer.in_txn_id,
+                                kind: transfer.kind,
+                              },
+                              { onError: fail },
+                            );
+                          },
+                        },
                       });
                     },
                     onError: fail,
@@ -124,6 +137,18 @@ export function LinkDialog({ row, onClose }: LinkDialogProps) {
                       pushNotice({
                         tone: "info",
                         text: "Refund unlinked; the row is back in the review queue.",
+                        undo: {
+                          label: "Undo",
+                          run: () => {
+                            linkRefund.mutate(
+                              {
+                                originalTxnId: refund.original_txn_id,
+                                refundTxnId: refund.refund_txn_id,
+                              },
+                              { onError: fail },
+                            );
+                          },
+                        },
                       });
                     },
                     onError: fail,

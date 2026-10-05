@@ -14,6 +14,7 @@ import type {
   DebtComparison,
   DebtInput,
   DebtKind,
+  DebtPayment,
   DebtView,
   InformalInput,
   InformalLoan,
@@ -283,8 +284,33 @@ function PaymentsPanel({ debt: d }: { debt: DebtView }) {
     <div className="flex flex-col gap-2 rounded-1 border border-line bg-bg p-2 text-12">
       <LinkedPayments
         debtId={d.id}
-        onRemove={(id) => {
-          remove.mutate(id, { onError: fail });
+        onRemove={(p) => {
+          remove.mutate(p.id, {
+            onSuccess: () => {
+              pushNotice({
+                tone: "info",
+                text: `Removed the payment of ${p.paid_date}.`,
+                undo: {
+                  label: "Undo",
+                  run: () => {
+                    record.mutate(
+                      {
+                        debtId: d.id,
+                        input: {
+                          paid_date: p.paid_date,
+                          amount_cents: p.amount_cents,
+                          txn_id: p.txn_id,
+                          note: p.note,
+                        },
+                      },
+                      { onError: fail },
+                    );
+                  },
+                },
+              });
+            },
+            onError: fail,
+          });
         }}
       />
       <form
@@ -369,7 +395,13 @@ function PaymentsPanel({ debt: d }: { debt: DebtView }) {
   );
 }
 
-function LinkedPayments({ debtId, onRemove }: { debtId: number; onRemove: (id: number) => void }) {
+function LinkedPayments({
+  debtId,
+  onRemove,
+}: {
+  debtId: number;
+  onRemove: (payment: DebtPayment) => void;
+}) {
   const payments = useDebtPayments(debtId);
   if (!payments.data || payments.data.length === 0) {
     return <p className="text-text-dim">No payment recorded yet.</p>;
@@ -386,7 +418,7 @@ function LinkedPayments({ debtId, onRemove }: { debtId: number; onRemove: (id: n
             variant="quiet"
             className="ml-auto"
             onClick={() => {
-              onRemove(p.id);
+              onRemove(p);
             }}
           >
             Remove
@@ -775,7 +807,28 @@ function LoanDetails({ loan: l }: { loan: InformalLoan }) {
                 variant="quiet"
                 className="ml-auto"
                 onClick={() => {
-                  deleteRow.mutate(r.id, { onError: fail });
+                  deleteRow.mutate(r.id, {
+                    onSuccess: () => {
+                      pushNotice({
+                        tone: "info",
+                        text: `Removed the schedule row due ${r.due_date}.`,
+                        undo: {
+                          label: "Undo",
+                          run: () => {
+                            addRow.mutate(
+                              {
+                                debtId: l.debt_id,
+                                dueDate: r.due_date,
+                                amountCents: r.amount_cents,
+                              },
+                              { onError: fail },
+                            );
+                          },
+                        },
+                      });
+                    },
+                    onError: fail,
+                  });
                 }}
               >
                 Remove

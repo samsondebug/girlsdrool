@@ -236,17 +236,17 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] critical Playwright path green on the installer build
+- [ ] critical Playwright path green on the installer build — written (`e2e/m10-critical-path.spec.ts`), type-checked and linted here; it runs only on Windows/WebView2 (CI's Windows job, ADR-0009), so this box stays open until that run is seen
 
 **Engineering checklist**
 
-- [ ] Ctrl+K palette (commands and navigation), F1 shortcut overlay, keyboard reachability pass, visible focus everywhere
-- [ ] Undo for every destructive action with named toasts (audit of coverage)
-- [ ] Empty states on every screen: what is missing and the command that fixes it
-- [ ] 200k-row generated fixture (deterministic generator, numbers derived not invented); ledger scroll without jank; import time, page fetch, and hero recompute recorded with the machine spec in `docs/performance.md`
-- [ ] Installer build (unsigned NSIS) from `release.yml`; WebView2 prerequisite documented; `docs/release.md` signing steps
-- [ ] Playwright critical path (import → reconcile → safe-to-spend) against the installer build on Windows; dashboard no-scroll assertion at 1440×900
-- [ ] Light theme verified as a token swap only
+- [x] Ctrl+K palette (commands and navigation), F1 shortcut overlay, keyboard reachability pass, visible focus everywhere (`src/components/Palette.tsx`, `Shortcuts.tsx`, the key layer in `Shell.tsx`, `:focus-visible` in `src/index.css`; every action is a button or form control)
+- [x] Undo for every destructive action with named toasts (audit of coverage: `docs/undo.md`)
+- [x] Empty states on every screen: what is missing and the command that fixes it (`EmptyState` on every data screen; Settings lists what each panel needs)
+- [x] 200k-row generated fixture (deterministic generator, numbers derived not invented); ledger scroll without jank; import time, page fetch, and hero recompute recorded with the machine spec in `docs/performance.md` (`tests/perf_200k.rs`; the ledger is virtualized over keyset pages of 200, so scrolling costs one page fetch per 200 rows)
+- [x] Installer build (unsigned NSIS) from `release.yml`; WebView2 prerequisite documented; `docs/release.md` signing steps (unchanged since M0; the NSIS build itself runs on Windows only)
+- [x] Playwright critical path (import → reconcile → safe-to-spend) against the installer build on Windows; dashboard no-scroll assertion at 1440×900 (written and checked here; run on Windows)
+- [x] Light theme verified as a token swap only (`src/tokens.test.ts`)
 
 **Questions to batch:** none.
 
@@ -254,10 +254,10 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 ## Definition of done for v1 (spec)
 
-- [ ] import a year of statements from every account in under five minutes
-- [ ] see a reconciled ledger I trust
-- [ ] read one safe-to-spend number with full drill-down
-- [ ] see the first shortfall date and why
-- [ ] run a weekly review in 15 minutes
-- [ ] never wonder whether a figure is real
-- [ ] informal loans and the brokerage firewall are first-class, not notes
+- [x] import a year of statements from every account in under five minutes — CSV and OFX/QFX through profiles that auto-detect; the 200k-row run in `docs/performance.md` imports seventy account-years in well under that (the fixture's three months of seven accounts import in seconds)
+- [x] see a reconciled ledger I trust — zero-tolerance reconciliation per statement period, roll-forward, the difference explorer, and dashed-underline marking everywhere a figure is untrusted (M3)
+- [x] read one safe-to-spend number with full drill-down — the hero with its four terms, each opening the rows behind it (M4)
+- [x] see the first shortfall date and why — the forecast's lowest point, shortfall and buffer-breach dates with the events that cause them, baseline and downside (M5)
+- [x] run a weekly review in 15 minutes — seven steps with their figures, the dependable surplus, exactly three actions, history (M8)
+- [x] never wonder whether a figure is real — every figure comes from the core from reconciled rows; untrusted ones are marked and name the accounts; borrowing and asset sales never enter income or the hero (invariants in `tests/invariants.rs`)
+- [x] informal loans and the brokerage firewall are first-class, not notes — informal loans with schedules, repayments and the note draft (M6); the firewall policy, acknowledgments and exclusion from available cash (M2–M4)

@@ -512,7 +512,27 @@ function Receipts({ stream }: { stream: IncomeStream }) {
           <Button
             variant="quiet"
             onClick={() => {
-              remove.mutate({ streamId: stream.id, dueDate: r.due_date }, { onError: fail });
+              remove.mutate(
+                { streamId: stream.id, dueDate: r.due_date },
+                {
+                  onSuccess: () => {
+                    pushNotice({
+                      tone: "info",
+                      text: `Unmatched the receipt due ${r.due_date} from row ${r.txn_id}.`,
+                      undo: {
+                        label: "Undo",
+                        run: () => {
+                          record.mutate(
+                            { streamId: stream.id, dueDate: r.due_date, txnId: r.txn_id },
+                            { onError: fail },
+                          );
+                        },
+                      },
+                    });
+                  },
+                  onError: fail,
+                },
+              );
             }}
           >
             Unmatch
@@ -914,6 +934,7 @@ function ObligationRow({
   const [open, setOpen] = useState(false);
   const setStatus = useSetObligationStatus();
   const remove = useDeleteObligationCandidate();
+  const create = useCreateObligation();
   const pushNotice = useUiStore((s) => s.pushNotice);
   const next = useNextOccurrences("obligation", o.id, 2);
   const fail = (error: Error) => {
@@ -961,7 +982,40 @@ function ObligationRow({
               variant="quiet"
               disabled={remove.isPending}
               onClick={() => {
-                remove.mutate(o.id, { onError: fail });
+                remove.mutate(o.id, {
+                  onSuccess: () => {
+                    pushNotice({
+                      tone: "info",
+                      text: `Deleted the candidate ${o.name}.`,
+                      undo: {
+                        label: "Undo",
+                        run: () => {
+                          create.mutate(
+                            {
+                              name: o.name,
+                              kind: o.kind,
+                              status: "candidate",
+                              due_rule: o.due_rule,
+                              due_day: o.due_day,
+                              due_month: o.due_month,
+                              due_weekday: o.due_weekday,
+                              due_nth: o.due_nth,
+                              anchor_date: o.anchor_date,
+                              expected_cents: o.expected_cents,
+                              variability_cents: o.variability_cents,
+                              source_account_id: o.source_account_id,
+                              autopay: o.autopay,
+                              category_id: o.category_id,
+                              match_payee_contains: o.match_payee_contains,
+                            },
+                            { onError: fail },
+                          );
+                        },
+                      },
+                    });
+                  },
+                  onError: fail,
+                });
               }}
             >
               Delete
@@ -1028,7 +1082,24 @@ function Payments({ obligation }: { obligation: Obligation }) {
             onClick={() => {
               remove.mutate(
                 { obligationId: obligation.id, dueDate: p.due_date },
-                { onError: fail },
+                {
+                  onSuccess: () => {
+                    pushNotice({
+                      tone: "info",
+                      text: `Unmatched the payment due ${p.due_date} from row ${p.txn_id}.`,
+                      undo: {
+                        label: "Undo",
+                        run: () => {
+                          record.mutate(
+                            { obligationId: obligation.id, dueDate: p.due_date, txnId: p.txn_id },
+                            { onError: fail },
+                          );
+                        },
+                      },
+                    });
+                  },
+                  onError: fail,
+                },
               );
             }}
           >
@@ -1458,7 +1529,33 @@ function Entries({ earmark }: { earmark: Earmark }) {
             variant="quiet"
             className="ml-auto"
             onClick={() => {
-              remove.mutate(en.id, { onError: fail });
+              remove.mutate(en.id, {
+                onSuccess: () => {
+                  pushNotice({
+                    tone: "info",
+                    text: `Removed the ${en.kind} entry of ${en.entry_date}.`,
+                    undo: {
+                      label: "Undo",
+                      run: () => {
+                        add.mutate(
+                          {
+                            earmarkId: earmark.id,
+                            input: {
+                              entry_date: en.entry_date,
+                              kind: en.kind,
+                              amount_cents: en.amount_cents,
+                              txn_id: en.txn_id,
+                              note: en.note,
+                            },
+                          },
+                          { onError: fail },
+                        );
+                      },
+                    },
+                  });
+                },
+                onError: fail,
+              });
             }}
           >
             Remove

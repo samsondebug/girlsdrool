@@ -88,7 +88,7 @@ pub fn from_row(r: &rusqlite::Row) -> rusqlite::Result<TxnRecord> {
 }
 
 pub fn tags_of(conn: &Connection, txn_id: i64) -> AppResult<Vec<String>> {
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare_cached(
         "SELECT t.name FROM txn_tag x JOIN tag t ON t.id = x.tag_id WHERE x.txn_id = ?1 ORDER BY t.name",
     )?;
     let rows = stmt
@@ -99,11 +99,8 @@ pub fn tags_of(conn: &Connection, txn_id: i64) -> AppResult<Vec<String>> {
 
 pub fn get(conn: &Connection, id: i64) -> AppResult<TxnRecord> {
     let mut rec = conn
-        .query_row(
-            &format!("SELECT {COLS} FROM txn WHERE id = ?1"),
-            [id],
-            from_row,
-        )
+        .prepare_cached(&format!("SELECT {COLS} FROM txn WHERE id = ?1"))?
+        .query_row([id], from_row)
         .optional()?
         .ok_or(AppError::NotFound { entity: "txn", id })?;
     rec.tags = tags_of(conn, id)?;
@@ -145,12 +142,13 @@ pub fn insert_imported(
     new: &NewImportedTxn,
 ) -> AppResult<TxnRecord> {
     let now = now_rfc3339();
-    conn.execute(
+    conn.prepare_cached(
         "INSERT INTO txn (account_id, posted_date, effective_date, amount_cents, payee_raw, payee_norm, memo, import_batch_id,
                           source_row_hash, external_id, classification, user_edited, status, flags, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'unclassified', 0, ?11, ?12, ?13, ?13)",
-        params![
-            new.account_id,
+    )?
+    .execute(params![
+        new.account_id,
             new.posted_date,
             new.effective_date,
             new.amount_cents,
@@ -160,11 +158,10 @@ pub fn insert_imported(
             new.import_batch_id,
             new.source_row_hash,
             new.external_id,
-            new.status.as_str(),
-            new.flags,
-            now
-        ],
-    )?;
+        new.status.as_str(),
+        new.flags,
+        now
+    ])?;
     let rec = get(conn, conn.last_insert_rowid())?;
     audit::record(
         conn,
@@ -254,12 +251,13 @@ pub fn update_system_fields(
 
 /// Write every mutable column of a record (used by system updates, user edits and undo).
 pub fn write_all_columns(conn: &Connection, t: &TxnRecord) -> AppResult<()> {
-    conn.execute(
+    conn.prepare_cached(
         "UPDATE txn SET account_id = ?1, parent_id = ?2, posted_date = ?3, effective_date = ?4, amount_cents = ?5, payee_raw = ?6,
          payee_norm = ?7, memo = ?8, category_id = ?9, import_batch_id = ?10, source_row_hash = ?11, external_id = ?12,
          classification = ?13, rule_id = ?14, heuristic_code = ?15, user_edited = ?16, status = ?17, transfer_link_id = ?18,
          refund_link_id = ?19, venture_id = ?20, flags = ?21, updated_at = ?22 WHERE id = ?23",
-        params![
+    )?
+    .execute(params![
             t.account_id, t.parent_id, t.posted_date, t.effective_date, t.amount_cents, t.payee_raw, t.payee_norm, t.memo,
             t.category_id, t.import_batch_id, t.source_row_hash, t.external_id, t.classification, t.rule_id, t.heuristic_code,
             t.user_edited, t.status, t.transfer_link_id, t.refund_link_id, t.venture_id, t.flags, t.updated_at, t.id

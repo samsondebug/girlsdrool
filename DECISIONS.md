@@ -904,3 +904,64 @@ acceptance (restore into a temporary data folder matches every table's row count
 14,165.22), a backup under a new passphrase opening only with it, daily rotation, rekey, and the
 export file list with the fixture's row counts. The latent `OpenFlags` gap (no `CREATE` on an
 existing database, which made an attached backup uncreatable after a plain unlock) is closed.
+
+## ADR-0047 — The keyboard layer, undo by inverse command, the 200k-row fixture
+
+Status: Accepted · Date: 2026-10-05 · Source: product spec (M10) + tech lead (mechanics)
+
+**Decision.**
+
+1. **One keyboard layer in the shell.** `Ctrl K` opens a palette listing every screen ("Go to")
+   and the main commands ("Do": lock, back up now, start the weekly review, take a snapshot,
+   import a statement, write the audit pack, keyboard shortcuts); typing filters by every word,
+   `↑ ↓ Enter` run an entry. `F1` or `?` (outside a field) opens the shortcut overlay,
+   `Ctrl Shift L` locks, `/` focuses the Ledger query box; `Esc` closes any dialog. Key events
+   that start in an input, textarea, select or editable element are left alone except `Ctrl K`,
+   `Ctrl Shift L` and `F1`. Every action in Kept is a `button` or a form control, so Tab reaches
+   it, and `:focus-visible` draws the accent ring on every element (`src/index.css`).
+2. **Undo is the inverse command.** There is no generic journal replay: a destructive action's
+   toast names an undo that runs the inverse command (recreate the rule, re-enter the period,
+   re-record the payment, relink the rows, restore the previous override) as a new audited command
+   group. The row returns with the same fields and a new id; the audit log keeps both steps.
+   `docs/undo.md` lists every destructive action, its undo, and the few that have none
+   (quarantine decisions, review abandon, restore, passphrase change) with what stands in.
+3. **The 200k-row fixture is derived, never typed.** `tests/perf_200k.rs` builds 200 000 rows from
+   integer arithmetic over the row index (day = `i × days / n`, outflow = `−(100 + (i × 37) mod
+20000)` cents, every 25th row an inflow of `150000 + (i × 53) mod 100000`, payee from the
+   fixture's list), spread over ten years and the seven fixture accounts, and imports them through
+   the real pipeline into a real SQLCipher file so dedup, rules, reconciliation refresh and the
+   audit log all run. The amount cycle keeps any seven-day window free of equal amounts, so every
+   row inserts and the generator's running sum is the ledger's. Timings go to
+   `docs/performance.md` with the host's specification; the test is ignored by default and runs
+   with `KEPT_PERF=1`.
+4. **What the 200k-row run found, and the fixes (migration 0006).** The first run was quadratic:
+   transfer detection looks for the opposite amount on another account within three days, and
+   with no index led by `amount_cents` that was a full ledger scan per imported row
+   (`txn_amount_date`). Every Ledger page sorted the whole ledger because nothing was indexed on
+   `(posted_date, id)` (`txn_date_id`, and the keyset cursor is a row-value comparison so the
+   index seeks instead of scanning to the page). Balances summed through a correlated
+   `NOT EXISTS` probe per row; the leaf view now builds the tiny set of split parents once per
+   statement, and a covering index `(account_id, status, posted_date, amount_cents)` answers the
+   hero's sums from the index. Flagged rows are a small minority, so a partial index
+   `WHERE flags <> 0` serves the hero's flagged-inflow lookup and the `needs:review` / `flag:`
+   chips; those queries state `flags <> 0` so SQLite can use it. Hot import statements are
+   cached (`prepare_cached`), and the per-connection pragmas of ADR-0013 gain
+   `cache_size = -65536`: 64 MB of decrypted pages, because every page read from disk costs an
+   AES decrypt and an HMAC check and the hot indexes of a 200k-row ledger are a few megabytes.
+   The budget in ARCHITECTURE §15 (page < 50 ms, hero < 100 ms, import < 60 s) is judged on the
+   release-profile run, which meets it; `docs/performance.md` keeps every step from the
+   quadratic first run to the final numbers. Most of the file is the audit log (full before and
+   after JSON per touched row); compacting it is the next lever if the import ever matters.
+5. **The light theme is checked as a token swap.** `src/tokens.test.ts` asserts the light block
+   redefines only custom properties the dark root declares, holds nothing but values, and never
+   touches size, spacing, radius or font tokens.
+6. **The E2E critical path is written here and run on Windows** (`e2e/m10-critical-path.spec.ts`:
+   create → add the fixture's first account → paste the July statement → reconcile with the
+   fixture closing 5,647.48 → the hero is trusted and the dashboard fits 1440×900; plus the
+   palette and overlay). The Linux container has no WebView2, so `just check` ends with
+   `E2E NOT RUN` here and CI's Windows job carries the proof (ADR-0009).
+
+**Consequences.** The installer build and signing steps stay as `docs/release.md` and
+`release.yml` describe; nothing in M10 changed them. The v1 definition of done in
+`MILESTONES.md` is ticked against what this host could verify, with the Windows-only items
+named as such.

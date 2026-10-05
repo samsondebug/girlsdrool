@@ -374,6 +374,12 @@ CREATE INDEX txn_venture      ON txn(venture_id);
 CREATE INDEX txn_parent       ON txn(parent_id);
 CREATE INDEX txn_payee_norm   ON txn(payee_norm);
 CREATE INDEX txn_status       ON txn(status);
+-- migration 0006 (ADR-0047): what the 200k-row run asked for
+CREATE INDEX txn_amount_date          ON txn(amount_cents, posted_date);                      -- counterpart lookups across accounts
+CREATE INDEX txn_date_id              ON txn(posted_date, id);                                -- the Ledger's keyset pages
+CREATE INDEX txn_account_status_date  ON txn(account_id, status, posted_date, amount_cents);  -- balances, the hero (covering)
+CREATE INDEX txn_flagged              ON txn(account_id, status, posted_date, amount_cents, flags) WHERE flags <> 0; -- flagged inflows (covering); queries say flags <> 0 to use it
+-- and txn_leaf is recreated as: SELECT t.* FROM txn t WHERE t.id NOT IN (SELECT parent_id FROM txn WHERE parent_id IS NOT NULL)
 
 -- every aggregate reads leaves: a split parent is never counted
 CREATE VIEW txn_leaf AS
@@ -903,7 +909,7 @@ No `unwrap()`/`expect()` outside tests; `?` everywhere; the webview never swallo
 ## 9. Encryption, keys, and the data folder (ADR-0012, ADR-0030)
 
 - Portable layout: `Kept.exe` + `kept.config.json` beside it (`{ "data_dir": "…" }`, chosen on first run via the dialog plugin; env `KEPT_DATA_DIR` overrides for tests). Data folder: `kept.db` (+ `-wal`, `-shm`), `logs/`, `backups/`, `exports/`.
-- SQLCipher 4 defaults (AES-256-CBC, HMAC-SHA512, PBKDF2-HMAC-SHA512, 256 000 iterations, per-page IV). Open sequence: `PRAGMA key = ?` → `SELECT count(*) FROM sqlite_master` (wrong key → `SQLITE_NOTADB` → `WrongPassphrase`, nothing else happens) → `PRAGMA foreign_keys = ON; journal_mode = WAL; synchronous = NORMAL; temp_store = MEMORY; busy_timeout = 5000` → checksum check → migrations.
+- SQLCipher 4 defaults (AES-256-CBC, HMAC-SHA512, PBKDF2-HMAC-SHA512, 256 000 iterations, per-page IV). Open sequence: `PRAGMA key = ?` → `SELECT count(*) FROM sqlite_master` (wrong key → `SQLITE_NOTADB` → `WrongPassphrase`, nothing else happens) → `PRAGMA foreign_keys = ON; journal_mode = WAL; synchronous = NORMAL; temp_store = MEMORY; busy_timeout = 5000; cache_size = -65536` (64 MB of decrypted pages in memory, ADR-0047) → checksum check → migrations.
 - Remember passphrase (opt-in): `keyring` 4.x with the `windows-native-keyring-store` feature stores the passphrase itself under service `Kept`, user `sha256(data_dir)`; Windows Credential Manager protects it with the user's logon (DPAPI). Forget = delete the entry. The passphrase is held in a `zeroize`d buffer and dropped on lock.
 - Change passphrase: fresh `manual` backup → `PRAGMA rekey = ?` → update keyring if remembered. Backups re-encrypt via `sqlcipher_export` under the chosen passphrase (§6.6).
 - One `rusqlite::Connection` behind `Mutex<Option<Connection>>` in Tauri state (ADR-0013): `None` while locked; commands take the lock for the duration of their transaction.
@@ -976,7 +982,7 @@ No number in `EXPECTED.md` is produced by the engine. If the engine disagrees, t
 
 ## 15. Performance budget
 
-200k leaf rows must scroll without jank (M10, machine documented). Ledger reads are keyset-paginated on `(posted_date, id)` with the chip filter compiled to indexed `WHERE` clauses; counts via `COUNT(*)` on the same filter; TanStack Virtual renders ~40 rows. Import of 200k rows: one transaction, prepared statements, dedup lookups on `txn_dedup`. Safe-to-spend and reconciliation are index-backed `SUM()`s per account. Targets to record at M10: ledger page fetch < 50 ms, hero recompute < 100 ms, 200k-row import < 60 s.
+200k leaf rows must scroll without jank (M10, machine documented). Ledger reads are keyset-paginated on `(posted_date, id)` with the chip filter compiled to indexed `WHERE` clauses; counts via `COUNT(*)` on the same filter; TanStack Virtual renders ~40 rows. Import of 200k rows: one transaction, prepared statements, dedup lookups on `txn_dedup`. Safe-to-spend and reconciliation are index-backed `SUM()`s per account. Budget (judged on the optimized build, asserted by `tests/perf_200k.rs`): ledger page fetch < 50 ms at any depth, hero recompute < 100 ms, 200k-row import < 60 s. The run and its numbers, with the host's specification and what each change bought, are in `docs/performance.md`; the Windows machine records its own run there.
 
 ---
 
