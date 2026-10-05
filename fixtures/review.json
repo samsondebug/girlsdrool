@@ -1,0 +1,207 @@
+{
+ "as_of": "2026-09-30",
+ "income_window_days": 90,
+ "horizon_days": 14,
+ "period_start": "2026-07-01",
+ "surplus": {
+  "income_90_cents": 2047662,
+  "income_receipts": 6,
+  "income_cents": 682554,
+  "fixed_cents": 272999,
+  "fixed_items": [
+   {
+    "name": "Rent",
+    "monthly_cents": 240000
+   },
+   {
+    "name": "ComEd",
+    "monthly_cents": 12500
+   },
+   {
+    "name": "Xfinity",
+    "monthly_cents": 8999
+   },
+   {
+    "name": "T-Mobile",
+    "monthly_cents": 7500
+   },
+   {
+    "name": "Peoples Gas",
+    "monthly_cents": 4000
+   }
+  ],
+  "debt_service_cents": 30700,
+  "debt_items": [
+   {
+    "name": "Summit Amex minimum",
+    "monthly_cents": 11600
+   },
+   {
+    "name": "Auto loan minimum",
+    "monthly_cents": 9500
+   },
+   {
+    "name": "Balance transfer card minimum",
+    "monthly_cents": 9600
+   }
+  ],
+  "informal_schedule_12m_cents": 0,
+  "irregular_cents": 10700,
+  "irregular_items": [
+   {
+    "name": "GEICO annual",
+    "monthly_cents": 10700
+   }
+  ],
+  "variable_cents": 53204,
+  "surplus_cents": 314951
+ },
+ "steps": {
+  "balances": {
+   "accounts": [
+    {
+     "account": "nbc",
+     "balance_cents": 1362647
+    },
+    {
+     "account": "nbs",
+     "balance_cents": 1353199
+    },
+    {
+     "account": "rvc",
+     "balance_cents": 186476
+    },
+    {
+     "account": "sv",
+     "balance_cents": 142133
+    },
+    {
+     "account": "sa",
+     "balance_cents": -11600
+    },
+    {
+     "account": "hb",
+     "balance_cents": 41842
+    },
+    {
+     "account": "vm",
+     "balance_cents": 4200
+    }
+   ],
+   "available_cents": 2906522
+  },
+  "unreviewed": {
+   "count": 5,
+   "total_abs_cents": 289042,
+   "rows": [
+    {
+     "account": "hb",
+     "posted": "2026-09-15",
+     "description": "ACH TRANSFER TO NORTHBANK ...1234",
+     "amount_cents": -250000
+    },
+    {
+     "account": "rvc",
+     "posted": "2026-08-15",
+     "description": "ATM WITHDRAWAL BANCO AZTECA CDMX",
+     "amount_cents": -16342
+    },
+    {
+     "account": "nbc",
+     "posted": "2026-07-25",
+     "description": "ATM WITHDRAWAL 1120 N STATE",
+     "amount_cents": -10000
+    },
+    {
+     "account": "nbc",
+     "posted": "2026-09-14",
+     "description": "VENMO *MORGAN AVERY",
+     "amount_cents": -8500
+    },
+    {
+     "account": "vm",
+     "posted": "2026-09-20",
+     "description": "Morgan Avery",
+     "amount_cents": 4200
+    }
+   ]
+  },
+  "obligations_14": {
+   "count": 4,
+   "expected_cents": 271099,
+   "items": [
+    {
+     "obligation": "Rent",
+     "due_date": "2026-10-01",
+     "expected_cents": 240000
+    },
+    {
+     "obligation": "Balance transfer card minimum",
+     "due_date": "2026-10-05",
+     "expected_cents": 9600
+    },
+    {
+     "obligation": "ComEd",
+     "due_date": "2026-10-07",
+     "expected_cents": 12500
+    },
+    {
+     "obligation": "Xfinity",
+     "due_date": "2026-10-12",
+     "expected_cents": 8999
+    }
+   ]
+  },
+  "debts": {
+   "total_debt_cents": 811600,
+   "informal_remaining_cents": 200000
+  },
+  "ventures": {
+   "cap_used_cents": 54418,
+   "cap_cents": 500000,
+   "utilization_bps": 1088
+  },
+  "flags": {
+   "borrowing": [
+    {
+     "account": "vm",
+     "posted": "2026-08-05",
+     "description": "Chris Park",
+     "amount_cents": 60000
+    }
+   ],
+   "securities_sale": [
+    {
+     "account": "hb",
+     "posted": "2026-09-12",
+     "description": "SELL",
+     "amount_cents": 250000
+    }
+   ],
+   "firewall_unacknowledged": [
+    {
+     "account": "hb",
+     "posted": "2026-09-15",
+     "description": "ACH TRANSFER TO NORTHBANK ...1234",
+     "amount_cents": -250000
+    }
+   ]
+  }
+ },
+ "actions": [
+  "Acknowledge the Harbor transfer and classify the two ATM withdrawals",
+  "Set up autopay for the auto loan so the 15th never slips",
+  "Send Mom the 300-a-month plan drafted under Debts"
+ ],
+ "snapshot": {
+  "safe_cents": 1416522,
+  "available_cents": 2906522,
+  "earmarks_cents": 1320000,
+  "obligations_cents": 120000,
+  "buffer_cents": 50000,
+  "trusted": true,
+  "total_debt_cents": 811600,
+  "informal_remaining_cents": 200000,
+  "venture_cap_used_cents": 54418
+ }
+}

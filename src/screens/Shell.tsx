@@ -9,6 +9,7 @@ import { Forecast } from "./Forecast";
 import { Import } from "./Import";
 import { Ledger } from "./Ledger";
 import { Plan } from "./Plan";
+import { Queue } from "./Queue";
 import { Reconcile } from "./Reconcile";
 import { Review } from "./Review";
 import { Rules } from "./Rules";
@@ -22,6 +23,7 @@ interface ShellProps {
 const navItems: { screen: Screen; label: string }[] = [
   { screen: "dashboard", label: "Dashboard" },
   { screen: "ledger", label: "Ledger" },
+  { screen: "queue", label: "Queue" },
   { screen: "review", label: "Review" },
   { screen: "rules", label: "Rules" },
   { screen: "reconcile", label: "Reconcile" },
@@ -40,6 +42,8 @@ function ActiveScreen({ screen, status }: { screen: Screen; status: AppStatus })
       return <Dashboard />;
     case "ledger":
       return <Ledger />;
+    case "queue":
+      return <Queue />;
     case "review":
       return <Review />;
     case "rules":

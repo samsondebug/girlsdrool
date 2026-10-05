@@ -42,14 +42,24 @@ export function Dashboard() {
         title="Safe to spend"
         className="col-span-8"
         aside={
-          <Button
-            variant="quiet"
-            onClick={() => {
-              setScreen("plan");
-            }}
-          >
-            Plan…
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              variant="quiet"
+              onClick={() => {
+                setScreen("review");
+              }}
+            >
+              Review…
+            </Button>
+            <Button
+              variant="quiet"
+              onClick={() => {
+                setScreen("plan");
+              }}
+            >
+              Plan…
+            </Button>
+          </div>
         }
       >
         {safe.data && safe.data.terms.available.accounts.length > 0 ? (

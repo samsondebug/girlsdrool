@@ -653,4 +653,6 @@ fn seed_fixture_data_folder() {
     common::debts::install_debts(db.conn_mut(), &accounts, &debts, date(&debts.as_of));
     let ventures: common::ventures::VenturesFile = load_json("ventures.json");
     common::ventures::install_venture(db.conn(), &accounts, &ventures);
+    let review: common::review::ReviewFile = load_json("review.json");
+    common::review::complete_fixture_review(db.conn(), &review);
 }

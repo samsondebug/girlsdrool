@@ -40,6 +40,7 @@ use crate::import::{self, ImportInput, Preview, QuarantineAction, UndoReport};
 use crate::plan::earmark::{self, Earmark, EarmarkInput, Entry, EntryInput};
 use crate::plan::income::{self, IncomeInput, IncomeStream, Receipt};
 use crate::plan::obligation::{self, Obligation, ObligationInput, Payment};
+use crate::review::{self, snapshot, Review, ReviewAction};
 use crate::rules::link::{self as detect, Candidate};
 use crate::rules::{self, AutomationReport, RuleProposal};
 use crate::{poisoned, secret, AppState};
@@ -201,13 +202,32 @@ pub async fn unlock(
     remember: bool,
 ) -> AppResult<AppStatus> {
     let paths = current_paths(&state)?;
-    let db = Db::open(&paths, &passphrase, OpenMode::Existing)?;
+    let mut db = Db::open(&paths, &passphrase, OpenMode::Existing)?;
+    daily_snapshot(&mut db);
     *state.db.lock().map_err(|_| poisoned())? = Some(db);
     if remember {
         secret::remember(&paths.root, &passphrase)?;
     }
     tracing::info!("database unlocked");
     status(&state)
+}
+
+/// The nightly snapshot, taken once per civil day on unlock (ADR-0027). A failure is logged and
+/// never blocks the unlock: a snapshot is a trend point, not a figure the person waits for.
+fn daily_snapshot(db: &mut Db) {
+    let mut attempt = || -> AppResult<Option<i64>> {
+        let today = today(db)?;
+        let tx = db.conn_mut().transaction()?;
+        let cmd = audit::begin(&tx, "snapshot.daily", Actor::User)?;
+        let taken = snapshot::take_daily_if_missing(&tx, &cmd, today)?;
+        tx.commit()?;
+        Ok(taken.map(|s| s.id))
+    };
+    match attempt() {
+        Ok(Some(id)) => tracing::info!(snapshot = id, "daily snapshot taken"),
+        Ok(None) => {}
+        Err(e) => tracing::warn!(error = %e, "daily snapshot not taken"),
+    }
 }
 
 #[tauri::command]
@@ -219,7 +239,8 @@ pub async fn unlock_remembered(state: State<'_, AppState>) -> AppResult<AppStatu
             "no passphrase is remembered for this data folder",
         ));
     };
-    let db = Db::open(&paths, &passphrase, OpenMode::Existing)?;
+    let mut db = Db::open(&paths, &passphrase, OpenMode::Existing)?;
+    daily_snapshot(&mut db);
     *state.db.lock().map_err(|_| poisoned())? = Some(db);
     tracing::info!("database unlocked from credential store");
     status(&state)
@@ -1498,6 +1519,125 @@ pub async fn venture_summary(state: State<'_, AppState>) -> AppResult<crate::ven
         let today = today(db)?;
         crate::venture::summary(db.conn(), today)
     })
+}
+
+// ---- weekly review and snapshots (M8) ---------------------------------------------------------
+
+#[tauri::command]
+pub async fn current_review(state: State<'_, AppState>) -> AppResult<Option<Review>> {
+    with_db(&state, |db| review::current(db.conn()))
+}
+
+#[tauri::command]
+pub async fn start_review(app: AppHandle, state: State<'_, AppState>) -> AppResult<Review> {
+    let today = with_db(&state, |db| today(db))?;
+    let r = write(&state, "review.start", |tx, cmd| {
+        review::start(tx, cmd, today)
+    })?;
+    emit_changed(&app, &["review"]);
+    Ok(r)
+}
+
+#[tauri::command]
+pub async fn refresh_review(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<Review> {
+    let today = with_db(&state, |db| today(db))?;
+    let r = write(&state, "review.refresh", |tx, cmd| {
+        review::refresh(tx, cmd, id, today)
+    })?;
+    emit_changed(&app, &["review"]);
+    Ok(r)
+}
+
+#[tauri::command]
+pub async fn set_review_actions(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    actions: Vec<String>,
+) -> AppResult<Review> {
+    let r = write(&state, "review.set_actions", |tx, cmd| {
+        review::set_actions(tx, cmd, id, &actions)
+    })?;
+    emit_changed(&app, &["review"]);
+    Ok(r)
+}
+
+/// Completes only with exactly three non-empty actions; otherwise nothing is stored.
+#[tauri::command]
+pub async fn complete_review(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    actions: Vec<String>,
+    notes: Option<String>,
+) -> AppResult<Review> {
+    let today = with_db(&state, |db| today(db))?;
+    let r = write(&state, "review.complete", |tx, cmd| {
+        review::complete(tx, cmd, id, &actions, notes.as_deref().unwrap_or(""), today)
+    })?;
+    emit_changed(&app, &["review", "snapshot"]);
+    Ok(r)
+}
+
+#[tauri::command]
+pub async fn abandon_review(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<Review> {
+    let r = write(&state, "review.abandon", |tx, cmd| {
+        review::abandon(tx, cmd, id)
+    })?;
+    emit_changed(&app, &["review"]);
+    Ok(r)
+}
+
+#[tauri::command]
+pub async fn list_reviews(state: State<'_, AppState>) -> AppResult<Vec<Review>> {
+    with_db(&state, |db| review::list(db.conn()))
+}
+
+#[tauri::command]
+pub async fn set_review_action_done(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    action_id: i64,
+    done: bool,
+) -> AppResult<ReviewAction> {
+    let a = write(&state, "review.action_done", |tx, cmd| {
+        review::set_action_done(tx, cmd, action_id, done)
+    })?;
+    emit_changed(&app, &["review"]);
+    Ok(a)
+}
+
+/// An on-demand snapshot of today's figures.
+#[tauri::command]
+pub async fn take_snapshot(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<snapshot::Snapshot> {
+    let today = with_db(&state, |db| today(db))?;
+    let s = write(&state, "snapshot.on_demand", |tx, cmd| {
+        snapshot::take(tx, cmd, today, "on_demand", snapshot::Detail::default())
+    })?;
+    emit_changed(&app, &["snapshot"]);
+    Ok(s)
+}
+
+#[tauri::command]
+pub async fn list_snapshots(state: State<'_, AppState>) -> AppResult<Vec<snapshot::Snapshot>> {
+    with_db(&state, |db| snapshot::list(db.conn()))
+}
+
+/// One point per civil day, from snapshots only.
+#[tauri::command]
+pub async fn list_trends(state: State<'_, AppState>) -> AppResult<Vec<snapshot::TrendPoint>> {
+    with_db(&state, |db| snapshot::trends(db.conn()))
 }
 
 /// Store today's baseline as the plan later forecasts are drawn against.

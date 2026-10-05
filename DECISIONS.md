@@ -799,3 +799,45 @@ take-home`.
 contributions), cap used, the 1088 bps gauge, the 92-day countdown, the 170 bps spend share, the
 two alerts and the personal-account expense rule. The batched M7 question (ADR-0025: personal-
 account venture expenses count toward the cap) stays open with its default in force.
+
+## ADR-0045 — Review mechanics: the period, what a step stores, plan variance, snapshots on unlock
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** ADR-0026 fixed the surplus and the three-action rule; ADR-0027 the snapshot cadence.
+Building M8 left open what period a review covers, whether history shows what the person saw or
+what the engines say now, what "plan variance" compares, and how the nightly snapshot is taken by
+an app that may not be running at night.
+
+**Decision.**
+
+1. **The period runs from the last completed review's end to today** (from the first row in the
+   ledger for the first review); "since the last review" in the flags step means that start. One
+   review is in progress at a time; an abandoned one commits nothing.
+2. **A review stores what it showed.** The steps and the surplus with its terms are computed at
+   start, on demand, and again inside the completing transaction, and stored on the review
+   (`steps_json`, `surplus_detail_json`); history reads them back, never the live engines.
+3. **Exactly three non-empty actions, enforced in the completing transaction**: two, four, or
+   blanks leave the review in progress and nothing stored; drafts of up to three can be saved
+   before the commit. Actions are ticked later from history.
+4. **Plan variance compares today's available cash with the plan's balance entering today**, the
+   latest `plan` snapshot's closing for yesterday; on the plan's first day there is nothing to
+   compare yet. Completing a review stores a `plan` snapshot carrying the baseline forecast's
+   closings and the review id, so the next review and the Forecast overlay both read it.
+5. **Snapshots are one module.** `review::snapshot::take` writes the hero's terms, total debt,
+   informal remaining, venture cap used and every account's balance; `daily` is taken once per
+   civil day on unlock (a failure is logged and never blocks the unlock), `on_demand` from the
+   Review screen, `plan` by "Save baseline as plan" and by review completion. Trends are one point
+   per civil day, the latest snapshot of the day, and read snapshots only.
+6. **Surplus terms, as built:** income = confirmed-stream receipts posted in the trailing 90 days
+   × 30/90; fixed = confirmed non-minimum obligations with a monthly, nth-weekday (×1), biweekly
+   (×26/12) or weekly (×52/12) rule; debt service = debt-minimum obligations + unpaid informal
+   schedule rows due within 365 days ÷ 12; irregular = annual obligations ÷ 12 + sinking-fund
+   schedules (per paycheck by the stream's cycle, monthly as is, by date the gap over the months
+   left); variable = the variable-spend model. The queue screen became "Queue" so "Review" names
+   the walkthrough, as the spec does.
+
+**Consequences.** `tests/m8_review.rs` pins the fixture's surplus (3,149.51) and every step, the
+two-or-four refusal, the stored snapshot, persistence across unlock on a real file database, and
+daily uniqueness. The batched M8 question (ADR-0026: 90 days of receipts vs three pay cycles)
+stays open with its default in force.

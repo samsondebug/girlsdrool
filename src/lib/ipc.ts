@@ -1208,6 +1208,146 @@ export interface VentureSummary {
   spend_share_bps: number;
 }
 
+export interface SurplusTerm {
+  name: string;
+  monthly_cents: number;
+}
+
+export interface Surplus {
+  as_of: string;
+  income_window_days: number;
+  income_window_cents: number;
+  income_receipts: number;
+  income_cents: number;
+  fixed_cents: number;
+  fixed_items: SurplusTerm[];
+  debt_service_cents: number;
+  debt_items: SurplusTerm[];
+  informal_schedule_12m_cents: number;
+  irregular_cents: number;
+  irregular_items: SurplusTerm[];
+  variable_cents: number;
+  surplus_cents: number;
+}
+
+export interface ReviewRowRef {
+  txn_id: number;
+  account_name: string;
+  posted_date: string;
+  payee: string;
+  amount_cents: number;
+  why: string;
+}
+
+export interface ReviewBalanceLine {
+  account_id: number;
+  name: string;
+  kind: AccountKind;
+  balance_cents: number;
+  trust: TrustStatus;
+}
+
+export interface ReviewDueItem {
+  obligation_id: number;
+  name: string;
+  due_date: string;
+  expected_cents: number;
+  overdue: boolean;
+}
+
+export interface ReviewVentureLine {
+  venture_id: number;
+  name: string;
+  status: VentureStatus;
+  cap_used_cents: number;
+  cap_cents: number;
+  utilization_bps: number;
+  alerts: string[];
+}
+
+export interface ReviewSteps {
+  balances: { accounts: ReviewBalanceLine[]; available_cents: number; trusted: boolean };
+  unreviewed: { count: number; total_abs_cents: number; rows: ReviewRowRef[] };
+  obligations_14: { count: number; expected_cents: number; items: ReviewDueItem[] };
+  plan_variance: {
+    plan_snapshot_id: number | null;
+    plan_date: string | null;
+    plan_cents: number | null;
+    actual_cents: number;
+    variance_cents: number | null;
+  };
+  debts: {
+    total_debt_cents: number;
+    informal_remaining_cents: number;
+    previous_review_id: number | null;
+    previous_total_debt_cents: number | null;
+    previous_informal_cents: number | null;
+  };
+  ventures: { cap_used_cents: number; cap_cents: number; ventures: ReviewVentureLine[] };
+  flags: {
+    since: string;
+    borrowing: ReviewRowRef[];
+    securities_sale: ReviewRowRef[];
+    firewall_unacknowledged: ReviewRowRef[];
+    firewall_acknowledged: ReviewRowRef[];
+  };
+}
+
+export interface ReviewAction {
+  id: number;
+  review_id: number;
+  position: number;
+  text: string;
+  done: boolean;
+  done_at: string | null;
+}
+
+export type ReviewStatus = "in_progress" | "completed" | "abandoned";
+
+export interface Review {
+  id: number;
+  started_at: string;
+  completed_at: string | null;
+  status: ReviewStatus;
+  period_start: string;
+  period_end: string;
+  surplus_cents: number | null;
+  surplus: Surplus | null;
+  steps: ReviewSteps;
+  notes: string;
+  actions: ReviewAction[];
+  snapshot_id: number | null;
+}
+
+export type SnapshotKind = "daily" | "on_demand" | "plan";
+
+export interface Snapshot {
+  id: number;
+  taken_at: string;
+  civil_date: string;
+  kind: SnapshotKind;
+  safe_cents: number;
+  available_cents: number;
+  earmarks_cents: number;
+  obligations_cents: number;
+  buffer_cents: number;
+  trusted: boolean;
+  total_debt_cents: number;
+  informal_remaining_cents: number;
+  venture_cap_used_cents: number;
+}
+
+export interface TrendPoint {
+  civil_date: string;
+  kind: SnapshotKind;
+  safe_cents: number;
+  available_cents: number;
+  total_debt_cents: number;
+  informal_remaining_cents: number;
+  venture_cap_used_cents: number;
+  trusted: boolean;
+}
+
 export const api = {
   appStatus: () => call<AppStatus>("app_status"),
   chooseDataDir: (path: string) => call<AppStatus>("choose_data_dir", { path }),
@@ -1360,6 +1500,21 @@ export const api = {
     call<DebtComparison>("debt_comparison", { extraCents }),
   debtTotals: () => call<DebtTotals>("debt_totals"),
   ventureSummary: () => call<VentureSummary>("venture_summary"),
+
+  currentReview: () => call<Review | null>("current_review"),
+  startReview: () => call<Review>("start_review"),
+  refreshReview: (id: number) => call<Review>("refresh_review", { id }),
+  setReviewActions: (id: number, actions: string[]) =>
+    call<Review>("set_review_actions", { id, actions }),
+  completeReview: (id: number, actions: string[], notes: string) =>
+    call<Review>("complete_review", { id, actions, notes }),
+  abandonReview: (id: number) => call<Review>("abandon_review", { id }),
+  listReviews: () => call<Review[]>("list_reviews"),
+  setReviewActionDone: (actionId: number, done: boolean) =>
+    call<ReviewAction>("set_review_action_done", { actionId, done }),
+  takeSnapshot: () => call<Snapshot>("take_snapshot"),
+  listSnapshots: () => call<Snapshot[]>("list_snapshots"),
+  listTrends: () => call<TrendPoint[]>("list_trends"),
 };
 
 export const CHANGED_EVENT = "kept://changed";

@@ -196,19 +196,19 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] a review cannot be completed with fewer or more than three committed actions
-- [ ] history persists
+- [x] a review cannot be completed with fewer or more than three committed actions
+- [x] history persists
 
 **Engineering checklist**
 
-- [ ] Review state machine and steps: balances, unreviewed rows, obligations in 14 days, plan variance, debt and informal progress, venture cap, borrowing flags and firewall touches since last review
-- [ ] Dependable surplus/deficit after debt service and irregular provisions, excluding borrowing and asset sales (ADR-0026), shown and stored
-- [ ] Exactly three actions enforced in the completing transaction; actions editable before commit; history list
-- [ ] Snapshots: daily-on-launch, on demand, `plan` at review completion; trends charts from snapshots only (ADR-0027)
-- [ ] Review screen
-- [ ] Integration tests: completion with 2 or 4 actions → `Validation`; completed review and actions persist across unlock; snapshot uniqueness per civil day
+- [x] Review state machine and steps: balances, unreviewed rows, obligations in 14 days, plan variance, debt and informal progress, venture cap, borrowing flags and firewall touches since last review
+- [x] Dependable surplus/deficit after debt service and irregular provisions, excluding borrowing and asset sales (ADR-0026), shown and stored
+- [x] Exactly three actions enforced in the completing transaction; actions editable before commit; history list
+- [x] Snapshots: daily-on-launch, on demand, `plan` at review completion; trends charts from snapshots only (ADR-0027)
+- [x] Review screen
+- [x] Integration tests: completion with 2 or 4 actions → `Validation`; completed review and actions persist across unlock; snapshot uniqueness per civil day
 
-**Questions to batch (ADR-0026):** income base for the surplus (90 days vs three pay cycles).
+**Questions to batch (ADR-0026, default in force; see ADR-0045):** income base for the surplus (90 days vs three pay cycles).
 
 ---
 

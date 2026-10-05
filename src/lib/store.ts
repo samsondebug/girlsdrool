@@ -9,6 +9,7 @@ import type { Scenario, Theme } from "./ipc";
 export type Screen =
   | "dashboard"
   | "ledger"
+  | "queue"
   | "review"
   | "rules"
   | "reconcile"

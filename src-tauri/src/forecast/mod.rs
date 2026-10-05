@@ -8,13 +8,13 @@ pub mod variable;
 use std::collections::BTreeMap;
 
 use chrono::{Datelike, Duration};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::cash::recon::{self, TrustReport};
 use crate::cash::safe;
-use crate::dates::{format_civil, now_rfc3339, parse_civil, CivilDate};
-use crate::db::audit::{self, Action, CommandRecord};
+use crate::dates::{format_civil, parse_civil, CivilDate};
+use crate::db::audit::CommandRecord;
 use crate::db::repo::account::{self, Account};
 use crate::db::settings;
 use crate::error::{AppError, AppResult};
@@ -549,54 +549,29 @@ pub fn save_plan(
     today: CivilDate,
 ) -> AppResult<PlanOverlay> {
     let baseline = run(conn, today, &Scenario::default())?;
-    let hero = safe::safe_to_spend(conn, today)?;
-    let stored = StoredPlan {
-        days: baseline
-            .days
-            .iter()
-            .map(|d| Point {
-                date: d.date.clone(),
-                cents: d.closing_cents,
-            })
-            .collect(),
-    };
-    let detail = serde_json::to_string(&stored)
-        .map_err(|e| AppError::Internal(format!("plan snapshot: {e}")))?;
-    let taken_at = now_rfc3339();
-    conn.execute(
-        "INSERT INTO snapshot (taken_at, civil_date, kind, safe_cents, available_cents, earmarks_cents, obligations_cents,
-                               buffer_cents, trusted, total_debt_cents, informal_remaining_cents, venture_cap_used_cents, detail_json)
-         VALUES (?1, ?2, 'plan', ?3, ?4, ?5, ?6, ?7, ?8, 0, 0, 0, ?9)",
-        params![
-            taken_at,
-            format_civil(today),
-            hero.safe_cents,
-            hero.terms.available.cents,
-            hero.terms.earmarks.cents,
-            hero.terms.obligations.cents,
-            hero.terms.buffer.cents,
-            i64::from(hero.trust.hero.trusted),
-            detail,
-        ],
-    )?;
-    let id = conn.last_insert_rowid();
-    let after = serde_json::json!({
-        "id": id, "kind": "plan", "civil_date": format_civil(today), "safe_cents": hero.safe_cents,
-        "closing_day_90_cents": baseline.closing_cents,
-    });
-    audit::record(
+    let days: Vec<Point> = baseline
+        .days
+        .iter()
+        .map(|d| Point {
+            date: d.date.clone(),
+            cents: d.closing_cents,
+        })
+        .collect();
+    let snap = crate::review::snapshot::take(
         conn,
         cmd,
-        "snapshot",
-        id,
-        Action::Insert,
-        None,
-        Some(&after),
+        today,
+        "plan",
+        crate::review::snapshot::Detail {
+            accounts: Vec::new(),
+            days: days.clone(),
+            review_id: None,
+        },
     )?;
     Ok(PlanOverlay {
-        snapshot_id: id,
-        taken_at,
-        civil_date: format_civil(today),
-        days: stored.days,
+        snapshot_id: snap.id,
+        taken_at: snap.taken_at,
+        civil_date: snap.civil_date,
+        days,
     })
 }

@@ -811,3 +811,42 @@ expenses paid from the venture's own account. Rows are bucketed by their venture
 - Verdict is the person's (`fund|freeze|kill`); sunk cost is not an input. Lowering the cap below what is used, or letting the
   milestone date pass, raises the alert; the test checks both.
 
+## Weekly review (M8)
+
+As of **2026-09-30**, over everything the earlier milestones installed. The review is a mode: it walks the steps below, states the
+dependable surplus, and completes only with exactly three non-empty actions (enforced in the completing transaction). It stores
+what each step showed, the surplus with its terms, and a `plan` snapshot. No previous review exists, so "since the last review"
+means the whole ledger.
+
+### Dependable surplus (monthly equivalent, ARCHITECTURE §5.10)
+
+- income = confirmed-stream receipts posted in the trailing 90 days (2026-07-02 < posted ≤ 2026-09-30): 6 × 3,412.77 = 20,476.62,
+  × 30/90 = **6,825.54** (borrowing, asset sales and the freelance deposits cannot enter: only receipts of confirmed streams count)
+- fixed = confirmed obligations that are not debt minimums, monthly equivalent (annuals are irregular): Rent 2,400.00, ComEd 125.00, Xfinity 89.99, T-Mobile 75.00, Peoples Gas 40.00 = **2,729.99**
+- debt_service = debt-minimum obligations Summit Amex minimum 116.00, Auto loan minimum 95.00, Balance transfer card minimum 96.00 = 307.00 + unpaid informal schedule rows due within 12 months ÷ 12 = 0.00 → **307.00**
+- irregular = annual obligations ÷ 12: GEICO annual 107.00 + sinking-fund schedules (none) = **107.00**
+- variable = the variable-spend model = **532.04**
+- surplus = 6,825.54 − 2,729.99 − 307.00 − 107.00 − 532.04 = **3,149.51**
+
+### Steps
+
+1. Balances: every account's posted balance with its reconciliation status; nbc 13,626.47, nbs 13,531.99, rvc 1,864.76, sv 1,421.33, sa -116.00, hb 418.42, vm 42.00; available (the hero's set) 29,065.22; every cash account reconciled.
+2. Unreviewed rows: **5** (the M2 queue minus the Venmo inflow that became the loan's proceeds), Σ|amount| 2,890.42, largest first: hb 2026-09-15 `ACH TRANSFER TO NORTHBANK ...1234` -2,500.00; rvc 2026-08-15 `ATM WITHDRAWAL BANCO AZTECA CDMX` -163.42; nbc 2026-07-25 `ATM WITHDRAWAL 1120 N STATE` -100.00; nbc 2026-09-14 `VENMO *MORGAN AVERY` -85.00; vm 2026-09-20 `Morgan Avery` 42.00.
+3. Obligations in the next 14 days (to 2026-10-14): **4**, Σ expected 2,710.99: Rent 2026-10-01 2,400.00; Balance transfer card minimum 2026-10-05 96.00; ComEd 2026-10-07 125.00; Xfinity 2026-10-12 89.99.
+4. Plan variance: no plan snapshot exists yet, so there is nothing to compare; completing this review stores one.
+5. Debt and informal-loan progress: total debt 8,116.00, informal remaining 2,000.00; no earlier review to compare against.
+6. Venture cap: Ledgerline 544.18 of 5,000.00 (1088 bps), alerts: none.
+7. Flags since the last review: borrowing 1 (vm 2026-08-05 600.00), securities sale 1 (hb 2026-09-12 2,500.00),
+   firewall touches awaiting acknowledgment 1 (hb 2026-09-15 -2,500.00), acknowledged 0.
+
+### Completion
+
+- Three actions, committed in one transaction with the review; two or four are refused with `Validation` and nothing is stored.
+  1. Acknowledge the Harbor transfer and classify the two ATM withdrawals
+  2. Set up autopay for the auto loan so the 15th never slips
+  3. Send Mom the 300-a-month plan drafted under Debts
+- The `plan` snapshot stored at completion carries the hero as of 2026-09-30 (safe 14,165.22, available 29,065.22, earmarks 13,200.00,
+  obligations 1,200.00, buffer 500.00, trusted), total debt 8,116.00, informal remaining 2,000.00,
+  venture cap used 544.18, and every account's balance. A `daily` snapshot is taken once per civil day on unlock (unique per day); trends read snapshots only.
+- History persists: the completed review, its surplus and its three actions are there after the database is closed and reopened.
+

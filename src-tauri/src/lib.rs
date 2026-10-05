@@ -14,6 +14,7 @@ pub mod import;
 pub mod logging;
 pub mod money;
 pub mod plan;
+pub mod review;
 pub mod rules;
 pub mod secret;
 pub mod venture;
@@ -189,6 +190,17 @@ pub fn run() {
             cmd::debt_comparison,
             cmd::debt_totals,
             cmd::venture_summary,
+            cmd::current_review,
+            cmd::start_review,
+            cmd::refresh_review,
+            cmd::set_review_actions,
+            cmd::complete_review,
+            cmd::abandon_review,
+            cmd::list_reviews,
+            cmd::set_review_action_done,
+            cmd::take_snapshot,
+            cmd::list_snapshots,
+            cmd::list_trends,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

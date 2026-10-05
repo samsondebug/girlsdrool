@@ -102,6 +102,11 @@ export const keys = {
   debtComparison: (extra: number | null) => ["debt_comparison", extra] as const,
   debtTotals: ["debt_totals"] as const,
   ventureSummary: ["venture_summary"] as const,
+  currentReview: ["review", "current"] as const,
+  reviews: ["review", "all"] as const,
+  reviewAll: ["review"] as const,
+  snapshots: ["snapshots"] as const,
+  trends: ["trends"] as const,
 };
 
 /** The hero and the upcoming panel read the plan and the ledger; anything there moves them. */
@@ -157,7 +162,6 @@ const invalidationMap: Record<string, readonly QueryKey[]> = {
   rule: [keys.rules],
   venture: [keys.ventures, keys.accounts, keys.ventureSummary],
   variable_spend_override: [keys.variableModel, keys.forecastAll],
-  snapshot: [keys.forecastAll],
   debt: [
     keys.debts,
     keys.informalLoans,
@@ -167,6 +171,8 @@ const invalidationMap: Record<string, readonly QueryKey[]> = {
   ],
   debt_payment: [keys.debts, keys.debtPaymentsAll, keys.informalLoans, keys.debtComparisonAll],
   informal_loan: [keys.informalLoans, keys.debts, keys.debtComparisonAll, ...heroDependent],
+  review: [keys.reviewAll],
+  snapshot: [keys.forecastAll, keys.snapshots, keys.trends, keys.reviewAll],
 };
 
 const LEDGER_PAGE = 200;
@@ -600,6 +606,59 @@ export function useSetVariableOverride() {
 
 export function useSaveForecastPlan() {
   return useMutation({ mutationFn: () => api.saveForecastPlan() });
+}
+
+export function useCurrentReview() {
+  return useQuery({
+    queryKey: keys.currentReview,
+    queryFn: api.currentReview,
+    staleTime: Infinity,
+  });
+}
+
+export function useReviews() {
+  return useQuery({ queryKey: keys.reviews, queryFn: api.listReviews, staleTime: Infinity });
+}
+
+export function useTrends() {
+  return useQuery({ queryKey: keys.trends, queryFn: api.listTrends, staleTime: Infinity });
+}
+
+export function useStartReview() {
+  return useMutation({ mutationFn: () => api.startReview() });
+}
+
+export function useRefreshReview() {
+  return useMutation({ mutationFn: (id: number) => api.refreshReview(id) });
+}
+
+export function useSetReviewActions() {
+  return useMutation({
+    mutationFn: (input: { id: number; actions: string[] }) =>
+      api.setReviewActions(input.id, input.actions),
+  });
+}
+
+export function useCompleteReview() {
+  return useMutation({
+    mutationFn: (input: { id: number; actions: string[]; notes: string }) =>
+      api.completeReview(input.id, input.actions, input.notes),
+  });
+}
+
+export function useAbandonReview() {
+  return useMutation({ mutationFn: (id: number) => api.abandonReview(id) });
+}
+
+export function useSetReviewActionDone() {
+  return useMutation({
+    mutationFn: (input: { actionId: number; done: boolean }) =>
+      api.setReviewActionDone(input.actionId, input.done),
+  });
+}
+
+export function useTakeSnapshot() {
+  return useMutation({ mutationFn: () => api.takeSnapshot() });
 }
 
 export function useVentureSummary() {

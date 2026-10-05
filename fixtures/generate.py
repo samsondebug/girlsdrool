@@ -654,6 +654,33 @@ def venture_rollup(as_of: date) -> dict:
             "spend_share_bps": share_bps, "accounts": venture_balances}
 
 
+# ---------------------------------------------------------------------------------------------
+# M8: the weekly review as of AS_OF over the whole fixture state (rules, imports, reconciliations,
+# plan, debts, venture): the dependable surplus (ARCHITECTURE §5.10), what each step shows, the
+# three actions the person commits, and the snapshot a completion stores.
+# ---------------------------------------------------------------------------------------------
+
+SURPLUS_INCOME_DAYS = 90
+REVIEW_HORIZON_DAYS = 14
+REVIEW_ACTIONS = [
+    "Acknowledge the Harbor transfer and classify the two ATM withdrawals",
+    "Set up autopay for the auto loan so the 15th never slips",
+    "Send Mom the 300-a-month plan drafted under Debts",
+]
+
+
+def monthly_equivalent(ob: dict) -> int:
+    """ARCHITECTURE §5.10: monthly rules ×1, biweekly ×26/12, weekly ×52/12; annual and once are irregular (0 here)."""
+    rule = ob["due_rule"]
+    if rule in ("monthly_day", "nth_weekday"):
+        return ob["expected_cents"]
+    if rule == "biweekly":
+        return mul_div_round(ob["expected_cents"], 26, 12)
+    if rule == "weekly":
+        return mul_div_round(ob["expected_cents"], 52, 12)
+    return 0
+
+
 def business_day_before(x: date) -> date:
     while x.weekday() >= 5:
         x -= timedelta(days=1)
@@ -1718,6 +1745,110 @@ def expected_md(files: dict[str, str]) -> str:
     VENTURES_JSON = {"as_of": AS_OF, "trailing_months": TRAILING_MONTHS, "venture": dict(VENTURE, **vd), "venture_account": VENTURE_ACCOUNT,
                      "rollup": roll}
 
+    # Weekly review (M8)
+    p("## Weekly review (M8)")
+    p("")
+    window_from = as_of_d - timedelta(days=SURPLUS_INCOME_DAYS)
+    income_rows = [rc for rc in receipts if window_from < date.fromisoformat(rc["posted"]) <= as_of_d]
+    income_90 = sum(rc["amount_cents"] for rc in income_rows)
+    income_monthly = mul_div_round(income_90, 30, SURPLUS_INCOME_DAYS)
+    fixed_items = [{"name": ob["name"], "monthly_cents": monthly_equivalent(ob)} for ob in OBLIGATIONS if ob["due_rule"] not in ("annual", "once")]
+    fixed_total = sum(x["monthly_cents"] for x in fixed_items)
+    debt_items = [{"name": o["name"], "monthly_cents": o["expected_cents"]} for o in min_obls]
+    informal_12m = 0   # no unpaid informal schedule row: Chris is repaid, Mom has no schedule
+    debt_service = sum(x["monthly_cents"] for x in debt_items) + mul_div_round(informal_12m, 1, 12)
+    irregular_items = [{"name": ob["name"], "monthly_cents": mul_div_round(ob["expected_cents"], 1, 12)} for ob in OBLIGATIONS if ob["due_rule"] == "annual"]
+    irregular_total = sum(x["monthly_cents"] for x in irregular_items)
+    variable_total = model_total
+    surplus = income_monthly - fixed_total - debt_service - irregular_total - variable_total
+    p(f"As of **{AS_OF}**, over everything the earlier milestones installed. The review is a mode: it walks the steps below, states the")
+    p("dependable surplus, and completes only with exactly three non-empty actions (enforced in the completing transaction). It stores")
+    p("what each step showed, the surplus with its terms, and a `plan` snapshot. No previous review exists, so \"since the last review\"")
+    p("means the whole ledger.")
+    p("")
+    p("### Dependable surplus (monthly equivalent, ARCHITECTURE §5.10)")
+    p("")
+    p(f"- income = confirmed-stream receipts posted in the trailing {SURPLUS_INCOME_DAYS} days ({window_from.isoformat()} < posted ≤ {AS_OF}): {len(income_rows)} × {money(INCOME_STREAMS[0]['expected_net_cents'])} = {money(income_90)},")
+    p(f"  × 30/{SURPLUS_INCOME_DAYS} = **{money(income_monthly)}** (borrowing, asset sales and the freelance deposits cannot enter: only receipts of confirmed streams count)")
+    p("- fixed = confirmed obligations that are not debt minimums, monthly equivalent (annuals are irregular): " + ", ".join(f"{x['name']} {money(x['monthly_cents'])}" for x in fixed_items) + f" = **{money(fixed_total)}**")
+    p("- debt_service = debt-minimum obligations " + ", ".join(f"{x['name']} {money(x['monthly_cents'])}" for x in debt_items) + f" = {money(sum(x['monthly_cents'] for x in debt_items))} + unpaid informal schedule rows due within 12 months ÷ 12 = {money(mul_div_round(informal_12m, 1, 12))} → **{money(debt_service)}**")
+    p("- irregular = annual obligations ÷ 12: " + ", ".join(f"{x['name']} {money(x['monthly_cents'])}" for x in irregular_items) + f" + sinking-fund schedules (none) = **{money(irregular_total)}**")
+    p(f"- variable = the variable-spend model = **{money(variable_total)}**")
+    p(f"- surplus = {money(income_monthly)} − {money(fixed_total)} − {money(debt_service)} − {money(irregular_total)} − {money(variable_total)} = **{money(surplus)}**")
+    p("")
+    p("### Steps")
+    p("")
+    # 1. balances
+    balances = [{"account": k, "balance_cents": balance_as_of(k, as_of_d)} for k in ACCOUNTS]
+    available_now = sum(b["balance_cents"] for b in balances if ACCOUNTS[b["account"]].kind in CASH_KINDS and not ACCOUNTS[b["account"]].firewalled and b["account"] != VENTURE_ACCOUNT)
+    p("1. Balances: every account's posted balance with its reconciliation status; " + ", ".join(f"{b['account']} {money(b['balance_cents'])}" for b in balances) + f"; available (the hero's set) {money(available_now)}; every cash account reconciled.")
+    # 2. unreviewed rows: the M2 queue minus the loan's proceeds row
+    chris = INFORMAL[0]["proceeds"]
+    queue_now = [(r, automation(r)) for r in ROWS]
+    queue_now = [(r, a) for (r, a) in queue_now if ("needs_review" in a[2] or a[0] is None)
+                 and not (r.account == chris[0] and r.posted == chris[1] and r.description == chris[2])]
+    queue_now.sort(key=lambda t: (-abs(t[0].amount), t[0].posted))
+    queue_total = sum(abs(r.amount) for (r, _) in queue_now)
+    p(f"2. Unreviewed rows: **{len(queue_now)}** (the M2 queue minus the Venmo inflow that became the loan's proceeds), Σ|amount| {money(queue_total)}, largest first: "
+      + "; ".join(f"{r.account} {r.posted} `{r.description}` {money(r.amount)}" for (r, _) in queue_now) + ".")
+    # 3. obligations in 14 days: plan obligations unpaid + the debt minimums anchored today
+    horizon_14 = as_of_d + timedelta(days=REVIEW_HORIZON_DAYS)
+    due_14 = []
+    for ob in OBLIGATIONS:
+        opened = date.fromisoformat(ACCOUNTS[ob["source_account"]].opening_date)
+        for due in obligation_occurrences(ob, max(as_of_d - timedelta(days=OVERDUE_LOOKBACK_DAYS), opened), horizon_14):
+            if (ob["name"], due.isoformat()) not in paid:
+                due_14.append({"obligation": ob["name"], "due_date": due.isoformat(), "expected_cents": ob["expected_cents"]})
+    for o in min_obls:
+        for due in obligation_occurrences({"due_rule": "monthly_day", "due_day": o["due_day"]}, as_of_d, horizon_14):
+            due_14.append({"obligation": o["name"], "due_date": due.isoformat(), "expected_cents": o["expected_cents"]})
+    due_14.sort(key=lambda x: (x["due_date"], x["obligation"]))
+    p(f"3. Obligations in the next {REVIEW_HORIZON_DAYS} days (to {horizon_14.isoformat()}): **{len(due_14)}**, Σ expected {money(sum(x['expected_cents'] for x in due_14))}: "
+      + "; ".join(f"{x['obligation']} {x['due_date']} {money(x['expected_cents'])}" for x in due_14) + ".")
+    # 4. plan variance
+    p("4. Plan variance: no plan snapshot exists yet, so there is nothing to compare; completing this review stores one.")
+    # 5. debts
+    total_debt = sum(d["owed_cents"] for d in states if not d["informal"])
+    p(f"5. Debt and informal-loan progress: total debt {money(total_debt)}, informal remaining {money(informal_total)}; no earlier review to compare against.")
+    # 6. venture cap
+    p(f"6. Venture cap: {VENTURE['name']} {money(roll['cap_used_cents'])} of {money(roll['cap_cents'])} ({roll['cap_utilization_bps']} bps), alerts: {', '.join(roll['alerts']) or 'none'}.")
+    # 7. flags
+    borrowing = [r for r in ROWS if r.account == chris[0] and r.posted == chris[1] and r.description == chris[2]]
+    proceeds = [r for r in ROWS if "securities_sale" in automation(r)[2]]
+    touches = [r for r in ROWS if ACCOUNTS[r.account].firewalled and r.amount < 0]
+    p(f"7. Flags since the last review: borrowing {len(borrowing)} ({'; '.join(f'{r.account} {r.posted} {money(r.amount)}' for r in borrowing)}), securities sale {len(proceeds)} ({'; '.join(f'{r.account} {r.posted} {money(r.amount)}' for r in proceeds)}),")
+    p(f"   firewall touches awaiting acknowledgment {len(touches)} ({'; '.join(f'{r.account} {r.posted} {money(r.amount)}' for r in touches)}), acknowledged 0.")
+    p("")
+    p("### Completion")
+    p("")
+    p("- Three actions, committed in one transaction with the review; two or four are refused with `Validation` and nothing is stored.")
+    for i, a in enumerate(REVIEW_ACTIONS, 1):
+        p(f"  {i}. {a}")
+    snapshot = {"safe_cents": safe, "available_cents": available, "earmarks_cents": earmarks_total, "obligations_cents": obligations_total,
+                "buffer_cents": TIMING_BUFFER_CENTS, "trusted": True, "total_debt_cents": total_debt, "informal_remaining_cents": informal_total,
+                "venture_cap_used_cents": roll["cap_used_cents"]}
+    p(f"- The `plan` snapshot stored at completion carries the hero as of {AS_OF} (safe {money(snapshot['safe_cents'])}, available {money(snapshot['available_cents'])}, earmarks {money(snapshot['earmarks_cents'])},")
+    p(f"  obligations {money(snapshot['obligations_cents'])}, buffer {money(snapshot['buffer_cents'])}, trusted), total debt {money(snapshot['total_debt_cents'])}, informal remaining {money(snapshot['informal_remaining_cents'])},")
+    p(f"  venture cap used {money(snapshot['venture_cap_used_cents'])}, and every account's balance. A `daily` snapshot is taken once per civil day on unlock (unique per day); trends read snapshots only.")
+    p("- History persists: the completed review, its surplus and its three actions are there after the database is closed and reopened.")
+    p("")
+    global REVIEW_JSON
+    REVIEW_JSON = {"as_of": AS_OF, "income_window_days": SURPLUS_INCOME_DAYS, "horizon_days": REVIEW_HORIZON_DAYS, "period_start": ROWS[0].posted if ROWS else AS_OF,
+                   "surplus": {"income_90_cents": income_90, "income_receipts": len(income_rows), "income_cents": income_monthly,
+                               "fixed_cents": fixed_total, "fixed_items": fixed_items, "debt_service_cents": debt_service, "debt_items": debt_items,
+                               "informal_schedule_12m_cents": informal_12m, "irregular_cents": irregular_total, "irregular_items": irregular_items,
+                               "variable_cents": variable_total, "surplus_cents": surplus},
+                   "steps": {"balances": {"accounts": balances, "available_cents": available_now},
+                             "unreviewed": {"count": len(queue_now), "total_abs_cents": queue_total,
+                                            "rows": [{"account": r.account, "posted": r.posted, "description": r.description, "amount_cents": r.amount} for (r, _) in queue_now]},
+                             "obligations_14": {"count": len(due_14), "expected_cents": sum(x["expected_cents"] for x in due_14), "items": due_14},
+                             "debts": {"total_debt_cents": total_debt, "informal_remaining_cents": informal_total},
+                             "ventures": {"cap_used_cents": roll["cap_used_cents"], "cap_cents": roll["cap_cents"], "utilization_bps": roll["cap_utilization_bps"]},
+                             "flags": {"borrowing": [{"account": r.account, "posted": r.posted, "description": r.description, "amount_cents": r.amount} for r in borrowing],
+                                       "securities_sale": [{"account": r.account, "posted": r.posted, "description": r.description, "amount_cents": r.amount} for r in proceeds],
+                                       "firewall_unacknowledged": [{"account": r.account, "posted": r.posted, "description": r.description, "amount_cents": r.amount} for r in touches]}},
+                   "actions": REVIEW_ACTIONS, "snapshot": snapshot}
+
     global FORECAST_JSON
     FORECAST_JSON = {"as_of": AS_OF, "horizon_days": HORIZON_DAYS, "bucket_days": BUCKET_DAYS, "pay_shift_days": PAY_SHIFT_DAYS,
                      "timing_buffer_cents": TIMING_BUFFER_CENTS, "model": model, "model_total_cents": model_total, "scenarios": runs}
@@ -1742,6 +1873,7 @@ PLAN_JSON: dict = {}
 FORECAST_JSON: dict = {}
 DEBTS_JSON: dict = {}
 VENTURES_JSON: dict = {}
+REVIEW_JSON: dict = {}
 
 
 def emit_plan_json() -> None:
@@ -1758,6 +1890,10 @@ def emit_debts_json() -> None:
 
 def emit_ventures_json() -> None:
     write("ventures.json", json.dumps(VENTURES_JSON, indent=1) + "\n")
+
+
+def emit_review_json() -> None:
+    write("review.json", json.dumps(REVIEW_JSON, indent=1) + "\n")
 
 
 def emit_recon_json() -> None:
@@ -1801,7 +1937,8 @@ def main() -> None:
     emit_forecast_json()
     emit_debts_json()
     emit_ventures_json()
-    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json, debts.json, ventures.json and EXPECTED.md ({len(ROWS)} ledger rows)")
+    emit_review_json()
+    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json, debts.json, ventures.json, review.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

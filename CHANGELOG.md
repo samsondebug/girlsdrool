@@ -3,6 +3,47 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M8 — Weekly review, snapshots, trends (unreleased)
+
+### Demo
+
+1. Review (the guided walkthrough; the row queue moved to "Queue"): Start review opens the period
+   since the last completed review and walks seven steps with their figures — balances with
+   reconciliation status, unreviewed rows largest first, obligations in the next 14 days, plan
+   variance against the last plan snapshot, debt and informal-loan progress with the change since
+   the last review, venture cap, and the borrowing, securities-sale and firewall flags since the
+   last review. Recompute refreshes every figure; Abandon commits nothing.
+2. The dependable surplus, monthly equivalent and from rows only: on the fixture as of 2026-09-30,
+   income 6,825.54 (six confirmed receipts in 90 days × 30/90) − fixed 2,729.99 − debt service
+   307.00 − irregular 107.00 − variable 532.04 = **3,149.51**, every term listed with its items;
+   borrowing and asset sales cannot enter (`fixtures/EXPECTED.md` "Weekly review (M8)").
+3. Exactly three actions: the commit button stays off until three are written, and the core
+   refuses two, four or blanks inside the completing transaction (nothing stored). A completed
+   review keeps what it showed, its surplus and its actions in History, where each action is ticked
+   off later; it also stores a `plan` snapshot that the Forecast draws against and the next review's
+   plan variance reads.
+4. Snapshots: one `daily` per civil day on the day's first unlock, `on_demand` from Trends, `plan`
+   at review completion; Trends is one point per day (safe to spend, available, total debt,
+   informal remaining, venture cap used) from snapshots only, never live figures.
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 42 unit, 13 property, 1 logging, 9 M0, 6 M1,
+  3 M2, 3 M3, 3 M4, 5 M5, 5 M6, 3 M7 and 4 M8 acceptance (`tests/m8_review.rs`: the surplus and
+  every step; two, four and blank actions refused and three stored with the snapshot; history
+  persists across lock and unlock on a real file database; daily snapshots unique per civil day
+  and trends read them).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check`, `pnpm test` (42) — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against the seeded folder (`seed_fixture_data_folder` now completes the
+  fixture's review): `docs/screenshots/m8-review.png` (a review in progress) and
+  `m8-history.png` (history and trends).
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only); the Windows netstat observation.
+
 ## M7 — Ventures (unreleased)
 
 ### Demo

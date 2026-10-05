@@ -1,446 +1,587 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Button } from "../components/Button";
+import { Checkbox } from "../components/Checkbox";
 import { Chip } from "../components/Chip";
-import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
-import { LinkDialog } from "../components/LinkDialog";
 import { Money } from "../components/Money";
 import { Panel } from "../components/Panel";
-import { Select } from "../components/Select";
 import { TextField } from "../components/TextField";
-import { MarkedMoney } from "../components/Untrusted";
-import { useCorrectionProposal } from "../lib/corrections";
-import type { LedgerRow } from "../lib/ipc";
-import { formatCents } from "../lib/money";
+import type { Review as ReviewData, ReviewRowRef, Surplus, TrendPoint } from "../lib/ipc";
+import { formatBps, formatCents } from "../lib/money";
 import {
-  useAccounts,
-  useAcknowledgeFirewall,
-  useCashView,
-  useCategories,
-  useReviewQueue,
-  useSpendingView,
-  useTrust,
-  useUpdateTxn,
+  useAbandonReview,
+  useCompleteReview,
+  useCurrentReview,
+  useRefreshReview,
+  useReviews,
+  useSetReviewActionDone,
+  useSetReviewActions,
+  useStartReview,
+  useTakeSnapshot,
+  useTrends,
 } from "../lib/queries";
-import { FLAG_BITS } from "../lib/query-chips";
 import { useUiStore } from "../lib/store";
-import { untrustedAmong, untrustedCash } from "../lib/trust";
+import { TRUST_LABEL, TRUST_TONE } from "../lib/trust";
 
-const NEEDS_REVIEW = 1;
-const CIVIL_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-interface Reason {
-  label: string;
-  title: string;
-  tone: "warning" | "info" | "dim";
-}
-
-/** What each heuristic code asks of the person. */
-const HEURISTIC_REASONS: Record<string, Reason> = {
-  atm_withdrawal: {
-    label: "cash withdrawal",
-    title: "cash leaves the ledger here; say what it was for",
-    tone: "info",
-  },
-  payment_app_row: {
-    label: "payment app",
-    title: "a payment-app row: who was it, and what for?",
-    tone: "info",
-  },
-  refund_candidate: {
-    label: "possible refund",
-    title: "an earlier purchase of this size has a similar payee; Link… to confirm",
-    tone: "info",
-  },
-  transfer_ambiguous: {
-    label: "ambiguous transfer",
-    title: "more than one row could be the other leg; Link… to choose",
-    tone: "warning",
-  },
-};
-
-/** Why a row is in the queue, in the order the person should think about it. */
-function reasons(row: LedgerRow, firewalled: boolean): Reason[] {
-  const out: Reason[] = [];
-  if (firewalled && row.amount_cents < 0 && (row.flags & NEEDS_REVIEW) !== 0) {
-    out.push({
-      label: "firewall touch",
-      title: "money left a firewalled account; acknowledge it so the touch is on record",
-      tone: "warning",
-    });
-  }
-  const heuristic = row.heuristic_code === null ? undefined : HEURISTIC_REASONS[row.heuristic_code];
-  if (heuristic !== undefined) out.push(heuristic);
-  if (row.classification === "unclassified") {
-    out.push({
-      label: "no rule matched",
-      title: "neither a rule nor a heuristic placed this row",
-      tone: "dim",
-    });
-  }
-  for (const [name, bit] of Object.entries(FLAG_BITS)) {
-    if (name === "needs_review" || name === "cash_withdrawal" || name === "payment_app_unknown") {
-      continue;
-    }
-    if ((row.flags & bit) !== 0) {
-      out.push({ label: name.replace(/_/g, " "), title: `flag ${name}`, tone: "dim" });
-    }
-  }
-  return out;
-}
-
-function monthRange(): { from: string; to: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const last = new Date(year, month + 1, 0).getDate();
-  return { from: `${year}-${pad(month + 1)}-01`, to: `${year}-${pad(month + 1)}-${pad(last)}` };
-}
-
-/** The review queue, largest amount first, with the spending and cash views above it. */
+/**
+ * The weekly review: a mode, not a notification. It walks the steps, states the dependable
+ * surplus with its terms, and completes only with exactly three actions. History keeps what each
+ * review showed; trends read snapshots only.
+ */
 export function Review() {
-  const queue = useReviewQueue();
-  const categories = useCategories();
-  const accounts = useAccounts();
-  const updateTxn = useUpdateTxn();
-  const propose = useCorrectionProposal();
+  const current = useCurrentReview();
+  const history = useReviews();
+  const start = useStartReview();
   const pushNotice = useUiStore((s) => s.pushNotice);
-  const [linking, setLinking] = useState<LedgerRow | null>(null);
-  const [acking, setAcking] = useState<LedgerRow | null>(null);
-
-  const categoryOptions = useMemo(
-    () => (categories.data ?? []).filter((c) => !c.archived),
-    [categories.data],
-  );
-  const firewalled = useMemo(
-    () => new Set((accounts.data ?? []).filter((a) => a.firewalled).map((a) => a.id)),
-    [accounts.data],
-  );
-  const rows = queue.data ?? [];
-
+  const fail = (error: Error) => {
+    pushNotice({ tone: "negative", text: error.message });
+  };
+  const open = current.data ?? null;
   return (
-    <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
-      <ViewsStrip />
-
-      <div className="flex items-baseline gap-3">
-        <h2 className="text-16 font-semibold">Review queue</h2>
-        <span className="text-12 text-text-dim">
-          {rows.length} {rows.length === 1 ? "row needs" : "rows need"} a decision · largest first ·
-          a category here proposes a rule
-        </span>
-        {queue.isError ? (
-          <span className="text-12 text-negative">{queue.error.message}</span>
-        ) : null}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto rounded-2 border border-line bg-bg-raised">
-        {queue.isPending ? (
-          <p className="p-4 text-12 text-text-dim">Loading…</p>
-        ) : rows.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              missing="Nothing is waiting for review."
-              fix="Import a statement (Import); rows no rule or heuristic can place land here, largest first."
-            />
-          </div>
-        ) : (
-          <table className="w-full border-collapse text-14">
-            <thead className="sticky top-0 z-10 bg-bg-raised text-12 text-text-dim">
-              <tr>
-                {["Posted", "Account", "Payee", "Amount", "Why", "Category", ""].map((h) => (
-                  <th
-                    key={h}
-                    className={`border-b border-line px-2 py-1 text-left font-medium ${h === "Amount" ? "text-right" : ""}`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-line">
-                  <td className="money px-2 py-1 whitespace-nowrap">{row.posted_date}</td>
-                  <td className="px-2 py-1 whitespace-nowrap">{row.account_name}</td>
-                  <td className="max-w-80 truncate px-2 py-1" title={row.payee_raw}>
-                    {row.payee_norm}
-                    {row.memo !== "" ? (
-                      <span className="ml-2 text-12 text-text-dim">{row.memo}</span>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-1 text-right whitespace-nowrap">
-                    <Money cents={row.amount_cents} />
-                  </td>
-                  <td className="px-2 py-1">
-                    <span className="flex flex-wrap gap-1">
-                      {reasons(row, firewalled.has(row.account_id)).map((r) => (
-                        <Chip key={r.label} tone={r.tone} title={r.title}>
-                          {r.label}
-                        </Chip>
-                      ))}
-                    </span>
-                  </td>
-                  <td className="w-56 px-2 py-1">
-                    <Select
-                      label="Category"
-                      compact
-                      className="w-full"
-                      value={row.category_id ?? ""}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const categoryId = value === "" ? null : Number(value);
-                        updateTxn.mutate(
-                          { id: row.id, patch: { category_id: categoryId } },
-                          {
-                            onSuccess: () => {
-                              const path = categoryOptions.find((c) => c.id === categoryId)?.path;
-                              if (categoryId !== null && path !== undefined) propose(row.id, path);
-                            },
-                            onError: (error) => {
-                              pushNotice({ tone: "negative", text: error.message });
-                            },
-                          },
-                        );
-                      }}
-                    >
-                      <option value="">— choose —</option>
-                      {categoryOptions.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.path}
-                        </option>
-                      ))}
-                    </Select>
-                  </td>
-                  <td className="px-2 py-1">
-                    <span className="flex justify-end gap-1">
-                      <Button
-                        variant="quiet"
-                        onClick={() => {
-                          setLinking(row);
-                        }}
-                      >
-                        Link…
-                      </Button>
-                      {firewalled.has(row.account_id) &&
-                      row.amount_cents < 0 &&
-                      (row.flags & NEEDS_REVIEW) !== 0 ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setAcking(row);
-                          }}
-                        >
-                          Acknowledge
-                        </Button>
-                      ) : null}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {linking ? (
-        <LinkDialog
-          row={linking}
-          onClose={() => {
-            setLinking(null);
-          }}
-        />
-      ) : null}
-      {acking ? (
-        <AcknowledgeDialog
-          row={acking}
-          onClose={() => {
-            setAcking(null);
-          }}
-        />
-      ) : null}
+    <div className="flex h-full flex-col gap-3 overflow-auto p-4">
+      {open ? (
+        <Walk review={open} />
+      ) : (
+        <Panel
+          title="Weekly review"
+          className="shrink-0"
+          aside={
+            <Button
+              variant="primary"
+              disabled={start.isPending || current.isPending}
+              onClick={() => {
+                start.mutate(undefined, { onError: fail });
+              }}
+            >
+              Start review
+            </Button>
+          }
+        >
+          <EmptyState
+            missing="No review in progress."
+            fix="Start one: it walks balances, unreviewed rows, the next 14 days, plan variance, debts, ventures and flags, states the dependable surplus, and ends with exactly three actions."
+          />
+        </Panel>
+      )}
+      <History reviews={(history.data ?? []).filter((r) => r.status !== "in_progress")} />
+      <Trends />
     </div>
   );
 }
 
-/** Spending view and cash view for a date range, and the difference between them. */
-function ViewsStrip() {
-  const [range, setRange] = useState(monthRange);
-  const [draft, setDraft] = useState(range);
-  const valid = CIVIL_DATE.test(range.from) && CIVIL_DATE.test(range.to);
-  const spending = useSpendingView(range.from, range.to, valid);
-  const cash = useCashView(range.from, range.to, valid);
-  const s = spending.data;
-  const c = cash.data;
-  const error = spending.error ?? cash.error;
-  const trust = useTrust();
-  const allUntrusted = untrustedAmong(trust.data, null);
-  const cashUntrusted = untrustedCash(trust.data);
+// ---- the walk ---------------------------------------------------------------------------------
 
-  const apply = (event: FormEvent) => {
-    event.preventDefault();
-    setRange({ from: draft.from.trim(), to: draft.to.trim() });
+function Walk({ review: r }: { review: ReviewData }) {
+  const pushNotice = useUiStore((s) => s.pushNotice);
+  const refresh = useRefreshReview();
+  const saveActions = useSetReviewActions();
+  const complete = useCompleteReview();
+  const abandon = useAbandonReview();
+  const [actions, setActions] = useState<[string, string, string]>([
+    r.actions[0]?.text ?? "",
+    r.actions[1]?.text ?? "",
+    r.actions[2]?.text ?? "",
+  ]);
+  const [notes, setNotes] = useState(r.notes);
+  const filled = actions.filter((a) => a.trim() !== "").length;
+  const fail = (error: Error) => {
+    pushNotice({ tone: "negative", text: error.message });
   };
-
+  const s = r.steps;
+  const untrusted = s.balances.accounts.filter((a) => a.trust !== "reconciled").map((a) => a.name);
   return (
-    <Panel
-      title="Spending view vs cash view"
-      className="shrink-0"
-      aside={
-        <form onSubmit={apply} className="flex items-end gap-2">
-          <TextField
-            label="From"
-            mono
-            className="w-32"
-            value={draft.from}
-            onChange={(e) => {
-              setDraft({ ...draft, from: e.target.value });
-            }}
-          />
-          <TextField
-            label="To"
-            mono
-            className="w-32"
-            value={draft.to}
-            onChange={(e) => {
-              setDraft({ ...draft, to: e.target.value });
-            }}
-          />
-          <Button type="submit" variant="secondary">
-            Show
-          </Button>
-        </form>
-      }
-    >
-      {error ? <p className="text-12 text-negative">{error.message}</p> : null}
-      <div className="grid grid-cols-3 gap-6 text-14">
-        <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
-          <dt className="col-span-2 text-12 text-text-dim">Spending: what was consumed</dt>
-          <dt>Gross outflows</dt>
-          <dd className="text-right">
-            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={s.gross_outflows_cents} /> : "—"}
-          </dd>
-          <dt>Linked refunds</dt>
-          <dd className="text-right">
-            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={-s.linked_refunds_cents} /> : "—"}
-          </dd>
-          <dt>Same-category reimbursements</dt>
-          <dd className="text-right">
-            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={-s.reimbursements_cents} /> : "—"}
-          </dd>
-          <dt className="font-medium">Net spending</dt>
-          <dd className="text-right font-medium">
-            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={s.net_spending_cents} /> : "—"}
-          </dd>
-          <dt className="text-text-dim">Positive rows still in review</dt>
-          <dd className="text-right text-text-dim">
-            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={s.positive_review_cents} /> : "—"}
-          </dd>
-        </dl>
-        <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
-          <dt className="col-span-2 text-12 text-text-dim">Cash: what left the cash accounts</dt>
-          <dt>Outflows</dt>
-          <dd className="text-right">
-            {c ? <MarkedMoney untrustedBy={cashUntrusted} cents={-c.outflows_cents} /> : "—"}
-          </dd>
-          <dt>Inflows</dt>
-          <dd className="text-right">
-            {c ? <MarkedMoney untrustedBy={cashUntrusted} cents={c.inflows_cents} /> : "—"}
-          </dd>
-          <dt className="font-medium">Net change</dt>
-          <dd className="text-right font-medium">
-            {c ? <MarkedMoney untrustedBy={cashUntrusted} cents={c.net_cents} /> : "—"}
-          </dd>
-          <dt className="text-text-dim">Accounts</dt>
-          <dd className="text-right text-text-dim">{c ? c.by_account.length : "—"}</dd>
-        </dl>
-        <div className="flex flex-col gap-1">
-          <p className="text-12 text-text-dim">Gross spending − cash outflows</p>
-          <p className="text-20">
-            {s && c ? (
-              <MarkedMoney
-                cents={s.gross_outflows_cents - c.outflows_cents}
-                size={20}
-                tone={false}
-                untrustedBy={allUntrusted}
-              />
+    <>
+      <Panel
+        title={`Review in progress · ${r.period_start} .. ${r.period_end}`}
+        className="shrink-0"
+        aside={
+          <div className="flex gap-1">
+            <Button
+              variant="quiet"
+              disabled={refresh.isPending}
+              onClick={() => {
+                refresh.mutate(r.id, { onError: fail });
+              }}
+            >
+              Recompute
+            </Button>
+            <Button
+              variant="quiet"
+              disabled={abandon.isPending}
+              onClick={() => {
+                abandon.mutate(r.id, {
+                  onSuccess: () => {
+                    pushNotice({ tone: "info", text: "Review abandoned; nothing was committed." });
+                  },
+                  onError: fail,
+                });
+              }}
+            >
+              Abandon
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 text-14">
+          <Step n={1} title="Balances">
+            <p className="mb-1 flex items-baseline gap-2">
+              <span className="text-text-dim">Available</span>
+              <Money cents={s.balances.available_cents} size={16} untrusted={!s.balances.trusted} />
+              {s.balances.trusted ? (
+                <Chip tone="positive">every cash account reconciled</Chip>
+              ) : (
+                <Chip tone="untrusted">unreconciled: {untrusted.join(", ")}</Chip>
+              )}
+            </p>
+            <ul className="flex flex-col gap-0.5">
+              {s.balances.accounts.map((a) => (
+                <li key={a.account_id} className="flex items-center gap-2">
+                  <span className="truncate">{a.name}</span>
+                  <Chip tone={TRUST_TONE[a.trust]}>{TRUST_LABEL[a.trust]}</Chip>
+                  <span className="ml-auto">
+                    <Money cents={a.balance_cents} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Step>
+          <Step n={2} title={`Unreviewed rows: ${String(s.unreviewed.count)}`}>
+            <p className="mb-1 text-text-dim">
+              Σ|amount| {formatCents(s.unreviewed.total_abs_cents)}, largest first. Classify them
+              under Queue; the review never guesses.
+            </p>
+            <RowList rows={s.unreviewed.rows} />
+          </Step>
+          <Step n={3} title={`Obligations in the next 14 days: ${String(s.obligations_14.count)}`}>
+            <p className="mb-1 text-text-dim">
+              Σ expected {formatCents(s.obligations_14.expected_cents)}.
+            </p>
+            <ul className="flex flex-col gap-0.5">
+              {s.obligations_14.items.map((i) => (
+                <li
+                  key={`${String(i.obligation_id)}-${i.due_date}`}
+                  className="flex items-center gap-2"
+                >
+                  <span className="money text-12 text-text-dim">{i.due_date}</span>
+                  <span className="truncate">{i.name}</span>
+                  {i.overdue ? <Chip tone="negative">overdue</Chip> : null}
+                  <span className="ml-auto">
+                    <Money cents={i.expected_cents} tone={false} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Step>
+          <Step n={4} title="Plan variance">
+            {s.plan_variance.variance_cents === null ? (
+              <p className="text-text-dim">
+                {s.plan_variance.plan_snapshot_id === null
+                  ? "No plan snapshot yet; completing this review stores one."
+                  : `The plan saved ${s.plan_variance.plan_date ?? ""} has no closing for today.`}
+              </p>
             ) : (
-              "—"
+              <p className="flex items-baseline gap-2">
+                <span className="text-text-dim">Actual</span>
+                <Money cents={s.plan_variance.actual_cents} />
+                <span className="text-text-dim">vs plan</span>
+                <Money cents={s.plan_variance.plan_cents ?? 0} />
+                <span className="text-text-dim">=</span>
+                <Money cents={s.plan_variance.variance_cents} sign="always" />
+              </p>
             )}
-          </p>
-          <p className="text-12 text-text-dim">
-            A card purchase is spending on its posted date on the card; the card payment is cash
-            leaving the bank later. A transfer between two cash accounts is in neither view.
-          </p>
+          </Step>
+          <Step n={5} title="Debt and informal-loan progress">
+            <p className="flex items-baseline gap-2">
+              <span className="text-text-dim">Total debt</span>
+              <Money cents={s.debts.total_debt_cents} tone={false} />
+              <Delta now={s.debts.total_debt_cents} before={s.debts.previous_total_debt_cents} />
+            </p>
+            <p className="flex items-baseline gap-2">
+              <span className="text-text-dim">Informal remaining</span>
+              <Money cents={s.debts.informal_remaining_cents} tone={false} />
+              <Delta
+                now={s.debts.informal_remaining_cents}
+                before={s.debts.previous_informal_cents}
+              />
+            </p>
+            {s.debts.previous_review_id === null ? (
+              <p className="text-12 text-text-dim">No earlier review to compare against.</p>
+            ) : null}
+          </Step>
+          <Step n={6} title="Venture cap">
+            {s.ventures.ventures.length === 0 ? (
+              <p className="text-text-dim">No venture.</p>
+            ) : (
+              <ul className="flex flex-col gap-0.5">
+                {s.ventures.ventures.map((v) => (
+                  <li key={v.venture_id} className="flex items-center gap-2">
+                    <span className="truncate">{v.name}</span>
+                    <Chip>{v.status}</Chip>
+                    {v.alerts.map((a) => (
+                      <Chip key={a} tone="negative">
+                        {a}
+                      </Chip>
+                    ))}
+                    <span className="money ml-auto text-12">
+                      {formatCents(v.cap_used_cents)} / {formatCents(v.cap_cents)} ·{" "}
+                      {formatBps(v.utilization_bps)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Step>
+          <Step n={7} title={`Flags since ${s.flags.since}`}>
+            <FlagList label="Borrowing" rows={s.flags.borrowing} tone="warning" />
+            <FlagList label="Securities sale" rows={s.flags.securities_sale} tone="warning" />
+            <FlagList
+              label="Firewall touches awaiting acknowledgment"
+              rows={s.flags.firewall_unacknowledged}
+              tone="negative"
+            />
+            <FlagList label="Acknowledged" rows={s.flags.firewall_acknowledged} tone="dim" />
+          </Step>
+          {r.surplus ? <SurplusPanel surplus={r.surplus} /> : null}
         </div>
-      </div>
+      </Panel>
+
+      <Panel title="Exactly three actions" className="shrink-0">
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            complete.mutate(
+              { id: r.id, actions: [...actions], notes },
+              {
+                onSuccess: (done) => {
+                  pushNotice({
+                    tone: "positive",
+                    text: `Review committed with its three actions; surplus ${formatCents(done.surplus_cents ?? 0)} and a plan snapshot stored.`,
+                  });
+                },
+                onError: fail,
+              },
+            );
+          }}
+        >
+          <div className="grid grid-cols-3 gap-3">
+            {actions.map((a, i) => (
+              <TextField
+                key={i}
+                label={`Action ${String(i + 1)}`}
+                value={a}
+                onChange={(e) => {
+                  const next: [string, string, string] = [...actions];
+                  next[i] = e.target.value;
+                  setActions(next);
+                }}
+              />
+            ))}
+          </div>
+          <TextField
+            label="Notes (optional)"
+            value={notes}
+            onChange={(e) => {
+              setNotes(e.target.value);
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="quiet"
+              disabled={saveActions.isPending}
+              onClick={() => {
+                saveActions.mutate(
+                  { id: r.id, actions: [...actions] },
+                  {
+                    onSuccess: () => {
+                      pushNotice({ tone: "info", text: "Draft actions saved." });
+                    },
+                    onError: fail,
+                  },
+                );
+              }}
+            >
+              Save draft
+            </Button>
+            <span className="text-12 text-text-dim">
+              {String(filled)} of 3 written; the review commits only with exactly three.
+            </span>
+            <Button
+              type="submit"
+              variant="primary"
+              className="ml-auto"
+              disabled={complete.isPending || filled !== 3}
+            >
+              Commit review
+            </Button>
+          </div>
+        </form>
+      </Panel>
+    </>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-1 rounded-2 border border-line p-2">
+      <h3 className="text-12 font-medium text-text-dim">
+        {String(n)}. {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function Delta({ now, before }: { now: number; before: number | null }) {
+  if (before === null) return null;
+  const d = now - before;
+  return (
+    <span className="text-12 text-text-dim">
+      ({d === 0 ? "unchanged" : `${formatCents(d, { sign: "always" })} since last review`})
+    </span>
+  );
+}
+
+function RowList({ rows }: { rows: ReviewRowRef[] }) {
+  if (rows.length === 0) return <p className="text-text-dim">None.</p>;
+  return (
+    <ul className="flex max-h-40 flex-col gap-0.5 overflow-auto">
+      {rows.map((x) => (
+        <li key={x.txn_id} className="flex items-center gap-2 text-14" title={x.why}>
+          <span className="money text-12 text-text-dim">{x.posted_date}</span>
+          <span className="truncate">{x.account_name}</span>
+          <span className="truncate text-text-dim">{x.payee}</span>
+          <span className="ml-auto">
+            <Money cents={x.amount_cents} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FlagList({
+  label,
+  rows,
+  tone,
+}: {
+  label: string;
+  rows: ReviewRowRef[];
+  tone: "warning" | "negative" | "dim";
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <p className="flex items-center gap-2">
+        <Chip tone={tone}>{label}</Chip>
+        <span className="text-12 text-text-dim">{String(rows.length)}</span>
+      </p>
+      {rows.length > 0 ? <RowList rows={rows} /> : null}
+    </div>
+  );
+}
+
+function SurplusPanel({ surplus: s }: { surplus: Surplus }) {
+  const rows: {
+    label: string;
+    cents: number;
+    items?: { name: string; monthly_cents: number }[];
+    subtract: boolean;
+  }[] = [
+    {
+      label: `Income: ${String(s.income_receipts)} confirmed receipts in ${String(s.income_window_days)} days (${formatCents(s.income_window_cents)}) × 30/${String(s.income_window_days)}`,
+      cents: s.income_cents,
+      subtract: false,
+    },
+    {
+      label: "Fixed obligations, monthly equivalent",
+      cents: s.fixed_cents,
+      items: s.fixed_items,
+      subtract: true,
+    },
+    {
+      label: `Debt service: minimums + informal schedule 12 months ÷ 12 (${formatCents(s.informal_schedule_12m_cents)})`,
+      cents: s.debt_service_cents,
+      items: s.debt_items,
+      subtract: true,
+    },
+    {
+      label: "Irregular: annuals ÷ 12 + sinking funds",
+      cents: s.irregular_cents,
+      items: s.irregular_items,
+      subtract: true,
+    },
+    { label: "Variable spend model", cents: s.variable_cents, subtract: true },
+  ];
+  return (
+    <section className="col-span-2 flex flex-col gap-1 rounded-2 border border-accent p-2">
+      <h3 className="flex items-baseline gap-2 text-12 font-medium text-text-dim">
+        Dependable {s.surplus_cents >= 0 ? "surplus" : "deficit"}, monthly equivalent
+        <Money cents={s.surplus_cents} size={20} />
+        <span>— from rows only; borrowing and asset sales cannot enter</span>
+      </h3>
+      <table className="w-full text-14">
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.label} className="border-t border-line align-top">
+              <td className="py-1 pr-2">
+                <span className="money w-3 text-text-dim">{row.subtract ? "−" : ""}</span>{" "}
+                {row.label}
+                {row.items && row.items.length > 0 ? (
+                  <span className="block text-12 text-text-dim">
+                    {row.items.map((i) => `${i.name} ${formatCents(i.monthly_cents)}`).join(" · ")}
+                  </span>
+                ) : null}
+              </td>
+              <td className="py-1 text-right">
+                <Money cents={row.cents} tone={false} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+// ---- history and trends ----------------------------------------------------------------------
+
+function History({ reviews }: { reviews: ReviewData[] }) {
+  const tick = useSetReviewActionDone();
+  const pushNotice = useUiStore((s) => s.pushNotice);
+  return (
+    <Panel title="History" className="shrink-0">
+      {reviews.length === 0 ? (
+        <EmptyState
+          missing="No review yet."
+          fix="Complete one; every review and its actions stay here."
+        />
+      ) : (
+        <ul className="flex flex-col gap-2 text-14">
+          {reviews.map((r) => (
+            <li key={r.id} className="flex flex-col gap-1 rounded-2 border border-line p-2">
+              <p className="flex items-center gap-2">
+                <span className="money">{r.period_start}</span>
+                <span className="text-text-dim">..</span>
+                <span className="money">{r.period_end}</span>
+                <Chip tone={r.status === "completed" ? "positive" : "dim"}>{r.status}</Chip>
+                {r.surplus_cents !== null ? (
+                  <span className="flex items-baseline gap-1">
+                    <span className="text-text-dim">surplus</span>
+                    <Money cents={r.surplus_cents} />
+                  </span>
+                ) : null}
+                {r.notes ? <span className="text-12 text-text-dim">{r.notes}</span> : null}
+              </p>
+              {r.actions.length > 0 ? (
+                <ul className="flex flex-col gap-0.5">
+                  {r.actions.map((a) => (
+                    <li key={a.id}>
+                      <Checkbox
+                        label={`${String(a.position)}. ${a.text}`}
+                        checked={a.done}
+                        onChange={(e) => {
+                          tick.mutate(
+                            { actionId: a.id, done: e.target.checked },
+                            {
+                              onError: (error) => {
+                                pushNotice({ tone: "negative", text: error.message });
+                              },
+                            },
+                          );
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
     </Panel>
   );
 }
 
-interface AcknowledgeDialogProps {
-  row: LedgerRow;
-  onClose: () => void;
+function Trends() {
+  const trends = useTrends();
+  const take = useTakeSnapshot();
+  const pushNotice = useUiStore((s) => s.pushNotice);
+  const points = trends.data ?? [];
+  return (
+    <Panel
+      title="Trends"
+      className="shrink-0"
+      aside={
+        <Button
+          variant="quiet"
+          disabled={take.isPending}
+          onClick={() => {
+            take.mutate(undefined, {
+              onSuccess: (s) => {
+                pushNotice({ tone: "info", text: `Snapshot taken for ${s.civil_date}.` });
+              },
+              onError: (error) => {
+                pushNotice({ tone: "negative", text: error.message });
+              },
+            });
+          }}
+        >
+          Snapshot now
+        </Button>
+      }
+    >
+      {points.length === 0 ? (
+        <EmptyState
+          missing="No snapshot yet."
+          fix="One is taken on each day's first unlock; completing a review stores one; Snapshot now takes one on demand. Trends read snapshots only, never live figures."
+        />
+      ) : (
+        <TrendTable points={points} />
+      )}
+    </Panel>
+  );
 }
 
-/** Policy `firewall_exclusion`: an outflow from a firewalled account is acknowledged in-app. */
-function AcknowledgeDialog({ row, onClose }: AcknowledgeDialogProps) {
-  const ack = useAcknowledgeFirewall();
-  const pushNotice = useUiStore((s) => s.pushNotice);
-  const [note, setNote] = useState("");
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    ack.mutate(
-      { txnId: row.id, note },
-      {
-        onSuccess: () => {
-          pushNotice({
-            tone: "positive",
-            text: "Acknowledged. The row leaves the queue; the acknowledgment is in the audit log.",
-          });
-          onClose();
-        },
-        onError: (error) => {
-          pushNotice({ tone: "negative", text: error.message });
-        },
-      },
-    );
-  };
-
+function TrendTable({ points }: { points: TrendPoint[] }) {
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      title="Acknowledge a firewall touch"
-      description={`${row.account_name} · ${row.posted_date} · ${row.payee_norm} · ${formatCents(row.amount_cents)}`}
-    >
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <p className="text-14 text-text-dim">
-          Money left a firewalled account. Say why, so the touch is on record; the row then leaves
-          the review queue.
-        </p>
-        <TextField
-          label="Note"
-          value={note}
-          onChange={(e) => {
-            setNote(e.target.value);
-          }}
-          placeholder="e.g. moved to checking for the insurance premium"
-          autoFocus
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={ack.isPending}>
-            Acknowledge
-          </Button>
-        </div>
-      </form>
-    </Dialog>
+    <table className="w-full text-14">
+      <thead className="text-12 text-text-dim">
+        <tr className="border-b border-line text-left">
+          <th className="py-1 pr-2 font-medium">Day</th>
+          <th className="py-1 pr-2 font-medium">Kind</th>
+          <th className="py-1 pr-2 text-right font-medium">Safe to spend</th>
+          <th className="py-1 pr-2 text-right font-medium">Available</th>
+          <th className="py-1 pr-2 text-right font-medium">Total debt</th>
+          <th className="py-1 pr-2 text-right font-medium">Informal</th>
+          <th className="py-1 text-right font-medium">Venture cap used</th>
+        </tr>
+      </thead>
+      <tbody>
+        {points.map((p) => (
+          <tr key={p.civil_date} className="border-b border-line">
+            <td className="money py-1 pr-2">{p.civil_date}</td>
+            <td className="py-1 pr-2">
+              <Chip>{p.kind}</Chip>
+            </td>
+            <td className="py-1 pr-2 text-right">
+              <Money cents={p.safe_cents} untrusted={!p.trusted} />
+            </td>
+            <td className="py-1 pr-2 text-right">
+              <Money cents={p.available_cents} tone={false} />
+            </td>
+            <td className="py-1 pr-2 text-right">
+              <Money cents={p.total_debt_cents} tone={false} />
+            </td>
+            <td className="py-1 pr-2 text-right">
+              <Money cents={p.informal_remaining_cents} tone={false} />
+            </td>
+            <td className="py-1 text-right">
+              <Money cents={p.venture_cap_used_cents} tone={false} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
