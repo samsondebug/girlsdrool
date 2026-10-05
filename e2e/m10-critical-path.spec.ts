@@ -23,7 +23,7 @@ test.describe("M10: import → reconcile → safe to spend", () => {
       await expect(page.getByRole("heading", { name: "Safe to spend" })).toBeVisible();
 
       // the account exactly as the fixture lists it
-      await page.getByRole("button", { name: "Accounts" }).click();
+      await page.getByRole("button", { name: "Accounts", exact: true }).click();
       await page.getByLabel("Name", { exact: true }).fill("Northbank Checking");
       await page.getByLabel("Institution").fill("Northbank");
       await page.getByLabel("Kind").selectOption("checking");
@@ -33,7 +33,7 @@ test.describe("M10: import → reconcile → safe to spend", () => {
       await expect(page.getByText("Northbank Checking").first()).toBeVisible();
 
       // import July by pasting the fixture file; the header auto-detects the profile
-      await page.getByRole("button", { name: "Import" }).click();
+      await page.getByRole("button", { name: "Import", exact: true }).click();
       await page.getByLabel("Account").selectOption({ label: "Northbank Checking" });
       const csv = readFileSync("fixtures/northbank/northbank_checking_2026-07.csv", "utf8");
       await page.getByLabel("Or paste CSV text").fill(csv);
@@ -43,15 +43,19 @@ test.describe("M10: import → reconcile → safe to spend", () => {
       await expect(page.getByText(/Read \d+ rows\. Inserted \d+\./)).toBeVisible();
 
       // reconcile the month with the closing the fixture states (EXPECTED.md: 5,647.48)
-      await page.getByRole("button", { name: "Reconcile" }).click();
-      await page.getByRole("button", { name: "Northbank Checking" }).click();
+      // the nav entry comes before the form's submit of the same name
+      await page.getByRole("button", { name: "Reconcile", exact: true }).first().click();
+      await page
+        .getByRole("button", { name: /Northbank Checking/ })
+        .first()
+        .click();
       await page.getByLabel("Period end").fill("2026-07-31");
       await page.getByLabel("Statement closing balance").fill("5647.48");
       await page.getByRole("button", { name: "Reconcile", exact: true }).last().click();
       await expect(page.getByText("balanced").first()).toBeVisible();
 
       // the hero is a number, trusted, and the dashboard fits the window
-      await page.getByRole("button", { name: "Dashboard" }).click();
+      await page.getByRole("button", { name: "Dashboard", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Safe to spend" })).toBeVisible();
       await expect(page.getByText("Every cash account is reconciled.")).toBeVisible();
       await expect(page.getByLabel("Safe to spend not computed")).toHaveCount(0);
@@ -74,7 +78,7 @@ test.describe("M10: import → reconcile → safe to spend", () => {
 
       await page.keyboard.press("Control+k");
       await expect(page.getByRole("heading", { name: "Command palette" })).toBeVisible();
-      await page.getByLabel("Command").fill("settings");
+      await page.getByLabel("Command", { exact: true }).fill("settings");
       await page.keyboard.press("Enter");
       await expect(page.getByRole("heading", { name: "Data folder" })).toBeVisible();
 
@@ -84,7 +88,7 @@ test.describe("M10: import → reconcile → safe to spend", () => {
       await expect(page.getByRole("heading", { name: "Keyboard shortcuts" })).toHaveCount(0);
 
       await page.keyboard.press("Control+k");
-      await page.getByLabel("Command").fill("lock");
+      await page.getByLabel("Command", { exact: true }).fill("lock");
       await page.keyboard.press("Enter");
       await expect(page.getByRole("heading", { name: "Unlock Kept" })).toBeVisible();
     } finally {
