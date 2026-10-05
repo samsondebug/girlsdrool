@@ -14,29 +14,31 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M0 — Scaffold, tokens, encrypted DB, migrations, keyring, CI, `just check`, CLAUDE.md
 
 **Acceptance (spec)**
-- [ ] app launches
-- [ ] wrong passphrase fails closed
-- [ ] empty DB migrates
-- [ ] log file created
-- [ ] no network
+
+- [x] app launches (debug build launched under Xvfb at 1440×900; `docs/screenshots/m0-*.png`; Windows launch pending the first Windows run)
+- [x] wrong passphrase fails closed (`tests/m0_acceptance.rs`: `WrongPassphrase`, file byte-identical)
+- [x] empty DB migrates (`tests/m0_acceptance.rs`: v1 schema, 35 tables, seeds, integrity and FK checks)
+- [x] log file created (`tests/logging.rs` and the Xvfb launch wrote `logs/kept.2026-10-05.log`)
+- [x] no network (CSP `connect-src` limited to IPC; no http/shell/updater plugin; gate proves no network crate in the host or Windows dependency graph and no network API in the webview; the Windows `netstat` observation stays open below)
 
 **Engineering checklist**
-- [ ] Tauri 2.x scaffold: `src-tauri` with `dialog` plugin only; `capabilities/default.json` minimal; CSP per ARCHITECTURE §12
-- [ ] `src/tokens.css` with the spec's tokens on `:root` and the light swap; Tailwind `@theme` mapping; Plex fonts self-hosted; type scale 12/14/16/20/28; 4px spacing
-- [ ] `money.rs` (`Cents`, `mul_div_round`, `allocate`, decimal string) with unit tests on exact halves and overflow
-- [ ] `dates.rs` (`today()` in zone, civil arithmetic helpers) with unit tests
-- [ ] `config.rs`: `kept.config.json` beside the exe, `KEPT_DATA_DIR` override, first-run folder picker
-- [ ] `db::open/unlock/lock`: SQLCipher key, `sqlite_master` probe, pragmas, `Mutex<Option<Connection>>`
-- [ ] `db::migrate`: embedded `0001_init.sql` (schema + seeds from ARCHITECTURE §4), checksums, `pre_migration` backup, empty-DB test, integrity and FK checks
-- [ ] `keyring` remember/forget behind an opt-in toggle; works when the credential store is absent (falls back to asking)
-- [ ] `tracing` daily rotating file under `data_dir/logs`, 14 kept, redaction rule documented in code
-- [ ] `error.rs` with the full taxonomy; IPC `{ kind, message, detail }`; TS `AppError` type
-- [ ] Unlock screen (passphrase, remember toggle, data folder shown), Locked/Unlocked app shell, empty Dashboard shell with the empty-state copy rule
-- [ ] `justfile`: `check`, `fmt-check`, `clippy`, `test`, `tsc`, `lint`, `vitest`, `gates` (TODO / commented code / `any` / `unwrap` outside tests / `println!` / network APIs / network crates), `e2e` (Windows only), `pnpm check` alias
-- [ ] `.github/workflows/ci.yml` (ubuntu lint/test + windows full check and unsigned build) and `release.yml` (tag → unsigned NSIS installer artifact); `docs/release.md` signing as a manual step
-- [ ] `CHANGELOG.md` created; `README.md` points at the four documents
-- [ ] ADR-0034 appended with the resolved dependency versions
-- [ ] Windows acceptance: `netstat` observation during launch recorded in the CHANGELOG note
+
+- [x] Tauri 2.x scaffold: `src-tauri` with `dialog` plugin only; `capabilities/default.json` minimal; CSP per ARCHITECTURE §12
+- [x] `src/tokens.css` with the spec's tokens on `:root` and the light swap; Tailwind `@theme` mapping; Plex fonts self-hosted; type scale 12/14/16/20/28; 4px spacing
+- [x] `money.rs` (`Cents`, `mul_div_round`, `allocate`, decimal string) with unit tests on exact halves and overflow
+- [x] `dates.rs` (`today()` in zone, civil arithmetic helpers) with unit tests
+- [x] `config.rs`: `kept.config.json` beside the exe, `KEPT_DATA_DIR` override, first-run folder picker
+- [x] `db::open/unlock/lock`: SQLCipher key, `sqlite_master` probe, pragmas, `Mutex<Option<Db>>`
+- [x] `db::migrate`: embedded `0001_init.sql` (schema + seeds from ARCHITECTURE §4), checksums, `pre_migration` backup, empty-DB test, integrity and FK checks
+- [x] credential store remember/forget behind an opt-in toggle (`keyring-core` + platform store; unlock never depends on it)
+- [x] `tracing` daily rotating file under `data_dir/logs`, 14 kept, redaction rule documented in code
+- [x] `error.rs` with the full taxonomy; IPC `{ kind, message, detail }`; TS `AppError` type
+- [x] Setup, Create-database and Unlock screens, Locked/Unlocked app shell, Settings (theme, zone, passphrase, lock), Dashboard shell with the empty-state copy rule
+- [x] `justfile`: `check`, `check-core`, `fmt-check`, `clippy`, `test-rust`, `typecheck`, `lint`, `format-check`, `test-ts`, `gates`, `e2e` (Windows only) / `e2e-notice`, `pnpm check` alias
+- [x] `.github/workflows/ci.yml` (ubuntu `check-core` + windows full `check` and unsigned build) and `release.yml` (tag → unsigned NSIS installer on a draft release); `docs/release.md` signing as a manual step
+- [x] `CHANGELOG.md` created; `README.md` points at the four documents
+- [x] ADR-0034 appended with the resolved dependency versions (plus ADR-0035 tokens, ADR-0036 network gate)
+- [ ] Windows acceptance: `netstat` observation during launch recorded in the CHANGELOG note (needs a Windows machine; also the first run of `just e2e`)
 
 **Questions to batch:** none (no money, formula, or trust decision in M0).
 
@@ -45,12 +47,14 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M1 — Accounts + CSV import with dedup + ledger
 
 **Acceptance (spec)**
+
 - [ ] fixture CSVs import
 - [ ] second import is a no-op
 - [ ] ledger virtualizes
 - [ ] query chips work
 
 **Engineering checklist**
+
 - [ ] `fixtures/EXPECTED.md` written FIRST by hand: per-account opening/closing per month, transfer pairs, spending-view and cash-view totals, safe-to-spend inputs and answer, first shortfall date, two-debt schedule, venture buckets (ADR-0028)
 - [ ] Fixture CSVs for the seven sources (ARCHITECTURE §14) matching `EXPECTED.md`
 - [ ] Accounts CRUD (kind, opening balance/date, owner, firewalled, archived) with audit rows
@@ -72,10 +76,12 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M2 — Rules, review queue, transfer and refund linking
 
 **Acceptance (spec)**
+
 - [ ] fixture transfer pairs link
 - [ ] spending view and cash view differ by the known amount in EXPECTED.md
 
 **Engineering checklist**
+
 - [ ] Rule engine (ordered, first match, `rule_id` stored), rule editor UI, reorder
 - [ ] Heuristics with `heuristic_code` (ARCHITECTURE §6.4); cash withdrawals and payment-app rows never categorized
 - [ ] Review queue ordered by `|amount|`; corrections propose a rule, never create one
@@ -91,10 +97,12 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M3 — Reconciliation + untrusted marking
 
 **Acceptance (spec)**
+
 - [ ] a balanced fixture reconciles
 - [ ] a mutated fixture shows the difference and marks the hero untrusted
 
 **Engineering checklist**
+
 - [ ] Reconciliation periods: statement balance entry (user or file), roll-forward, identity, zero-tolerance status, cache refresh in the writing transaction
 - [ ] Difference explorer: rows in period, ±5-day neighbors, pending, quarantine
 - [ ] Trust status per account and hero trust (ADR-0021); `Untrusted` component (dashed underline + label naming accounts) used everywhere a figure appears
@@ -109,10 +117,12 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M4 — Earmarks, obligations, income streams, safe-to-spend, dashboard
 
 **Acceptance (spec)**
+
 - [ ] hero matches EXPECTED.md
 - [ ] drill-down terms sum
 
 **Engineering checklist**
+
 - [ ] Income streams (cycles, semimonthly days, weekend rule, confidence) and receipt matching
 - [ ] Obligations (due rules, candidate → confirmed, payment matching) and auto-detected candidates from recurring rows
 - [ ] Earmarks with derived remaining (`earmark_entry`), schedules, emergency reserve as earmark, timing buffer setting
@@ -129,11 +139,13 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M5 — Forecast + scenarios
 
 **Acceptance (spec)**
+
 - [ ] lowest balance date matches the fixture
 - [ ] downside toggle moves it in the expected direction
 - [ ] tie-out test green
 
 **Engineering checklist**
+
 - [ ] Daily engine over 91 days; 30-day table and 13-week table; variable-spend model with override (ARCHITECTURE §5.6–5.7)
 - [ ] Scenarios: downside (pay +7 days, no expected/rumored, surprise bill), plan overlay from `plan` snapshot
 - [ ] Forecast screen: visx chart with lowest point marked, table, toggles; dashboard sparkline
@@ -147,9 +159,11 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M6 — Debts, informal loans, avalanche vs snowball in interest cents
 
 **Acceptance (spec)**
+
 - [ ] a two-debt fixture matches a hand-computed schedule within one cent per period
 
 **Engineering checklist**
+
 - [ ] Debt model (linked/standalone, APR/promo, interest method, minimum rules, participation, custom order)
 - [ ] Informal loans: counterparty, original, promised terms/date, schedule rows, repayment log, local-only note draft
 - [ ] Amortization per debt; avalanche / snowball / custom; `informal_first`; comparison in interest cents and payoff dates; 12-month informal scenario with gap and achievable date
@@ -163,10 +177,12 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M7 — Ventures
 
 **Acceptance (spec)**
+
 - [ ] fixture SaaS and owner contribution land in the right buckets
 - [ ] cap gauge matches
 
 **Engineering checklist**
+
 - [ ] Venture CRUD (status/verdict, cap, time budget, milestone, stop condition)
 - [ ] Rollup buckets, operating cash flow, cap used, utilization, milestone countdown, stop-condition alert, venture spend share of take-home (ADR-0025)
 - [ ] Ventures screen: cards, cap gauges, rollup, verdict, stop condition
@@ -179,10 +195,12 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M8 — Weekly review, snapshots, trends
 
 **Acceptance (spec)**
+
 - [ ] a review cannot be completed with fewer or more than three committed actions
 - [ ] history persists
 
 **Engineering checklist**
+
 - [ ] Review state machine and steps: balances, unreviewed rows, obligations in 14 days, plan variance, debt and informal progress, venture cap, borrowing flags and firewall touches since last review
 - [ ] Dependable surplus/deficit after debt service and irregular provisions, excluding borrowing and asset sales (ADR-0026), shown and stored
 - [ ] Exactly three actions enforced in the completing transaction; actions editable before commit; history list
@@ -197,9 +215,11 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M9 — OFX/QFX, institution profiles, backup/restore roundtrip, audit-pack export
 
 **Acceptance (spec)**
+
 - [ ] restore into a temp data dir matches row counts and the hero number
 
 **Engineering checklist**
+
 - [ ] OFX/QFX parser (SGML and XML forms), `FITID` → `external_id`, bank-provided ledger balance → reconciliation statement source `file`
 - [ ] Institution profile editor in Settings (create from a sample file, edit mapping, test against a file)
 - [ ] Daily rotating backups on launch; manual backup; `pre_migration` and `pre_restore`; `backup_log`
@@ -215,9 +235,11 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ## M10 — Palette, shortcuts, empty states, 200k-row performance, installer
 
 **Acceptance (spec)**
+
 - [ ] critical Playwright path green on the installer build
 
 **Engineering checklist**
+
 - [ ] Ctrl+K palette (commands and navigation), F1 shortcut overlay, keyboard reachability pass, visible focus everywhere
 - [ ] Undo for every destructive action with named toasts (audit of coverage)
 - [ ] Empty states on every screen: what is missing and the command that fixes it
@@ -231,6 +253,7 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 ---
 
 ## Definition of done for v1 (spec)
+
 - [ ] import a year of statements from every account in under five minutes
 - [ ] see a reconciled ledger I trust
 - [ ] read one safe-to-spend number with full drill-down

@@ -52,33 +52,33 @@ Kept/
 
 ### 1.2 Rust core modules and their contracts
 
-| Module | Owns | Must never |
-|---|---|---|
-| `money` | `Cents(i64)` newtype, checked add/sub/neg, `mul_div_round` (i128 intermediates, half away from zero), bps math, largest-remainder allocation, decimal string for exports | use `f64`; panic on overflow (returns `AppError::Overflow`) |
-| `dates` | civil-date helpers in the user's zone, `today()`, pay-cycle and due-rule occurrence generators, business-day rule | do pay-cycle math on instants |
-| `db` | open/unlock/lock, pragmas, migrations, audit writer, per-entity SQL | expose a connection to the webview; write without an audit row |
-| `import` | file hashing, profile detection, parsing, normalization, dedup, quarantine, batch report, batch undo | overwrite a user-edited field; drop or duplicate a row silently |
-| `rules` | rule matching, heuristics, review queue, transfer/card-payment/refund linking | create a rule from a correction without the user accepting it |
-| `recon` | identity `opening + inflows − outflows = closing`, roll-forward, status, trust per account | call a non-zero difference "balanced" |
-| `cash` | balances, `available`, earmark remaining, obligation occurrences, next confirmed income, safe-to-spend terms | include firewalled, archived, credit, or venture-owned balances in `available`; count pending borrowing / securities-sale inflows |
-| `forecast` | 91-day daily engine (30-day and 13-week views), variable-spend model, scenarios | invent income to avoid a negative balance |
-| `debt` | interest in integer cents, schedules, strategy comparison, informal loans | treat a repayment as an expense or proceeds as income |
-| `venture` | bucket rollup, 12-month net cash, cap used, stop-condition alert | take sunk cost as an input; set the verdict |
-| `review` | review state machine, dependable surplus, exactly three actions, snapshots, trends | complete a review with ≠ 3 actions |
-| `export` | CSV/JSON of every table, audit pack, backup, restore roundtrip verification | open a network connection |
-| `cmd` | Tauri commands: `Result<T, AppError>`, change-event emission | compute anything the engines compute |
+| Module     | Owns                                                                                                                                                                     | Must never                                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `money`    | `Cents(i64)` newtype, checked add/sub/neg, `mul_div_round` (i128 intermediates, half away from zero), bps math, largest-remainder allocation, decimal string for exports | use `f64`; panic on overflow (returns `AppError::Overflow`)                                                                       |
+| `dates`    | civil-date helpers in the user's zone, `today()`, pay-cycle and due-rule occurrence generators, business-day rule                                                        | do pay-cycle math on instants                                                                                                     |
+| `db`       | open/unlock/lock, pragmas, migrations, audit writer, per-entity SQL                                                                                                      | expose a connection to the webview; write without an audit row                                                                    |
+| `import`   | file hashing, profile detection, parsing, normalization, dedup, quarantine, batch report, batch undo                                                                     | overwrite a user-edited field; drop or duplicate a row silently                                                                   |
+| `rules`    | rule matching, heuristics, review queue, transfer/card-payment/refund linking                                                                                            | create a rule from a correction without the user accepting it                                                                     |
+| `recon`    | identity `opening + inflows − outflows = closing`, roll-forward, status, trust per account                                                                               | call a non-zero difference "balanced"                                                                                             |
+| `cash`     | balances, `available`, earmark remaining, obligation occurrences, next confirmed income, safe-to-spend terms                                                             | include firewalled, archived, credit, or venture-owned balances in `available`; count pending borrowing / securities-sale inflows |
+| `forecast` | 91-day daily engine (30-day and 13-week views), variable-spend model, scenarios                                                                                          | invent income to avoid a negative balance                                                                                         |
+| `debt`     | interest in integer cents, schedules, strategy comparison, informal loans                                                                                                | treat a repayment as an expense or proceeds as income                                                                             |
+| `venture`  | bucket rollup, 12-month net cash, cap used, stop-condition alert                                                                                                         | take sunk cost as an input; set the verdict                                                                                       |
+| `review`   | review state machine, dependable surplus, exactly three actions, snapshots, trends                                                                                       | complete a review with ≠ 3 actions                                                                                                |
+| `export`   | CSV/JSON of every table, audit pack, backup, restore roundtrip verification                                                                                              | open a network connection                                                                                                         |
+| `cmd`      | Tauri commands: `Result<T, AppError>`, change-event emission                                                                                                             | compute anything the engines compute                                                                                              |
 
 ### 1.3 Frontend modules
 
-| Module | Owns | Must never |
-|---|---|---|
-| `lib/ipc.ts` | typed `invoke` wrappers, `AppError` type, change-event subscription → TanStack Query invalidation | catch and swallow an error |
-| `lib/money.ts` | `formatCents(i64)`, `formatBps`, `parseCentsInput(string) → cents` for forms | sum, net, or derive a money figure the core also computes |
-| `lib/query-chips.ts` | chip grammar → `LedgerFilter` JSON (ADR-0029) | evaluate a filter against rows |
-| `lib/store.ts` | Zustand: UI state only (selection, open panels, theme, palette) | hold ledger rows or balances |
-| `components/Money` | tabular mono rendering of integer cents, sign and untrusted treatment | round |
-| `components/Untrusted` | dashed underline + label naming the unreconciled accounts | rely on color alone |
-| `screens/*` | layout and interaction for one screen each | derive balances in React |
+| Module                 | Owns                                                                                              | Must never                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `lib/ipc.ts`           | typed `invoke` wrappers, `AppError` type, change-event subscription → TanStack Query invalidation | catch and swallow an error                                |
+| `lib/money.ts`         | `formatCents(i64)`, `formatBps`, `parseCentsInput(string) → cents` for forms                      | sum, net, or derive a money figure the core also computes |
+| `lib/query-chips.ts`   | chip grammar → `LedgerFilter` JSON (ADR-0029)                                                     | evaluate a filter against rows                            |
+| `lib/store.ts`         | Zustand: UI state only (selection, open panels, theme, palette)                                   | hold ledger rows or balances                              |
+| `components/Money`     | tabular mono rendering of integer cents, sign and untrusted treatment                             | round                                                     |
+| `components/Untrusted` | dashed underline + label naming the unreconciled accounts                                         | rely on color alone                                       |
+| `screens/*`            | layout and interaction for one screen each                                                        | derive balances in React                                  |
 
 ---
 
@@ -135,6 +135,7 @@ second copy of a balance except `snapshot` rows, which are trends only (ADR-0027
 ## 3. Core types and conventions
 
 ### 3.1 Money
+
 - `Cents(i64)`; SQLite `INTEGER`. No `f64` anywhere on a monetary path (clippy gate greps for `f64|f32|as f` in `src-tauri/src` outside explicitly allow-listed non-money code such as chart scaling, which does not exist in Rust).
 - Percentages and APR are basis points: `apr_bps: i32` (1999 = 19.99%). Similarity thresholds are also bps.
 - `money::mul_div_round(a: i128, b: i128, d: i128) -> Result<i64>`: `a·b/d` rounded half away from zero; the only rounding primitive. Interest, pro-rata, and percent-of-balance all go through it.
@@ -143,41 +144,44 @@ second copy of a balance except `snapshot` rows, which are trends only (ADR-0027
 - Decimal strings are created only in `src/lib/money.ts` (UI) and `export` (CSV/JSON). Cents are already integers, so no rounding happens there; `formatBps` rounds half away from zero when it shortens.
 
 ### 3.2 Dates
+
 - Civil dates `YYYY-MM-DD` (`TEXT`) for posted / effective / due / period dates. Instants `TEXT` UTC RFC3339 for `*_at` columns.
 - `dates::today()` = civil date now in the user's zone (`setting.zone`, default `America/Chicago`). All pay-cycle and due-rule math is civil-date arithmetic.
 - Sign convention: `amount_cents` is from the account's point of view: inflow positive, outflow negative. A liability account (credit, loan) therefore carries a non-positive balance; `owed = max(0, −balance)`.
 
 ### 3.3 Identifiers
+
 Integer `rowid` primary keys everywhere (ADR-0010). Single user, no sync, no merge; integers are fastest for 200k-row joins and simplest to read in the audit pack.
 
 ### 3.4 `txn.flags` bitmask
 
-| bit | name | set by |
-|---|---|---|
-| 1 | `needs_review` | import heuristics, unlinked refund, firewall touch, quarantine resolution |
-| 2 | `cash_withdrawal` | ATM / cash heuristics; always with `needs_review` until classified |
-| 4 | `payment_app_unknown` | every payment-app row on import; purpose is never guessed |
-| 8 | `borrowing` | user, or rule; informal-loan proceeds |
-| 16 | `securities_sale` | user, rule, or brokerage profile |
-| 32 | `fee` | profile/heuristic |
-| 64 | `interest` | profile/heuristic |
+| bit | name                  | set by                                                                    |
+| --- | --------------------- | ------------------------------------------------------------------------- |
+| 1   | `needs_review`        | import heuristics, unlinked refund, firewall touch, quarantine resolution |
+| 2   | `cash_withdrawal`     | ATM / cash heuristics; always with `needs_review` until classified        |
+| 4   | `payment_app_unknown` | every payment-app row on import; purpose is never guessed                 |
+| 8   | `borrowing`           | user, or rule; informal-loan proceeds                                     |
+| 16  | `securities_sale`     | user, rule, or brokerage profile                                          |
+| 32  | `fee`                 | profile/heuristic                                                         |
+| 64  | `interest`            | profile/heuristic                                                         |
 
 Query chip `flag:borrowing` compiles to `(flags & 8) <> 0`.
 
 ### 3.5 `txn.user_edited` bitmask
 
-| bit | field | bit | field |
-|---|---|---|---|
-| 1 | `payee_norm` | 64 | `effective_date` |
-| 2 | `memo` | 128 | `status` |
-| 4 | `category_id` | 256 | `amount_cents` (manual rows and splits) |
-| 8 | tags | 512 | `posted_date` |
-| 16 | `venture_id` | 1024 | `account_id` |
-| 32 | `flags` | | |
+| bit | field         | bit  | field                                   |
+| --- | ------------- | ---- | --------------------------------------- |
+| 1   | `payee_norm`  | 64   | `effective_date`                        |
+| 2   | `memo`        | 128  | `status`                                |
+| 4   | `category_id` | 256  | `amount_cents` (manual rows and splits) |
+| 8   | tags          | 512  | `posted_date`                           |
+| 16  | `venture_id`  | 1024 | `account_id`                            |
+| 32  | `flags`       |      |                                         |
 
 A re-import may touch a field only if its bit is 0 (`user_edit_survives_reimport`).
 
 ### 3.6 Enumerations
+
 Stored as `TEXT` with `CHECK (… IN (…))`; mirrored by Rust enums with `serde(rename_all = "snake_case")`. Adding a variant is a migration.
 
 ---
@@ -657,10 +661,11 @@ CREATE TABLE backup_log (
 ```
 
 Seed rows written by `0001_init.sql` (all `is_system = 1`, names editable, not deletable):
+
 - Settings: `zone = "America/Chicago"`, `timing_buffer_cents = 0`, `recon_stale_after_days = 45`, `dedup_similarity_bps = 8000`, `theme = "dark"`, `backup_keep_daily = 14`.
 - Category roots for each `root_kind`, plus system-coded children the engines reference (ADR-0033): `income.salary`, `income.bonus`, `income.rsu`, `income.deferred_comp`, `income.interest`, `income.other`, `transfer.internal`, `transfer.card_payment`, `transfer.loan_repayment`, `transfer.borrowing_proceeds`, `transfer.securities_sale_proceeds`, `debt.interest`, `debt.fees`, `venture.customer_revenue`, `venture.operating_expense`, `venture.owner_contribution`, `venture.financing`, `venture.withdrawal`, `variable.cash`, `variable.uncategorized`.
 - Policies: `firewall_exclusion`, `informal_first`.
-- Import profiles: one per fixture institution (§14) and `generic_csv` (Date, Description, Amount).
+- Import profiles: `generic_csv` (Date, Description, Amount). The fixture institutions' profiles (§14) arrive with the fixtures in M1's migration, so no column layout is invented before the files exist.
 
 Forward references (`txn` → `transfer_link`, `refund_link`) are legal in SQLite because foreign
 keys are checked at DML time; link tables and their back-pointers on `txn` are kept consistent by
@@ -674,6 +679,7 @@ All figures are functions of ledger rows + plan rows + settings, computed in Rus
 with the row ids behind them.
 
 ### 5.1 Balances (per account)
+
 - `posted_balance = opening_balance_cents + Σ amount_cents of txn_leaf rows with status='posted'`. A posted row dated after `today()` or before `opening_date` is rejected at write time (`Validation`), so no date filter is needed for "now".
 - `posted_balance_as_of(d) = opening + Σ posted leaf rows with posted_date ≤ d` (snapshots, reconciliation, trends).
 - `pending_in = Σ positive pending leaf rows without flags borrowing|securities_sale`; `pending_in_excluded = Σ positive pending rows with those flags` (listed, not counted).
@@ -681,11 +687,13 @@ with the row ids behind them.
 - Liability accounts: `owed = max(0, −posted_balance)`.
 
 ### 5.2 Spending view and cash view (ADR-0020)
+
 - **Spending view** (what was consumed): Σ over `txn_leaf` rows where `transfer_link_id IS NULL`, root_kind ∉ {`transfer`, `income`}, and the row is not borrowing/securities-sale proceeds, grouped by category. A linked refund (positive) sits in the original's category and nets against it. A card purchase counts once, on the card, on its posted date. The card payment (a `card_payment` transfer) counts zero.
 - **Cash view** (what left the cash accounts, when): Σ over `txn_leaf` rows on cash-kind accounts (`checking|savings|cash|payment_app`), by date, including the card payment as an outflow on its date and excluding card purchases (they are on the credit account). A transfer between two cash accounts appears as −x and +x on their dates and nets to zero in aggregate (`transfer_not_spending`).
 - `EXPECTED.md` states both totals for the fixture period; they differ by a known amount (M2 acceptance).
 
 ### 5.3 Reconciliation (ADR-0021)
+
 - Period `[period_start, period_end]` per account. `opening_cents` = `account.opening_balance_cents` for the first period (then `period_start = opening_date`), else the prior **balanced** period's `statement_closing_cents` (roll-forward).
 - `computed_closing = opening_cents + Σ posted leaf rows with posted_date in [start, end]`; `difference = computed − statement_closing`; `status = balanced iff difference = 0`. No tolerance: a one-cent difference is a missing or wrong row.
 - The difference explorer lists: rows in the period, rows just outside the period (±5 days) that could belong, pending rows, quarantined rows for the account, and the running total.
@@ -706,8 +714,9 @@ safe = available − earmarks_unfunded − obligations_before_next_income − mi
 ```
 
 Precise terms:
+
 - **Account set A** = accounts with `kind ∈ {checking, savings, cash, payment_app}`, `owner = 'personal'`, `firewalled = 0`, `archived = 0`. Credit, brokerage, loan and venture-owned accounts are never in A (`firewall_excluded`; credit available is not cash).
-- `available = Σ_A (posted_balance + pending_in − pending_out)`. Posted borrowing or securities-sale proceeds sitting in an A account are in `posted_balance` (they are cash in the bank and must reconcile); they are flagged, listed on their own panel, and never counted as income. Only *pending* flagged inflows are excluded.
+- `available = Σ_A (posted_balance + pending_in − pending_out)`. Posted borrowing or securities-sale proceeds sitting in an A account are in `posted_balance` (they are cash in the bank and must reconcile); they are flagged, listed on their own panel, and never counted as income. Only _pending_ flagged inflows are excluded.
 - `earmark_remaining(e) = Σ earmark_entry.amount_cents` for active earmarks; `earmarks_unfunded = Σ earmark_remaining(e)` over earmarks whose `funding_account_id ∈ A`. The emergency reserve is an earmark of kind `emergency_reserve`, so it enters here; the timing buffer is `minimum_buffer`. Two reserves, stored separately, each subtracted once.
 - `next_income_date` = earliest occurrence `≥ today()` of an active income stream with `confidence = 'confirmed'` that has no `income_receipt`. `expected`/`rumored` streams never enter. If no confirmed stream exists, the window is `today + 30` and the term carries `window_reason = 'no_confirmed_income'` (warning label, not untrusted).
 - `obligations_before_next_income = Σ over occurrences o of confirmed obligations with due_date ≤ next_income_date and no obligation_payment: max(0, expected_cents − earmark_remaining(linked earmark))`. Overdue unpaid occurrences are included. An obligation fully covered by its earmark contributes 0 here and its earmark contributes in the earmark term: each dollar is subtracted exactly once.
@@ -732,11 +741,13 @@ SafeToSpend {
 ```
 
 ### 5.5 Pay-cycle and due-rule occurrences (`dates`)
+
 - `weekly|biweekly`: `anchor + 7k | 14k` days. `semimonthly`: the two days each month, 31 = last day. `monthly`: anchor's day clamped to month length. `once`: anchor only. Then `weekend_rule` (income only; default previous business day; US holidays not modeled in v1, the user can override a single occurrence by editing the stream's anchor or recording the receipt).
 - Obligations: `monthly_day` clamped; `nth_weekday` (5 = last); `biweekly` from anchor; `annual` on `due_month/due_day`; `once`. No weekend shift: being early is conservative.
 - Payment/receipt matching (heuristic, user-overridable): same account, payee match, amount within `expected ± variability`, posted within `[due − 10, due + 5]` days.
 
 ### 5.6 Forecast (ADR-0023)
+
 - One daily engine over days `0..=90` from `today()`; the 30-day view is days 0–29, the 13-week view is seven-day buckets from day 0.
 - `opening = Σ_A posted_balance`. Day-0 events: pending rows (`effective_date ≤ today → day 0`, else their date) with the §5.1 sign rules.
 - Inflows: confirmed income occurrences in the window with no receipt. Outflows: unpaid confirmed obligation occurrences (overdue → day 0), `informal_loan_schedule` rows in the window, and modeled variable spend (§5.7). Debt minimums are obligations (`obligation.debt_id`), so they appear once.
@@ -747,9 +758,11 @@ SafeToSpend {
 - `forecast_ties`: for every scenario, `closing(90) = opening + Σ inflows − Σ outflows` and each day `closing = opening + inflows − outflows`.
 
 ### 5.7 Variable-spend model
+
 Per category with `root_kind = 'variable'`: three 30-day buckets ending yesterday (`[d−30, d−1]`, `[d−60, d−31]`, `[d−90, d−61]`); net outflow per bucket from `txn_leaf` rows excluding transfer-linked rows, floored at 0; the model is the median (middle value) of the three; `variable_spend_override` replaces it. Daily allocation uses `money::allocate(median, 30)` so every 30 forecast days sum exactly to the modeled figure.
 
 ### 5.8 Debt (ADR-0024)
+
 - Balance owed: linked debt → `owed` of its account; standalone → `standalone_opening_cents − Σ debt_payment.amount_cents`.
 - Interest per period: `monthly_nominal` → `mul_div_round(balance, apr_bps, 120_000)`; `actual_365` → `mul_div_round(balance, apr_bps × days, 3_650_000)`. Effective APR = `promo_apr_bps` while `today ≤ promo_end`, else `apr_bps`.
 - Minimum per period by `minimum_rule`: `fixed`; `percent_of_balance` = `max(floor, mul_div_round(balance, minimum_bps, 10_000))`; `interest_plus_percent` = `interest + max(floor, pct)`; `full_balance`; `none` (informal loans with a schedule).
@@ -757,9 +770,11 @@ Per category with `root_kind = 'variable'`: three 30-day buckets ending yesterda
 - Output per strategy: schedule rows per debt per period `{period_start, opening, interest, payment, principal, closing}`, total interest cents, payoff date; comparison table in cents. "Informal repaid in 12 months" is a scenario: if the surplus cannot, show the gap and the date it can.
 
 ### 5.9 Venture rollup (ADR-0025)
+
 Rows with `venture_id = V` partition into buckets by category system code: `customer_revenue`, `operating_expense`, `owner_contribution`, `financing`, `withdrawal` (transfer links of kind `venture_contribution`/`venture_withdrawal` map to the last two). Derived: `operating_cash_flow = customer_revenue − operating_expense` (trailing 12 months); `cap_used = owner_contribution + operating_expense paid from personal accounts − withdrawal`; `cap_utilization_bps = cap_used / cash_cap_cents`; milestone countdown in civil days; stop-condition alert when `cap_used ≥ cash_cap_cents` or `milestone_date < today`. `venture_spend_share_bps = Σ operating_expense (all ventures, 12 mo) / Σ confirmed base-pay receipts (12 mo)`.
 
 ### 5.10 Review and dependable surplus (ADR-0026)
+
 Monthly-equivalent, from rows only: `income = Σ income_receipt amounts of confirmed streams in the trailing 90 days × 30/90` (`mul_div_round`); `fixed = Σ monthly-equivalent expected of confirmed obligations with kind ≠ debt_minimum` (weekly ×52/12, biweekly ×26/12, annual ÷12 via `mul_div_round`); `debt_service = Σ debt_minimum obligations monthly-equivalent + Σ informal_loan_schedule next 12 months ÷ 12`; `irregular = Σ annual obligations ÷ 12 + Σ sinking-fund schedules monthly-equivalent`; `variable = Σ variable-spend model`. `surplus = income − fixed − debt_service − irregular − variable`. Borrowing and asset sales are excluded by construction (only confirmed-stream receipts count as income).
 
 ---
@@ -767,27 +782,30 @@ Monthly-equivalent, from rows only: `income = Σ income_receipt amounts of confi
 ## 6. Engines
 
 ### 6.1 Import profiles (`import_profile.spec_json`)
+
 ```json
 {
   "header_signature": ["Date", "Description", "Amount", "Running Bal."],
   "skip_rows": 0,
-  "date":        { "column": "Date", "format": "%m/%d/%Y" },
+  "date": { "column": "Date", "format": "%m/%d/%Y" },
   "effective_date": { "column": "Transaction Date", "format": "%m/%d/%Y", "optional": true },
-  "amount":      { "kind": "single_signed", "column": "Amount" },
-  "payee":       { "column": "Description" },
-  "memo":        { "column": "Memo", "optional": true },
-  "status":      { "column": "Status", "pending_values": ["Pending"], "optional": true },
+  "amount": { "kind": "single_signed", "column": "Amount" },
+  "payee": { "column": "Description" },
+  "memo": { "column": "Memo", "optional": true },
+  "status": { "column": "Status", "pending_values": ["Pending"], "optional": true },
   "external_id": { "column": "Reference", "optional": true },
-  "balance":     { "column": "Running Bal.", "optional": true },
-  "currency":    { "column": "Currency", "optional": true },
+  "balance": { "column": "Running Bal.", "optional": true },
+  "currency": { "column": "Currency", "optional": true },
   "sign_convention": "account_pov"
 }
 ```
+
 `amount.kind ∈ {single_signed, debit_credit (two columns), amount_with_type (type column lists debit values)}`; `sign_convention ∈ {account_pov, card_statement}` (card statements show purchases positive; the profile negates). Detection: fold case and whitespace, compare the header row to each profile's signature; exactly one match → auto; otherwise the user picks and sees the mapping preview (first 20 parsed rows) before commit. Amount parsing is integer-only: strip `$`, `,`, handle `(x)` and leading `-`, split on `.`, at most two decimals, else `Parse { row, column }`. A `currency` column present with any value other than `USD` rejects the batch with `Unsupported`.
 
 Payment-app profiles (Venmo) set `payment_app_unknown | needs_review` on every row; the note is kept in `memo` and is never used by heuristics (ADR-0032).
 
 ### 6.2 Identity and dedup (ADR-0017)
+
 - `source_row_hash = sha256(account_id ‖ posted_date ‖ amount_cents ‖ trim(payee_raw) ‖ trim(memo) ‖ external_id?)`, hex.
 - File-level idempotency: `(account_id, profile_id, file_sha256)` seen before → the batch is recorded with `inserted = 0`, every row `skipped`, and `dedup_report_json.reason = "duplicate_file_of_batch:<id>"`. Nothing silently dropped: the report says so.
 - Row-level: exact match on `(account_id, external_id)` or `(account_id, source_row_hash)` → skip. Else fuzzy candidates: same account, same `amount_cents`, `posted_date` within ±3 days, `similarity_bps(payee_norm_a, payee_norm_b) ≥ setting.dedup_similarity_bps` (normalized Levenshtein, default 8000). If the candidate is `pending` and the incoming row is `posted`, or the candidate lacks an `external_id` the incoming row has → **update** system fields whose `user_edited` bit is 0 (`status`, `posted_date`, `payee_raw`, `payee_norm`, `memo`, `external_id`, `source_row_hash`) and count `updated`. Otherwise → **quarantine**: the row is stored in `import_quarantine` with the suspected twin and the similarity; the review queue resolves it as `inserted` or `discarded`, both audited. The reconciliation difference explorer shows pending quarantine rows for the account, so a real transaction cannot hide there unnoticed.
@@ -795,16 +813,20 @@ Payment-app profiles (Venmo) set `payment_app_unknown | needs_review` on every r
 - Batch undo: inside one transaction, delete rows the batch inserted, restore the `before_json` of rows it updated, discard its quarantine rows, set `undone_at`, write audit rows under an `undo` command. Refused with `Conflict` if any inserted row has since been split, linked, or user-edited (the UI lists them).
 
 ### 6.3 Dedup report (`dedup_report_json`)
+
 `{ reason?, rows_read, inserted, updated: [{txn_id, fields}], skipped: [{row, matched_txn_id, by: "hash|external_id"}], quarantined: [{quarantine_id, suspected_txn_id, similarity_bps}], threshold_bps, date_range }` rendered as prose: "Read 412 rows. Inserted 380. Updated 12 pending rows that have now posted. Skipped 18 already-imported rows. Held 2 suspected duplicates for review (threshold 80%)."
 
 ### 6.4 Rules and heuristics
+
 Order per row: (1) rules by `position`, first match wins, `classification = rule`, `rule_id` set; (2) heuristics, `classification = heuristic`, `heuristic_code` set; (3) else `unclassified` + `needs_review`. Heuristic codes (v1): `card_payment_pair`, `internal_transfer_pair`, `refund_candidate`, `atm_withdrawal` (→ `cash_withdrawal | needs_review`, no category), `payment_app_row` (→ `payment_app_unknown | needs_review`), `interest_charge`, `fee_charge`, `firewall_touch`. Heuristics never assign a category to cash withdrawals or payment-app rows. The review queue orders by `|amount_cents|` descending. A correction returns a proposed rule shape; nothing is created until the user accepts it.
 
 ### 6.5 Linking (ADR-0019)
+
 - Transfer: two rows on different accounts, `a.amount = −b.amount`, posted within ±3 days, neither linked; kind `card_payment` when one account is `credit`, `loan_repayment` when `loan`, `venture_contribution/withdrawal` when exactly one account is venture-owned, else `internal`. Confidence `heuristic`; the user can unlink or link manually (`user`).
 - Refund: positive row on an expense category's account, matching a prior negative row with `|amount|` equal, payee similarity ≥ threshold, within 90 days → `refund_candidate` in the review queue; linking is a user action unless the payee and amount match exactly (then heuristic link, still shown).
 
 ### 6.6 Export and backup
+
 - Full export: one CSV per table + one JSON document, decimal strings produced by `money::to_decimal_string`, written to a user-chosen folder.
 - Audit pack: `ledger.csv`, `reconciliation.csv`, `safe_to_spend.json` (terms with row ids), `forecast.json`, `debt_schedule.csv`, `venture_rollup.csv`, `README.md` explaining each file and the sign convention — enough for an advisor or an LLM session.
 - Backup: `ATTACH DATABASE ? AS b KEY ?; SELECT sqlcipher_export('b'); DETACH DATABASE b;` under the current or a new passphrase. Daily rotating on launch (`backups/kept-YYYY-MM-DD.db`, keep `backup_keep_daily`); `pre_migration` before any migration; `pre_restore` before a restore swap. Restore: open the backup with its passphrase → export into a temp data dir → migrate → compare row counts per table and the hero number against the live DB → show the comparison → the user confirms the swap.
@@ -817,21 +839,21 @@ Every command: `#[tauri::command] async fn name(state: State<'_, App>, args: Arg
 
 `AppError` is `thiserror` on the Rust side and serializes as `{ kind, message, detail? }`:
 
-| kind | raised when | UI |
-|---|---|---|
-| `Locked` | a command runs with no open database | route to Unlock |
-| `WrongPassphrase` | SQLCipher key check fails (`SQLITE_NOTADB`) | inline error, fail closed |
-| `Db` | any other SQLite error (message included, SQL never echoed with values) | toast + log |
-| `Migration` | checksum mismatch, failed step, newer schema than the binary | blocking dialog, do not open |
-| `Io` | data folder, backup, export, log file | toast with path |
-| `Parse { row, column }` | CSV/OFX cell cannot be parsed as date, integer cents, or status | import screen row marker |
-| `Unsupported` | non-USD currency, unknown file format | import blocked with reason |
-| `Validation { field }` | business rule: future posted date, split sum ≠ parent, three actions, archived account write, … | field error |
-| `Conflict` | undo blocked by later edits; concurrent edit of a reconciled period | dialog listing the rows |
-| `NotFound` | id does not exist | toast |
-| `PolicyBlocked { policy }` | firewalled outflow without acknowledgment | acknowledgment dialog, logged on confirm |
-| `Overflow` | checked money arithmetic overflowed | toast + log; never a wrong number |
-| `Internal` | invariant violated (e.g. cache drift detected) | toast; logged at error with context |
+| kind                       | raised when                                                                                     | UI                                       |
+| -------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `Locked`                   | a command runs with no open database                                                            | route to Unlock                          |
+| `WrongPassphrase`          | SQLCipher key check fails (`SQLITE_NOTADB`)                                                     | inline error, fail closed                |
+| `Db`                       | any other SQLite error (message included, SQL never echoed with values)                         | toast + log                              |
+| `Migration`                | checksum mismatch, failed step, newer schema than the binary                                    | blocking dialog, do not open             |
+| `Io`                       | data folder, backup, export, log file                                                           | toast with path                          |
+| `Parse { row, column }`    | CSV/OFX cell cannot be parsed as date, integer cents, or status                                 | import screen row marker                 |
+| `Unsupported`              | non-USD currency, unknown file format                                                           | import blocked with reason               |
+| `Validation { field }`     | business rule: future posted date, split sum ≠ parent, three actions, archived account write, … | field error                              |
+| `Conflict`                 | undo blocked by later edits; concurrent edit of a reconciled period                             | dialog listing the rows                  |
+| `NotFound`                 | id does not exist                                                                               | toast                                    |
+| `PolicyBlocked { policy }` | firewalled outflow without acknowledgment                                                       | acknowledgment dialog, logged on confirm |
+| `Overflow`                 | checked money arithmetic overflowed                                                             | toast + log; never a wrong number        |
+| `Internal`                 | invariant violated (e.g. cache drift detected)                                                  | toast; logged at error with context      |
 
 No `unwrap()`/`expect()` outside tests; `?` everywhere; the webview never swallows an error (every `catch` either shows it or rethrows).
 
@@ -861,19 +883,19 @@ No `unwrap()`/`expect()` outside tests; `?` everywhere; the webview never swallo
 
 Assets: the ledger (complete financial history, counterparties, informal debts), the passphrase, backups, exports, logs.
 
-| Attacker | Capability | Outcome |
-|---|---|---|
-| **In scope:** local attacker with the database file (and `-wal`, backups) but not the passphrase | copies files, runs offline tools | Cannot read pages: SQLCipher 4 full-database encryption incl. WAL; no plaintext temp files (`temp_store = MEMORY`); logs carry no amounts, payees, counterparties, or key material (§11); the keyring entry is bound to the Windows user's logon, not to the file. Brute force is bounded by PBKDF2 at 256k iterations — passphrase strength is the user's lever and the Unlock screen says so. |
-| In scope: the same attacker also holding an **export or audit pack** | reads plaintext by design | Exports are written only where the user chooses, the UI states they are unencrypted, and they are never created automatically. |
-| In scope: a hostile **import file** | malformed CSV/OFX, huge rows, path tricks | Streaming parser with row/column error reporting; no formulas evaluated; paths come from the dialog or drag-drop only; the batch is one transaction — any error leaves nothing written. |
-| In scope: **network exfiltration** | malicious dependency or script | CSP `connect-src` limited to the IPC origin; no HTTP/updater/shell plugins; `just check` greps for network APIs in `src/` and network crates in `Cargo.lock`; fonts self-hosted; Windows acceptance records a `netstat` check. |
-| **Out of scope:** attacker with the unlocked session, the user's Windows logon, or a keylogger | reads memory, uses the keyring | Explicitly out of scope per spec; `cipher_memory_security` stays off for performance and this is recorded. |
+| Attacker                                                                                         | Capability                                | Outcome                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **In scope:** local attacker with the database file (and `-wal`, backups) but not the passphrase | copies files, runs offline tools          | Cannot read pages: SQLCipher 4 full-database encryption incl. WAL; no plaintext temp files (`temp_store = MEMORY`); logs carry no amounts, payees, counterparties, or key material (§11); the keyring entry is bound to the Windows user's logon, not to the file. Brute force is bounded by PBKDF2 at 256k iterations — passphrase strength is the user's lever and the Unlock screen says so. |
+| In scope: the same attacker also holding an **export or audit pack**                             | reads plaintext by design                 | Exports are written only where the user chooses, the UI states they are unencrypted, and they are never created automatically.                                                                                                                                                                                                                                                                  |
+| In scope: a hostile **import file**                                                              | malformed CSV/OFX, huge rows, path tricks | Streaming parser with row/column error reporting; no formulas evaluated; paths come from the dialog or drag-drop only; the batch is one transaction — any error leaves nothing written.                                                                                                                                                                                                         |
+| In scope: **network exfiltration**                                                               | malicious dependency or script            | CSP `connect-src` limited to the IPC origin; no HTTP/updater/shell plugins; `just check` greps for network APIs in `src/` and network crates in `Cargo.lock`; fonts self-hosted; Windows acceptance records a `netstat` check.                                                                                                                                                                  |
+| **Out of scope:** attacker with the unlocked session, the user's Windows logon, or a keylogger   | reads memory, uses the keyring            | Explicitly out of scope per spec; `cipher_memory_security` stays off for performance and this is recorded.                                                                                                                                                                                                                                                                                      |
 
 ---
 
 ## 11. Logging, audit, undo
 
-- `tracing` → `tracing_appender::rolling::daily(data_dir/logs, "kept.log")`, non-blocking, `max_log_files = 14`, level `info` (env `KEPT_LOG` raises it). Fields are ids, counts, durations, error kinds, command names. **Never logged:** `amount_cents`, `payee_*`, `memo`, counterparties, passphrases, keys, file contents. No `println!`.
+- `tracing` → `tracing_appender` daily rotation into `data_dir/logs/kept.YYYY-MM-DD.log`, non-blocking, `max_log_files = 14`, level `info` (env `KEPT_LOG` raises it). Fields are ids, counts, durations, error kinds, command names. **Never logged:** `amount_cents`, `payee_*`, `memo`, counterparties, passphrases, keys, file contents. No `println!`.
 - Audit: every write command creates one `command` row and one `audit_event` per touched row (before/after JSON of the row) in the same transaction (`db::audit`). The Ledger shows "why" (rule / heuristic / user / import batch) from these columns.
 - Undo (ADR-0016): a command group is undone by applying the inverse of its audit events in reverse order as a new command with `actor = 'undo'`, refused with `Conflict` when a touched row changed since. Every destructive action is a command group; the toast names it ("Undo: recategorize 14 rows").
 
@@ -887,13 +909,13 @@ Default is offline and stays offline. No updater, HTTP, or shell plugin is regis
 
 ## 13. Testing architecture and `just check` (ADR-0009)
 
-| Layer | Tool | Scope |
-|---|---|---|
-| Unit | `cargo test` | money rounding and allocation, date rules, payee normalization, amount parsing, interest math |
-| Property | `proptest` | the ten named invariants in `src-tauri/tests/invariants.rs`, each test named exactly as the spec names it |
-| Integration | `cargo test` + temp SQLCipher DB + `fixtures/` | import → dedup → link → recon → safe-to-spend → forecast → debt → venture, asserting `EXPECTED.md` numbers |
-| TS unit | Vitest | `formatCents`, `formatBps`, `parseCentsInput`, chip parser, IPC type shapes |
-| E2E | Playwright | critical path import → reconcile → safe-to-spend against the real app: Windows only, WebView2 launched with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, Playwright attaches over CDP, `KEPT_DATA_DIR` points at a temp folder |
+| Layer       | Tool                                           | Scope                                                                                                                                                                                                                                                   |
+| ----------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit        | `cargo test`                                   | money rounding and allocation, date rules, payee normalization, amount parsing, interest math                                                                                                                                                           |
+| Property    | `proptest`                                     | the ten named invariants in `src-tauri/tests/invariants.rs`, each test named exactly as the spec names it                                                                                                                                               |
+| Integration | `cargo test` + temp SQLCipher DB + `fixtures/` | import → dedup → link → recon → safe-to-spend → forecast → debt → venture, asserting `EXPECTED.md` numbers                                                                                                                                              |
+| TS unit     | Vitest                                         | `formatCents`, `formatBps`, `parseCentsInput`, chip parser, IPC type shapes                                                                                                                                                                             |
+| E2E         | Playwright                                     | critical path import → reconcile → safe-to-spend against the real app: Windows only, WebView2 launched with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, Playwright attaches over CDP, `KEPT_DATA_DIR` points at a temp folder |
 
 `just check` = `fmt-check`, `clippy -D warnings`, `cargo test`, `tsc --noEmit`, `eslint`, `prettier --check`, `vitest run`, the grep gates (no `TODO`, no commented-out code markers, no `any`, no `unwrap()`/`expect(` outside tests, no `println!`, no network APIs), then `e2e` **when the host is Windows**. On a non-Windows host `check` ends with an explicit `E2E NOT RUN: requires Windows/WebView2` line and a non-zero `e2e` recipe exit, never a silent green. CI: `ci.yml` runs lint/tests on `ubuntu-latest` for speed and the full `just check` + unsigned build on `windows-latest`; the Windows job is the required one. `release.yml` builds the unsigned NSIS installer on `v*` tags; signing is a documented manual `signtool` step (`docs/release.md`).
 
@@ -903,19 +925,19 @@ Default is offline and stays offline. No updater, HTTP, or shell plugin is regis
 
 Sources (one CSV profile each, synthetic names): three banks `northbank_checking`, `northbank_savings`, `riverside_checking`; two cards `summit_visa`, `summit_amex`; one brokerage `harbor_brokerage` (firewalled); one payment app `venmo`. Period: three statement months. `fixtures/EXPECTED.md` is written first, by hand, with the arithmetic shown, and holds: opening and closing per account per month, spending-view total, cash-view total, the transfer pairs, safe-to-spend for a stated as-of date, next pay date and buffer, the first shortfall date, the two-debt schedule, the venture buckets. Scenarios mapped to files:
 
-| Scenario (spec) | Where |
-|---|---|
-| duplicate export of the same month | `northbank_checking` month 2 exported twice (identical) and once overlapping months 2–3 |
-| pending that later posts | `summit_visa` month 1 export has a pending row; month 2 export has it posted with a longer descriptor |
-| a refund | `summit_visa` purchase then partial refund 11 days later |
-| an internal transfer | `northbank_checking → northbank_savings` |
-| a card payment | `northbank_checking → summit_visa` |
-| rent split via Zelle | `northbank_checking` Zelle outflow (rent) and Zelle inflow from roommate (needs_review, not income until classified) |
-| a foreign ATM fee | `riverside_checking` ATM withdrawal (cash_withdrawal, needs_review) + separate fee row (fee) |
+| Scenario (spec)                       | Where                                                                                                                       |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| duplicate export of the same month    | `northbank_checking` month 2 exported twice (identical) and once overlapping months 2–3                                     |
+| pending that later posts              | `summit_visa` month 1 export has a pending row; month 2 export has it posted with a longer descriptor                       |
+| a refund                              | `summit_visa` purchase then partial refund 11 days later                                                                    |
+| an internal transfer                  | `northbank_checking → northbank_savings`                                                                                    |
+| a card payment                        | `northbank_checking → summit_visa`                                                                                          |
+| rent split via Zelle                  | `northbank_checking` Zelle outflow (rent) and Zelle inflow from roommate (needs_review, not income until classified)        |
+| a foreign ATM fee                     | `riverside_checking` ATM withdrawal (cash_withdrawal, needs_review) + separate fee row (fee)                                |
 | a securities sale used to cover a gap | `harbor_brokerage` sale (securities_sale, firewalled) → transfer to `northbank_checking` (flagged proceeds, firewall touch) |
-| a friend-loan inflow | `venmo` inflow from a named friend → user flags borrowing, creates informal loan |
-| a venture SaaS charge | `summit_amex` SaaS charge tagged to venture `Ledgerline` |
-| an annual insurance renewal | `northbank_checking` annual premium (irregular) |
+| a friend-loan inflow                  | `venmo` inflow from a named friend → user flags borrowing, creates informal loan                                            |
+| a venture SaaS charge                 | `summit_amex` SaaS charge tagged to venture `Ledgerline`                                                                    |
+| an annual insurance renewal           | `northbank_checking` annual premium (irregular)                                                                             |
 
 No number in `EXPECTED.md` is produced by the engine. If the engine disagrees, the engine is wrong until the fixture is shown wrong, and that showing is an ADR.
 

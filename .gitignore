@@ -1,0 +1,25 @@
+# dependencies and build output
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# test and tool output
+coverage/
+playwright-report/
+test-results/
+e2e/.tmp/
+*.log
+
+# local data: never commit a database, backup, or export
+*.db
+*.db-wal
+*.db-shm
+kept.config.json
+
+# editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

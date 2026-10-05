@@ -1,0 +1,11 @@
+# Migration checksums are computed over LF text; never let a checkout rewrite them.
+*.sql text eol=lf
+*.rs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+justfile text eol=lf
+fixtures/**/*.csv text eol=lf

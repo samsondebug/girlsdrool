@@ -12,6 +12,7 @@ Format: `## ADR-NNNN — Title` · Status · Date · Source · Context · Decisi
 ---
 
 ## ADR-0001 — Product frame, scope, and non-negotiables
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec
 
 **Context.** Kept is a cockpit instrument for one user who runs out of cash between paychecks
@@ -30,6 +31,7 @@ infeasible one stops the milestone and is written here with the smallest alterna
 naming the rule, is the only way a non-negotiable moves.
 
 ## ADR-0002 — Stack: Tauri 2.x, Rust core, rusqlite + SQLCipher
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec (stack) + tech lead (versions)
 
 **Context.** Money math must not live in the webview; the database must be unreadable without a
@@ -48,6 +50,7 @@ set is appended here as ADR-0034 when M0 lands.
 registered: `dialog` only (file/folder pickers). No `http`, `shell`, `updater`, `sql`.
 
 ## ADR-0003 — Money representation
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead (mechanics)
 
 **Decision.** Money is `i64` cents (`Cents` newtype, SQLite `INTEGER`). No `f64` on any
@@ -63,6 +66,7 @@ computed in Rust. Decimal strings exist only in `src/lib/money.ts` (display) and
 pin the rounding behavior on exact half cases (positive and negative).
 
 ## ADR-0004 — Dates and time zone
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec
 
 **Decision.** Civil dates `YYYY-MM-DD` for posted/effective/due/period dates; UTC RFC3339 for
@@ -70,6 +74,7 @@ instants. User zone `America/Chicago` unless Settings says otherwise. Pay-cycle 
 math is civil-date arithmetic; `today()` is the civil date now in the user's zone.
 
 ## ADR-0005 — Ledger discipline
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec
 
 **Decision.** Statements and exports are the primary record; notes never create transactions.
@@ -80,6 +85,7 @@ an audit row in the same transaction. A number on screen that cannot be traced t
 is a bug. Unreconciled figures are visibly untrusted everywhere, including the hero.
 
 ## ADR-0006 — Offline by default, and how it is enforced
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead (enforcement)
 
 **Decision.** No network calls on startup or at any time without an explicit user action named
@@ -89,6 +95,7 @@ in `Cargo.lock` (list in ARCHITECTURE §12); M0 acceptance on Windows records a 
 observation during launch and import.
 
 ## ADR-0007 — Windows 11 x64 only; portable layout; data folder
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead (layout)
 
 **Decision.** Single target Windows 11 x64, no admin. `Kept.exe` + `kept.config.json` beside it
@@ -97,6 +104,7 @@ data folder holds `kept.db`, `logs/`, `backups/`, `exports/`. WebView2 is a docu
 prerequisite (`docs/data-folder.md`, installer notes), not bundled around.
 
 ## ADR-0008 — Frontend stack
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead (majors)
 
 **Decision.** React 18 (18.3.1 line), TypeScript strict, Vite, Tailwind (v4 line: CSS-first
@@ -107,6 +115,7 @@ TypeScript version: the newest whose typescript-eslint and Vite plugin support i
 (TS 7 exists today; the resolved choice is recorded in ADR-0034).
 
 ## ADR-0009 — Test pyramid, `just check`, and the Windows-only E2E
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead
 
 **Context.** The spec asks for `just check` (or `pnpm check` with a reason) running fmt,
@@ -128,6 +137,7 @@ and the full `just check` + unsigned build on `windows-latest`; the Windows job 
 is reported as "green except E2E not runnable here", never as green.
 
 ## ADR-0010 — Schema conventions
+
 Status: Accepted · Date: 2026-10-05 · Source: tech lead
 
 **Decision.** Hand-written SQL migrations, no ORM. Integer `rowid` primary keys (single user, no
@@ -141,6 +151,7 @@ one transaction. Derived caches (`reconciliation.computed_closing_cents`, `statu
 CACHE in the schema and refreshed in the same transaction as the write that affects them.
 
 ## ADR-0011 — Migration strategy
+
 Status: Accepted · Date: 2026-10-05 · Source: tech lead
 
 **Decision.** `src-tauri/migrations/NNNN_name.sql` embedded with `include_str!`; one
@@ -153,6 +164,7 @@ after. Seeds are idempotent inserts keyed on `system_code`. A committed migratio
 edited; a mistake is fixed by the next migration.
 
 ## ADR-0012 — Encryption and key handling
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead (mechanics)
 
 **Decision.** SQLCipher 4 defaults (AES-256-CBC, HMAC-SHA512, PBKDF2-HMAC-SHA512 at 256 000
@@ -167,6 +179,7 @@ encrypted by SQLCipher. `cipher_memory_security` stays off (unlocked-session att
 scope; the setting costs performance).
 
 ## ADR-0013 — One connection behind a mutex
+
 Status: Accepted · Date: 2026-10-05 · Source: tech lead
 
 **Decision.** `Mutex<Option<rusqlite::Connection>>` in Tauri state; `None` while locked.
@@ -175,6 +188,7 @@ are milliseconds on one connection. Pragmas per connection: `foreign_keys = ON`,
 `journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`, `busy_timeout = 5000`.
 
 ## ADR-0014 — IPC contract, error taxonomy, change events
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead
 
 **Decision.** Commands return `Result<T, AppError>`; `AppError` serializes as
@@ -185,6 +199,7 @@ types for IPC payloads are hand-written and checked by a Vitest shape test again
 Rust tests emit. Display-only formatting of integers may run in TS; nothing else monetary does.
 
 ## ADR-0015 — Logging and redaction
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead
 
 **Decision.** `tracing` to a daily-rotating file under `data_dir/logs`, 14 files kept,
@@ -193,6 +208,7 @@ command names, error kinds. Never logged: amounts, payees, memos, counterparties
 keys, file contents, SQL with bound values. No `println!`.
 
 ## ADR-0016 — Audit command groups and undo
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec (undo everywhere) + tech lead
 
 **Decision.** Every write is a `command` row plus one `audit_event` per touched row (before and
@@ -202,6 +218,7 @@ Toasts name the undo ("Undo: import batch 12"). Import batch undo is the same me
 discarding the batch's quarantine rows.
 
 ## ADR-0017 — Import identity and dedup
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec (rules) + tech lead (mechanics)
 
 **Decision.** `source_row_hash = sha256(account_id ‖ posted_date ‖ amount_cents ‖
@@ -219,6 +236,7 @@ in the future or before the account's opening date is a `Validation` error.
 `user_edit_survives_reimport` are property tests over this algorithm.
 
 ## ADR-0018 — Payee normalization
+
 Status: Accepted · Date: 2026-10-05 · Source: tech lead
 
 **Decision.** `payee_norm` = lowercase, Unicode-NFKC, punctuation → space, collapse whitespace,
@@ -228,6 +246,7 @@ kept as a `zelle` marker). The transform is pure, versioned (`normalize::VERSION
 tested with a table; `payee_raw` is always kept.
 
 ## ADR-0019 — Transfer, card-payment, and refund linking
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec (not spending) + tech lead (windows)
 
 **Decision.** Transfer pair = two unlinked rows on different accounts with opposite equal
@@ -238,6 +257,7 @@ and can be undone. Refund = a positive row matching a prior negative row's absol
 match, otherwise queued for the user. Unlinked refunds sit in the review queue.
 
 ## ADR-0020 — Spending view vs cash view
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead (exact sets)
 
 **Decision.** As defined in ARCHITECTURE §5.2: spending = non-transfer, non-income,
@@ -246,6 +266,7 @@ against the original); cash = leaf rows on cash-kind accounts by date (card paym
 its date; card purchases excluded). `transfer_not_spending` checks both.
 
 ## ADR-0021 — Reconciliation tolerance and trust status
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead · **Question batched: M3 boundary**
 
 **Decision.** Zero tolerance: `balanced` iff `difference_cents = 0`. Roll-forward from the prior
@@ -257,14 +278,16 @@ trusted iff every account in the `available` set is reconciled.
 hero untrusted (current default: yes)?
 
 ## ADR-0022 — Safe-to-spend interpretations
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec (formula) + tech lead (terms) · **Questions batched: M4 boundary**
 
 **Decision.** The formula is the spec's, verbatim (ARCHITECTURE §5.4). Interpretations in force:
+
 1. Account set = personal, non-firewalled, non-archived `checking|savings|cash|payment_app`.
    Venture-owned accounts are excluded (venture cash is capped venture money, not personal cash).
 2. Posted borrowing / securities-sale proceeds in a counted account are inside `posted_balance`
    (they are cash and must reconcile); they are flagged, listed on their own panel, and never
-   income. Only *pending* flagged inflows are excluded, per the spec's "not cash until posted".
+   income. Only _pending_ flagged inflows are excluded, per the spec's "not cash until posted".
 3. No double subtraction: an obligation linked to an earmark contributes
    `max(0, expected − earmark_remaining)`; the earmark contributes its remaining. Overdue unpaid
    occurrences count.
@@ -277,6 +300,7 @@ Status: Accepted · Date: 2026-10-05 · Source: product spec (formula) + tech le
 **Questions for Dave (M4).** Confirm 1, 2, 4, and 5. Each changes the hero number.
 
 ## ADR-0023 — Forecast model
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead · **Questions batched: M5 boundary**
 
 **Decision.** One daily engine over 91 days from today; 30-day and 13-week views read it.
@@ -293,6 +317,7 @@ sporadic categories)? Is "shortfall" the overdraft date or the buffer-breach dat
 dashboard (both are computed; default shows overdraft as shortfall and buffer breach as warning)?
 
 ## ADR-0024 — Debt math and strategy ordering
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead
 
 **Decision.** Interest via `mul_div_round`: monthly nominal `balance × apr_bps / 120 000`;
@@ -306,6 +331,7 @@ surplus when positive and the UI names the source. Comparison is in interest cen
 dates; the two-debt fixture must match a hand schedule within one cent per period.
 
 ## ADR-0025 — Venture buckets and cap utilization
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead · **Question batched: M7 boundary**
 
 **Decision.** Venture rows partition into the five spec buckets by category system code (links
@@ -318,6 +344,7 @@ is user-set; sunk cost is not an input.
 toward the cap (current default: yes — owner cash left the personal pool)?
 
 ## ADR-0026 — Review: dependable surplus and exactly three actions
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead · **Question batched: M8 boundary**
 
 **Decision.** Dependable surplus is a monthly-equivalent figure from rows only (ARCHITECTURE
@@ -330,6 +357,7 @@ non-empty actions (enforced in the completing transaction) and stores what each 
 **Question for Dave (M8).** 90 days of receipts as the income base, or three full pay cycles?
 
 ## ADR-0027 — Snapshots
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead
 
 **Decision.** "Nightly" is implemented as "once per civil day, on launch, if none exists for
@@ -337,6 +365,7 @@ today" because the app may not be running at night; plus on demand and a `plan` 
 completion. Snapshots feed trends only and are never read for a current figure.
 
 ## ADR-0028 — Fixture discipline
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec
 
 **Decision.** `fixtures/EXPECTED.md` is written by hand, with arithmetic shown, before any engine
@@ -345,6 +374,7 @@ until the fixture is shown wrong, and that showing is a new ADR naming the row. 
 test, fixture, or UI string is invented.
 
 ## ADR-0029 — Query chips: parsed in TS, executed in Rust
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec (chips) + tech lead (split)
 
 **Decision.** The chip grammar is parsed in `src/lib/query-chips.ts` into a `LedgerFilter` JSON
@@ -352,6 +382,7 @@ Status: Accepted · Date: 2026-10-05 · Source: product spec (chips) + tech lead
 sums rows itself. Saved views store the chip text.
 
 ## ADR-0030 — Settings and reserves storage
+
 Status: Accepted · Date: 2026-10-05 · Source: tech lead
 
 **Decision.** Scalar settings live in `setting(key, value_json)`: zone, timing buffer, staleness
@@ -360,6 +391,7 @@ window, dedup threshold, theme, backup retention. The emergency reserve is a sin
 `import_profile`. The data folder path lives outside the database in `kept.config.json`.
 
 ## ADR-0031 — Policies and firewall acknowledgments
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec + tech lead
 
 **Decision.** Two system policies ship, non-deletable and always enforced: `firewall_exclusion`
@@ -369,6 +401,7 @@ firewall_touch` and listed in Review) and `informal_first` (ADR-0024). User poli
 `reminder` are listed, not enforced.
 
 ## ADR-0032 — Payment-app rows are never guessed
+
 Status: Accepted · Date: 2026-10-05 · Source: product spec
 
 **Decision.** Every Venmo/payment-app row imports with `payment_app_unknown | needs_review` and
@@ -376,6 +409,7 @@ no category; the note is stored in `memo` and is never an input to heuristics. C
 likewise stay `needs_review` until the user classifies them.
 
 ## ADR-0033 — Category seeds and system codes
+
 Status: Accepted · Date: 2026-10-05 · Source: tech lead
 
 **Decision.** Engines reference categories by `system_code`, never by name, so seeded names are
@@ -383,3 +417,62 @@ editable. Codes listed in ARCHITECTURE §4. Borrowing proceeds and securities-sa
 seeded under the `transfer` root (`transfer.borrowing_proceeds`,
 `transfer.securities_sale_proceeds`) so they can never be income or spending; they are also
 flagged. Informal-loan repayments are `transfer.loan_repayment`.
+
+## ADR-0034 — Resolved dependency versions at M0
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Decision.** Versions resolved at scaffold time (from `Cargo.lock` and `pnpm-lock.yaml`); the
+lock files are canonical and this entry is the human-readable record ADR-0002 and ADR-0008
+promised.
+
+- Rust (MSRV 1.90, toolchain 1.97): tauri 2.12.1, tauri-build 2.7.1,
+  tauri-plugin-dialog 2.8.1, rusqlite 0.40.2 (libsqlite3-sys
+  0.38.2, bundled SQLCipher with vendored OpenSSL), keyring-core 1.0.0,
+  windows-native-keyring-store 1.1.0, linux-keyutils-keyring-store
+  1.0.0, chrono 0.4.45, chrono-tz 0.10.4, serde 1.0.229,
+  serde_json 1.0.151, thiserror 1.0.69, tracing 0.1.44, tracing-subscriber
+  0.3.23, tracing-appender 0.2.5, sha2 0.10.9, hex 0.4.3,
+  zeroize 1.9.0, proptest 1.11.0, tempfile 3.27.0.
+- Frontend: react 18.3.1, typescript 5.9.3 (TypeScript 7 exists but typescript-eslint
+  supports <6.1), vite 8.3.2, tailwindcss 4.3.3, @tanstack/react-query
+  5.104.1, zustand 5.0.15, @tauri-apps/api 2.12.1,
+  @tauri-apps/cli 2.12.1, @tauri-apps/plugin-dialog 2.8.1,
+  vitest 5.0.3, @playwright/test 1.63.0, eslint 10.12.0,
+  typescript-eslint 8.71.0, prettier 3.9.9, @fontsource/ibm-plex-sans
+  5.3.0, @fontsource/ibm-plex-mono 5.3.0.
+- TanStack Table/Virtual, visx and Radix are added when the first screen uses them (M1+), not
+  before, so the dependency graph never carries unused packages.
+
+**Consequences.** `keyring` (the facade crate) is not used: with only a platform store feature
+it hits a `compile_error!`; `keyring-core` plus one store crate is the supported shape.
+
+## ADR-0035 — The `--info` token and the light-theme swap
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead (the spec names the token but gives no value)
+
+**Decision.** `--info` is `#7d97aa` (dark) and `#3f6076` (light): a muted slate that sits
+beside the brass accent without competing with it. Light theme values (`src/tokens.css`,
+`[data-theme="light"]`): bg `#f3f0e9`, bg-raised `#fbf9f5`, bg-inset `#e8e4db`, line
+`#cfc9bc`, text `#1d1c19`, text-dim `#5f5a50`, accent `#7f6134`, positive `#44633f`,
+negative `#9c3f33`, warning `#7a5c1a`, untrusted `#8f4d1a`, info `#3f6076`. WCAG contrast
+computed at M0: every light pair is ≥ 5.04:1 against bg and raised; every dark pair is ≥ 4.47:1,
+the lowest being the spec-locked `--negative` on `--bg-raised` (4.47:1), which is acceptable
+because money figures always carry a sign and the mono face, never color alone.
+
+**Consequences.** Tailwind's default palette is wiped (`--color-*: initial`) so only these
+tokens exist as utilities; adding a color is an ADR, not a class.
+
+## ADR-0036 — The network gate inspects the dependency graph, not the lock file
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** `Cargo.lock` lists `reqwest` and `hyper` because Tauri depends on them for
+mobile targets; `cargo tree -i reqwest` is empty for both the Linux host and
+`x86_64-pc-windows-msvc`.
+
+**Decision.** `scripts/gates.sh` fails if any of `reqwest ureq isahc curl tauri-plugin-http
+tauri-plugin-updater tauri-plugin-shell tauri-plugin-websocket` appears in the resolved graph
+(`cargo tree --all-features -i <crate>`) for the host or the Windows target. The lock file is
+not grepped. The webview-side grep for `fetch(`, `XMLHttpRequest`, `WebSocket`,
+`sendBeacon`, `navigator.onLine` and `EventSource` stands.

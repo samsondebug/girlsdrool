@@ -1,0 +1,42 @@
+name: release
+
+# Builds the UNSIGNED Windows installer on a version tag and attaches it to a draft release.
+# Signing is a documented manual step (docs/release.md); nothing here pretends otherwise.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: extractions/setup-just@v2
+      - run: pnpm install --frozen-lockfile
+      - run: just check
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Kept ${{ github.ref_name }} (unsigned)"
+          releaseBody: |
+            Unsigned Windows 11 x64 installer (per-user, no admin). WebView2 Runtime is a
+            prerequisite and is not bundled. Signing steps: docs/release.md.
+          releaseDraft: true
+          prerelease: true

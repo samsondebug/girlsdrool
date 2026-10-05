@@ -1,0 +1,189 @@
+//! Versioned SQL migrations (ARCHITECTURE §8, ADR-0011): embedded files, one transaction each,
+//! checksums verified on every open, forward-only, pre-migration backup.
+
+use std::path::PathBuf;
+
+use rusqlite::{params, Connection};
+use sha2::{Digest, Sha256};
+
+use crate::config::DataPaths;
+use crate::dates::now_rfc3339;
+use crate::error::{AppError, AppResult};
+use crate::export::backup;
+
+pub struct Migration {
+    pub version: i64,
+    pub name: &'static str,
+    pub sql: &'static str,
+}
+
+/// Every migration this build knows, in order. A committed file is never edited: a mistake is
+/// fixed by the next migration.
+pub const MIGRATIONS: &[Migration] = &[Migration {
+    version: 1,
+    name: "init",
+    sql: include_str!("../../migrations/0001_init.sql"),
+}];
+
+pub fn latest_version() -> i64 {
+    MIGRATIONS.last().map_or(0, |m| m.version)
+}
+
+/// SHA-256 of the migration text with line endings normalised, so a Windows checkout and a
+/// Linux checkout of the same file agree.
+pub fn checksum(sql: &str) -> String {
+    hex::encode(Sha256::digest(sql.replace("\r\n", "\n").as_bytes()))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MigrationReport {
+    pub from_version: i64,
+    pub to_version: i64,
+    pub applied: Vec<i64>,
+    pub backup: Option<PathBuf>,
+}
+
+pub fn current_version(conn: &Connection) -> AppResult<i64> {
+    Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
+}
+
+/// Verify checksums of applied migrations, back up before changing anything, apply pending
+/// migrations in order, and check foreign keys afterwards.
+pub fn run(
+    conn: &mut Connection,
+    paths: &DataPaths,
+    passphrase: &str,
+) -> AppResult<MigrationReport> {
+    let current = current_version(conn)?;
+    let latest = latest_version();
+    if current > latest {
+        return Err(AppError::Migration(format!(
+            "database schema is v{current} but this build knows up to v{latest}; update Kept"
+        )));
+    }
+    verify_applied(conn, current)?;
+
+    let pending: Vec<&Migration> = MIGRATIONS.iter().filter(|m| m.version > current).collect();
+    let mut backup_path = None;
+    if !pending.is_empty() && current > 0 {
+        let stamp = now_rfc3339().replace([':', '-'], "");
+        let dest = paths.backups.join(format!("kept-pre-v{latest}-{stamp}.db"));
+        backup::export_encrypted(conn, &dest, passphrase)?;
+        backup_path = Some(dest);
+    }
+
+    let mut applied = Vec::new();
+    for m in &pending {
+        apply(conn, m)?;
+        applied.push(m.version);
+    }
+
+    if let Some(dest) = &backup_path {
+        backup::log_backup(conn, dest, backup::BackupKind::PreMigration, false)?;
+    }
+
+    foreign_key_check(conn)?;
+    Ok(MigrationReport {
+        from_version: current,
+        to_version: latest,
+        applied,
+        backup: backup_path,
+    })
+}
+
+fn verify_applied(conn: &Connection, current: i64) -> AppResult<()> {
+    if current == 0 {
+        return Ok(());
+    }
+    let mut stmt =
+        conn.prepare("SELECT version, name, sha256 FROM schema_migration ORDER BY version")?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    for expected in MIGRATIONS.iter().filter(|m| m.version <= current) {
+        let Some((_, name, stored)) = rows.iter().find(|(v, _, _)| *v == expected.version) else {
+            return Err(AppError::Migration(format!(
+                "schema is v{current} but migration v{} ({}) is not recorded as applied",
+                expected.version, expected.name
+            )));
+        };
+        if *stored != checksum(expected.sql) {
+            return Err(AppError::Migration(format!(
+                "migration v{} ({name}) differs from the one this database was built with; \
+                 refusing to open",
+                expected.version
+            )));
+        }
+    }
+    for (version, name, _) in &rows {
+        if !MIGRATIONS.iter().any(|m| m.version == *version) {
+            return Err(AppError::Migration(format!(
+                "database records migration v{version} ({name}) unknown to this build"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn apply(conn: &mut Connection, m: &Migration) -> AppResult<()> {
+    let tx = conn.transaction()?;
+    tx.execute_batch(m.sql)
+        .map_err(|e| AppError::Migration(format!("v{} ({}): {e}", m.version, m.name)))?;
+    tx.execute(
+        "INSERT INTO schema_migration (version, name, sha256, applied_at) VALUES (?1, ?2, ?3, ?4)",
+        params![m.version, m.name, checksum(m.sql), now_rfc3339()],
+    )?;
+    tx.pragma_update(None, "user_version", m.version)?;
+    tx.commit()?;
+    tracing::info!(version = m.version, name = m.name, "migration applied");
+    Ok(())
+}
+
+pub fn foreign_key_check(conn: &Connection) -> AppResult<()> {
+    let mut stmt = conn.prepare("PRAGMA foreign_key_check")?;
+    let violations = stmt.query_map([], |r| r.get::<_, String>(0))?.count();
+    if violations == 0 {
+        Ok(())
+    } else {
+        Err(AppError::Migration(format!(
+            "{violations} foreign key violation(s) after migration"
+        )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn versions_are_strictly_increasing_from_one() {
+        for (i, m) in MIGRATIONS.iter().enumerate() {
+            assert_eq!(m.version, i as i64 + 1, "migration {} out of order", m.name);
+        }
+    }
+
+    #[test]
+    fn checksum_ignores_line_ending_style() {
+        assert_eq!(checksum("a\r\nb\r\n"), checksum("a\nb\n"));
+        assert_ne!(checksum("a\nb\n"), checksum("a\nc\n"));
+    }
+
+    #[test]
+    fn migrations_do_not_manage_their_own_transactions() {
+        for m in MIGRATIONS {
+            let upper = m.sql.to_ascii_uppercase();
+            assert!(!upper.contains("BEGIN;"), "{} opens a transaction", m.name);
+            assert!(
+                !upper.contains("COMMIT;"),
+                "{} commits a transaction",
+                m.name
+            );
+        }
+    }
+}

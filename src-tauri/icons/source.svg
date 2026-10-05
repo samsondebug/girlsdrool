@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Kept app icon: the app's surface token with a brass K drawn as strokes. No mascot, no gradient. -->
+  <rect x="0" y="0" width="1024" height="1024" rx="192" ry="192" fill="#121418"/>
+  <rect x="96" y="96" width="832" height="832" rx="144" ry="144" fill="none" stroke="#2a2e35" stroke-width="16"/>
+  <g fill="#b08d57">
+    <rect x="300" y="240" width="112" height="544"/>
+    <polygon points="412,512 668,240 804,240 548,512 804,784 668,784"/>
+  </g>
+</svg>

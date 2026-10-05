@@ -1,0 +1,71 @@
+/*
+ * Kept design tokens. Locked by the product spec (dark values) and ADR-0035 (info + light swap).
+ * Semantic colors only: never reference a raw hex in a component; never add a color here
+ * without an ADR. Light theme is a token swap, not a second design.
+ */
+
+:root {
+  /* surfaces and lines */
+  --bg: #121418;
+  --bg-raised: #1a1d22;
+  --bg-inset: #0e1013;
+  --line: #2a2e35;
+
+  /* text */
+  --text: #e6e2d8;
+  --text-dim: #9a958a;
+
+  /* the one accent: desaturated brass */
+  --accent: #b08d57;
+
+  /* semantic */
+  --positive: #7d9a78;
+  --negative: #c46a5a;
+  --warning: #c4a15a;
+  --untrusted: #c47a3a;
+  --info: #7d97aa;
+
+  /* type: IBM Plex, self-hosted (OFL). Money always uses --font-mono + tabular-nums. */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --text-12: 12px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-28: 28px;
+
+  /* 4px spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --radius-1: 2px;
+  --radius-2: 4px;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f0e9;
+  --bg-raised: #fbf9f5;
+  --bg-inset: #e8e4db;
+  --line: #cfc9bc;
+
+  --text: #1d1c19;
+  --text-dim: #5f5a50;
+
+  --accent: #7f6134;
+
+  --positive: #44633f;
+  --negative: #9c3f33;
+  --warning: #7a5c1a;
+  --untrusted: #8f4d1a;
+  --info: #3f6076;
+
+  color-scheme: light;
+}
