@@ -545,8 +545,60 @@ pub fn delete_row(conn: &Connection, cmd: &CommandRecord, id: i64) -> AppResult<
         Some(&serde_json::to_value(&before)?),
         None,
     )?;
+    detach_plan_links(conn, cmd, id)?;
     conn.execute("DELETE FROM txn_tag WHERE txn_id = ?1", [id])?;
     conn.execute("DELETE FROM txn WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// A row that goes takes its receipt, payment and earmark-entry links with it (audited).
+fn detach_plan_links(conn: &Connection, cmd: &CommandRecord, id: i64) -> AppResult<()> {
+    let receipt: Option<(i64, String, String)> = conn
+        .query_row(
+            "SELECT income_stream_id, due_date, matched_by FROM income_receipt WHERE txn_id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    if let Some((stream_id, due_date, matched_by)) = receipt {
+        audit::record(
+            conn,
+            cmd,
+            "income_receipt",
+            id,
+            Action::Delete,
+            Some(
+                &serde_json::json!({ "income_stream_id": stream_id, "due_date": due_date, "txn_id": id, "matched_by": matched_by }),
+            ),
+            None,
+        )?;
+        conn.execute("DELETE FROM income_receipt WHERE txn_id = ?1", [id])?;
+    }
+    let payment: Option<(i64, String, String)> = conn
+        .query_row(
+            "SELECT obligation_id, due_date, matched_by FROM obligation_payment WHERE txn_id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    if let Some((obligation_id, due_date, matched_by)) = payment {
+        audit::record(
+            conn,
+            cmd,
+            "obligation_payment",
+            id,
+            Action::Delete,
+            Some(
+                &serde_json::json!({ "obligation_id": obligation_id, "due_date": due_date, "txn_id": id, "matched_by": matched_by }),
+            ),
+            None,
+        )?;
+        conn.execute("DELETE FROM obligation_payment WHERE txn_id = ?1", [id])?;
+    }
+    conn.execute(
+        "UPDATE earmark_entry SET txn_id = NULL WHERE txn_id = ?1",
+        [id],
+    )?;
     Ok(())
 }
 

@@ -6,6 +6,7 @@ pub mod batch;
 pub mod category;
 pub mod ledger;
 pub mod link;
+pub mod policy;
 pub mod rule;
 pub mod saved_view;
 pub mod txn;

@@ -558,6 +558,7 @@ pub fn commit(
         &json,
     )?;
     recon::refresh_all(&tx, &cmd)?;
+    crate::plan::match_all(&tx, &cmd, today)?;
     tx.commit()?;
     tracing::info!(
         batch_id,
@@ -774,6 +775,7 @@ pub fn resolve_quarantine(
     conn: &mut Connection,
     id: i64,
     action: QuarantineAction,
+    today: CivilDate,
 ) -> AppResult<Option<txn::TxnRecord>> {
     let q = batch::quarantine_get(conn, id)?;
     if q.resolution != "pending" {
@@ -825,6 +827,7 @@ pub fn resolve_quarantine(
         Some(&serde_json::to_value(&after)?),
     )?;
     recon::refresh_all(&tx, &cmd)?;
+    crate::plan::match_all(&tx, &cmd, today)?;
     tx.commit()?;
     Ok(inserted)
 }

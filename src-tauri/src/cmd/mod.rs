@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::cash::recon::{self, DifferenceExplorer, ReconInput, Reconciliation, TrustReport};
+use crate::cash::safe::{self, SafeToSpend, Upcoming};
 use crate::cash::views::{self, CashView, SpendingView};
 use crate::config::{self, DataPaths};
 use crate::dates::{parse_civil, parse_zone, today_in, CivilDate};
@@ -18,6 +19,7 @@ use crate::db::repo::batch::{self, ImportBatch, QuarantineRow};
 use crate::db::repo::category::{self, Category, NewCategory};
 use crate::db::repo::ledger::{self, Cursor, LedgerFilter, LedgerPage, LedgerRow};
 use crate::db::repo::link::{self, Confidence, RefundLink, TransferKind, TransferLink};
+use crate::db::repo::policy::{self, Policy};
 use crate::db::repo::rule::{self, Rule, RuleInput};
 use crate::db::repo::saved_view::{self, SavedView};
 use crate::db::repo::txn::{self, SplitPart, TxnPatch, TxnRecord};
@@ -28,6 +30,9 @@ use crate::error::{AppError, AppResult};
 use crate::import::profile::{self, Profile};
 use crate::import::report::ImportReport;
 use crate::import::{self, ImportInput, Preview, QuarantineAction, UndoReport};
+use crate::plan::earmark::{self, Earmark, EarmarkInput, Entry, EntryInput};
+use crate::plan::income::{self, IncomeInput, IncomeStream, Receipt};
+use crate::plan::obligation::{self, Obligation, ObligationInput, Payment};
 use crate::rules::link::{self as detect, Candidate};
 use crate::rules::{self, AutomationReport, RuleProposal};
 use crate::{poisoned, secret, AppState};
@@ -112,10 +117,12 @@ fn write<T>(
     f: impl FnOnce(&Transaction, &CommandRecord) -> AppResult<T>,
 ) -> AppResult<T> {
     with_db(state, |db| {
+        let today = today(db)?;
         let tx = db.conn_mut().transaction()?;
         let cmd = audit::begin(&tx, name, Actor::User)?;
         let out = f(&tx, &cmd)?;
         recon::refresh_all(&tx, &cmd)?;
+        crate::plan::match_all(&tx, &cmd, today)?;
         tx.commit()?;
         Ok(out)
     })
@@ -447,7 +454,8 @@ pub async fn resolve_quarantine(
     action: QuarantineAction,
 ) -> AppResult<Option<TxnRecord>> {
     let inserted = with_db(&state, |db| {
-        import::resolve_quarantine(db.conn_mut(), id, action)
+        let today = today(db)?;
+        import::resolve_quarantine(db.conn_mut(), id, action, today)
     })?;
     emit_changed(&app, &["txn", "import_quarantine"]);
     Ok(inserted)
@@ -939,5 +947,304 @@ pub async fn trust_status(state: State<'_, AppState>) -> AppResult<TrustReport> 
         let today = today(db)?;
         let stale = settings::load(db.conn())?.recon_stale_after_days;
         recon::trust(db.conn(), today, stale)
+    })
+}
+
+// ---- plan: income streams, obligations, earmarks ------------------------------------------------
+
+#[tauri::command]
+pub async fn list_income_streams(state: State<'_, AppState>) -> AppResult<Vec<IncomeStream>> {
+    with_db(&state, |db| income::list(db.conn()))
+}
+
+#[tauri::command]
+pub async fn create_income_stream(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: IncomeInput,
+) -> AppResult<IncomeStream> {
+    let created = write(&state, "income_stream.create", |tx, cmd| {
+        income::create(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["income_stream"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn update_income_stream(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    input: IncomeInput,
+) -> AppResult<IncomeStream> {
+    let updated = write(&state, "income_stream.update", |tx, cmd| {
+        income::update(tx, cmd, id, &input)
+    })?;
+    emit_changed(&app, &["income_stream"]);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn list_receipts(state: State<'_, AppState>, stream_id: i64) -> AppResult<Vec<Receipt>> {
+    with_db(&state, |db| income::receipts(db.conn(), stream_id))
+}
+
+#[tauri::command]
+pub async fn record_receipt(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    stream_id: i64,
+    due_date: String,
+    txn_id: i64,
+) -> AppResult<Receipt> {
+    let receipt = write(&state, "income_receipt.record", |tx, cmd| {
+        income::record_receipt(tx, cmd, stream_id, &due_date, txn_id, "user")
+    })?;
+    emit_changed(&app, &["income_stream"]);
+    Ok(receipt)
+}
+
+#[tauri::command]
+pub async fn remove_receipt(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    stream_id: i64,
+    due_date: String,
+) -> AppResult<()> {
+    write(&state, "income_receipt.remove", |tx, cmd| {
+        income::remove_receipt(tx, cmd, stream_id, &due_date)
+    })?;
+    emit_changed(&app, &["income_stream"]);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_obligations(state: State<'_, AppState>) -> AppResult<Vec<Obligation>> {
+    with_db(&state, |db| obligation::list(db.conn()))
+}
+
+#[tauri::command]
+pub async fn create_obligation(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: ObligationInput,
+) -> AppResult<Obligation> {
+    let created = write(&state, "obligation.create", |tx, cmd| {
+        obligation::create(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["obligation"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn update_obligation(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    input: ObligationInput,
+) -> AppResult<Obligation> {
+    let updated = write(&state, "obligation.update", |tx, cmd| {
+        obligation::update(tx, cmd, id, &input)
+    })?;
+    emit_changed(&app, &["obligation"]);
+    Ok(updated)
+}
+
+/// Confirm a candidate, retire an obligation, or bring one back.
+#[tauri::command]
+pub async fn set_obligation_status(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    status: String,
+) -> AppResult<Obligation> {
+    let updated = write(&state, "obligation.status", |tx, cmd| {
+        obligation::set_status(tx, cmd, id, &status)
+    })?;
+    emit_changed(&app, &["obligation"]);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn delete_obligation_candidate(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    write(&state, "obligation.delete_candidate", |tx, cmd| {
+        obligation::delete_candidate(tx, cmd, id)
+    })?;
+    emit_changed(&app, &["obligation"]);
+    Ok(())
+}
+
+/// Propose candidates from recurring rows; each is a row the person confirms or deletes.
+#[tauri::command]
+pub async fn detect_obligation_candidates(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<Vec<Obligation>> {
+    let created = write(&state, "obligation.detect", |tx, cmd| {
+        obligation::detect_candidates(tx, cmd)
+    })?;
+    emit_changed(&app, &["obligation"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn list_payments(
+    state: State<'_, AppState>,
+    obligation_id: i64,
+) -> AppResult<Vec<Payment>> {
+    with_db(&state, |db| obligation::payments(db.conn(), obligation_id))
+}
+
+#[tauri::command]
+pub async fn record_payment(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    obligation_id: i64,
+    due_date: String,
+    txn_id: i64,
+) -> AppResult<Payment> {
+    let payment = write(&state, "obligation_payment.record", |tx, cmd| {
+        obligation::record_payment(tx, cmd, obligation_id, &due_date, txn_id, "user")
+    })?;
+    emit_changed(&app, &["obligation"]);
+    Ok(payment)
+}
+
+#[tauri::command]
+pub async fn remove_payment(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    obligation_id: i64,
+    due_date: String,
+) -> AppResult<()> {
+    write(&state, "obligation_payment.remove", |tx, cmd| {
+        obligation::remove_payment(tx, cmd, obligation_id, &due_date)
+    })?;
+    emit_changed(&app, &["obligation"]);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_earmarks(state: State<'_, AppState>) -> AppResult<Vec<Earmark>> {
+    with_db(&state, |db| earmark::list(db.conn()))
+}
+
+#[tauri::command]
+pub async fn create_earmark(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: EarmarkInput,
+) -> AppResult<Earmark> {
+    let created = write(&state, "earmark.create", |tx, cmd| {
+        earmark::create(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["earmark"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn update_earmark(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    input: EarmarkInput,
+) -> AppResult<Earmark> {
+    let updated = write(&state, "earmark.update", |tx, cmd| {
+        earmark::update(tx, cmd, id, &input)
+    })?;
+    emit_changed(&app, &["earmark"]);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn list_earmark_entries(
+    state: State<'_, AppState>,
+    earmark_id: i64,
+) -> AppResult<Vec<Entry>> {
+    with_db(&state, |db| earmark::entries(db.conn(), earmark_id))
+}
+
+#[tauri::command]
+pub async fn add_earmark_entry(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    earmark_id: i64,
+    input: EntryInput,
+) -> AppResult<Entry> {
+    let entry = write(&state, "earmark_entry.add", |tx, cmd| {
+        earmark::add_entry(tx, cmd, earmark_id, &input)
+    })?;
+    emit_changed(&app, &["earmark"]);
+    Ok(entry)
+}
+
+#[tauri::command]
+pub async fn delete_earmark_entry(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    write(&state, "earmark_entry.delete", |tx, cmd| {
+        earmark::delete_entry(tx, cmd, id)
+    })?;
+    emit_changed(&app, &["earmark"]);
+    Ok(())
+}
+
+/// The next `count` expected dates of a stream or the due dates of an obligation, from today.
+#[tauri::command]
+pub async fn next_occurrences(
+    state: State<'_, AppState>,
+    kind: String,
+    id: i64,
+    count: Option<usize>,
+) -> AppResult<Vec<String>> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        let to = today + chrono::Duration::days(400);
+        let dates = match kind.as_str() {
+            "income" => income::occurrences(&income::get(db.conn(), id)?, today, to)?,
+            "obligation" => obligation::occurrences(&obligation::get(db.conn(), id)?, today, to)?,
+            other => {
+                return Err(AppError::validation(
+                    "kind",
+                    format!("{other:?} is neither income nor obligation"),
+                ))
+            }
+        };
+        Ok(dates
+            .into_iter()
+            .take(count.unwrap_or(3))
+            .map(crate::dates::format_civil)
+            .collect())
+    })
+}
+
+#[tauri::command]
+pub async fn list_policies(state: State<'_, AppState>) -> AppResult<Vec<Policy>> {
+    with_db(&state, |db| policy::list(db.conn()))
+}
+
+// ---- the hero -----------------------------------------------------------------------------------
+
+/// Safe-to-spend as of today, with every term's rows (ARCHITECTURE §5.4).
+#[tauri::command]
+pub async fn safe_to_spend(state: State<'_, AppState>) -> AppResult<SafeToSpend> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        safe::safe_to_spend(db.conn(), today)
+    })
+}
+
+/// The next confirmed income and the unpaid obligations due within `days` (default 14).
+#[tauri::command]
+pub async fn upcoming(state: State<'_, AppState>, days: Option<i64>) -> AppResult<Upcoming> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        safe::upcoming(db.conn(), today, days.unwrap_or(14).clamp(1, 400))
     })
 }

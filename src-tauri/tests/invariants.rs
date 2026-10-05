@@ -402,3 +402,143 @@ proptest! {
         prop_assert_eq!(second.balanced_at.is_some(), gap == 0);
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(32))]
+
+    /// The hero is its terms: `safe = available − earmarks − obligations − buffer`, and every term
+    /// is the sum of the items it returns.
+    #[test]
+    fn safe_terms_sum(
+        rows in prop::collection::vec(gen_row(), 0..=12),
+        buffer in 0i64..=100_000,
+        entries in prop::collection::vec(-50_000i64..=50_000, 0..=3),
+    ) {
+        let mut conn = memory_db();
+        let accounts = fixture_accounts(&conn);
+        let nbc = account_id(&accounts, "nbc");
+        let nbs = account_id(&accounts, "nbs");
+        let profile = generic_with_memo(&conn);
+        import_text(&mut conn, nbc, profile, "a.csv", &csv_text(&rows));
+        kept::db::settings::update(&mut conn, "timing_buffer_cents", &serde_json::json!(buffer)).unwrap();
+        let cmd = audit::begin(&conn, "test.plan", Actor::User).unwrap();
+        let em = kept::plan::earmark::create(&conn, &cmd, &kept::plan::earmark::EarmarkInput {
+            name: "Reserve".into(),
+            kind: "emergency_reserve".into(),
+            funding_account_id: nbs,
+            obligation_id: None,
+            target_cents: 1_000_000,
+            target_date: None,
+            schedule: "none".into(),
+            schedule_amount_cents: None,
+            schedule_day: None,
+            schedule_income_stream_id: None,
+            active: true,
+        }).unwrap();
+        for (i, cents) in entries.iter().enumerate() {
+            if *cents == 0 {
+                continue;
+            }
+            kept::plan::earmark::add_entry(&conn, &cmd, em.id, &kept::plan::earmark::EntryInput {
+                entry_date: format!("2026-07-{:02}", i + 1),
+                kind: "adjust".into(),
+                amount_cents: *cents,
+                txn_id: None,
+                note: String::new(),
+            }).unwrap();
+        }
+        let hero = kept::cash::safe::safe_to_spend(&conn, date("2026-07-31")).unwrap();
+        let t = &hero.terms;
+        prop_assert_eq!(hero.safe_cents, t.available.cents - t.earmarks.cents - t.obligations.cents - t.buffer.cents);
+        prop_assert_eq!(t.buffer.cents, buffer);
+        prop_assert_eq!(t.available.cents, t.available.accounts.iter().map(|a| a.posted_cents + a.pending_in_cents - a.pending_out_cents).sum::<i64>());
+        prop_assert_eq!(t.earmarks.cents, t.earmarks.items.iter().map(|e| e.counted_cents).sum::<i64>());
+        prop_assert_eq!(t.earmarks.cents, entries.iter().sum::<i64>().max(0));
+        prop_assert_eq!(t.obligations.cents, t.obligations.items.iter().map(|o| o.counted_cents).sum::<i64>());
+        prop_assert!(t.earmarks.items.iter().all(|e| e.counted_cents >= 0));
+    }
+
+    /// A firewalled account never contributes to `available`, whatever its balance; it is listed
+    /// among the excluded with its balance and the reason.
+    #[test]
+    fn firewall_excluded(rows in prop::collection::vec(gen_row(), 0..=10), firewalled in any::<bool>()) {
+        let mut conn = memory_db();
+        fixture_accounts(&conn);
+        let cmd = audit::begin(&conn, "test.plan", Actor::User).unwrap();
+        let vault = kept::db::repo::account::create(&conn, &cmd, &kept::db::repo::account::NewAccount {
+            name: "Vault".into(),
+            institution: "Northbank".into(),
+            kind: "checking".into(),
+            opening_balance_cents: 100_000,
+            opening_date: "2026-07-01".into(),
+            venture_id: None,
+            firewalled,
+        }).unwrap();
+        let profile = generic_with_memo(&conn);
+        import_text(&mut conn, vault.id, profile, "v.csv", &csv_text(&rows));
+        let posted: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(amount_cents), 0) FROM txn_leaf WHERE account_id = ?1 AND status = 'posted'",
+                [vault.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let hero = kept::cash::safe::safe_to_spend(&conn, date("2026-07-31")).unwrap();
+        let in_available = hero.terms.available.accounts.iter().find(|a| a.account_id == vault.id);
+        let in_excluded = hero.excluded.firewalled_accounts.iter().find(|a| a.account_id == vault.id);
+        if firewalled {
+            prop_assert!(in_available.is_none());
+            prop_assert_eq!(in_excluded.map(|a| a.posted_cents), Some(100_000 + posted));
+            prop_assert!(in_excluded.is_some_and(|a| a.reason.contains("firewall")));
+        } else {
+            prop_assert_eq!(in_available.map(|a| a.posted_cents), Some(100_000 + posted));
+            prop_assert!(in_excluded.is_none());
+        }
+    }
+
+    /// A pending inflow flagged borrowing or securities-sale is not cash: it is left out of
+    /// `available` and listed as excluded. Posted, it sits inside the balance and is still listed,
+    /// never as income.
+    #[test]
+    fn borrowing_not_income(
+        rows in prop::collection::vec(gen_row(), 0..=8),
+        cents in 1i64..=500_000,
+        flag in prop::sample::select(vec![8i64, 16, 24]),
+        pending in any::<bool>(),
+    ) {
+        let mut conn = memory_db();
+        let accounts = fixture_accounts(&conn);
+        let nbc = account_id(&accounts, "nbc");
+        let profile = generic_with_memo(&conn);
+        let mut text = csv_text(&rows);
+        text.push_str(&format!("2026-07-15,LOAN PROCEEDS,{},\n", to_decimal_string(cents)));
+        import_text(&mut conn, nbc, profile, "a.csv", &text);
+        let id: i64 = conn
+            .query_row("SELECT id FROM txn WHERE account_id = ?1 AND payee_raw = 'LOAN PROCEEDS'", [nbc], |r| r.get(0))
+            .unwrap();
+        conn.execute(
+            "UPDATE txn SET status = ?2, flags = ?3 WHERE id = ?1",
+            rusqlite::params![id, if pending { "pending" } else { "posted" }, flag],
+        )
+        .unwrap();
+        let base: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(amount_cents), 0) FROM txn_leaf WHERE account_id = ?1 AND status = 'posted' AND id <> ?2",
+                rusqlite::params![nbc, id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let hero = kept::cash::safe::safe_to_spend(&conn, date("2026-07-31")).unwrap();
+        let acct = hero.terms.available.accounts.iter().find(|a| a.account_id == nbc).unwrap();
+        if pending {
+            prop_assert_eq!(acct.pending_in_cents, 0);
+            prop_assert_eq!(acct.posted_cents, 321_455 + base);
+            prop_assert!(hero.excluded.pending_flagged_inflows.iter().any(|f| f.txn_id == id && f.cents == cents));
+            prop_assert!(!acct.pending_row_ids.contains(&id));
+        } else {
+            prop_assert_eq!(acct.posted_cents, 321_455 + base + cents);
+            prop_assert!(hero.excluded.posted_flagged_inflows.iter().any(|f| f.txn_id == id && f.cents == cents));
+            prop_assert!(hero.excluded.pending_flagged_inflows.is_empty());
+        }
+    }
+}

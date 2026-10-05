@@ -3,6 +3,8 @@
 
 #![allow(dead_code)]
 
+pub mod plan;
+
 use std::path::{Path, PathBuf};
 
 use kept::db::audit::{self, Actor};
@@ -198,5 +200,24 @@ pub fn install_rules(conn: &Connection) {
             },
         )
         .unwrap_or_else(|e| panic!("rule {}: {e:?}", spec.name));
+    }
+}
+
+/// Enter every balanced monthly period of fixtures/recon.json (scenario A) so the hero is trusted.
+pub fn reconcile_fixture_periods(conn: &Connection, accounts: &[(&str, Account)]) {
+    let recon: serde_json::Value = load_json("recon.json");
+    let cmd = audit::begin(conn, "test.reconcile_all", Actor::User).expect("command");
+    for p in recon["periods"].as_array().expect("periods") {
+        kept::cash::recon::reconcile(
+            conn,
+            &cmd,
+            &kept::cash::recon::ReconInput {
+                account_id: account_id(accounts, p["account"].as_str().expect("account")),
+                period_end: p["period_end"].as_str().expect("period_end").to_string(),
+                statement_closing_cents: p["statement_cents"].as_i64().expect("statement"),
+                statement_source: "user".to_string(),
+            },
+        )
+        .expect("reconcile");
     }
 }

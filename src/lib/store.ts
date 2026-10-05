@@ -7,7 +7,15 @@ import { create } from "zustand";
 import type { Theme } from "./ipc";
 
 export type Screen =
-  "dashboard" | "ledger" | "review" | "rules" | "reconcile" | "import" | "accounts" | "settings";
+  | "dashboard"
+  | "ledger"
+  | "review"
+  | "rules"
+  | "reconcile"
+  | "plan"
+  | "import"
+  | "accounts"
+  | "settings";
 
 /** A statement balance handed from an import report to the Reconcile screen. */
 export interface ReconcileDraft {

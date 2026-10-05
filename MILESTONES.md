@@ -118,21 +118,21 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] hero matches EXPECTED.md
-- [ ] drill-down terms sum
+- [x] hero matches EXPECTED.md
+- [x] drill-down terms sum
 
 **Engineering checklist**
 
-- [ ] Income streams (cycles, semimonthly days, weekend rule, confidence) and receipt matching
-- [ ] Obligations (due rules, candidate → confirmed, payment matching) and auto-detected candidates from recurring rows
-- [ ] Earmarks with derived remaining (`earmark_entry`), schedules, emergency reserve as earmark, timing buffer setting
-- [ ] `cash::safe_to_spend` returning terms with row ids (ARCHITECTURE §5.4); excluded items listed with reasons
-- [ ] Dashboard at 1440×900 without page scroll: hero + drill-down, next confirmed income, next 14 days of obligations, reconciliation health, debt total, informal-loan remaining, venture cap, firewall status (forecast sparkline slot wired in M5)
-- [ ] Plan screen: earmarks, obligations, income streams, two reserves, policy list
-- [ ] Property tests: `safe_terms_sum`, `firewall_excluded`, `borrowing_not_income`
-- [ ] Integration test: hero for the fixture's stated as-of date, next pay date, and buffer equals `EXPECTED.md`
+- [x] Income streams (cycles, semimonthly days, weekend rule, confidence) and receipt matching
+- [x] Obligations (due rules, candidate → confirmed, payment matching) and auto-detected candidates from recurring rows
+- [x] Earmarks with derived remaining (`earmark_entry`), schedules, emergency reserve as earmark, timing buffer setting
+- [x] `cash::safe_to_spend` returning terms with row ids (ARCHITECTURE §5.4); excluded items listed with reasons
+- [x] Dashboard at 1440×900 without page scroll: hero + drill-down, next confirmed income, next 14 days of obligations, reconciliation health, debt total, informal-loan remaining, venture cap, firewall status (forecast sparkline slot wired in M5)
+- [x] Plan screen: earmarks, obligations, income streams, two reserves, policy list
+- [x] Property tests: `safe_terms_sum`, `firewall_excluded`, `borrowing_not_income`
+- [x] Integration test: hero for the fixture's stated as-of date, next pay date, and buffer equals `EXPECTED.md`
 
-**Questions to batch (ADR-0022):** venture-owned accounts excluded from `available`; posted flagged proceeds inside the balance; emergency reserve as an earmark; 30-day window when no confirmed income exists.
+**Questions to batch (ADR-0022, defaults in force; see ADR-0041 for the mechanics):** venture-owned accounts excluded from `available`; posted flagged proceeds inside the balance; emergency reserve as an earmark; 30-day window when no confirmed income exists.
 
 ---
 

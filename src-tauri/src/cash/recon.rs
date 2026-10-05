@@ -484,7 +484,7 @@ pub fn explorer(conn: &Connection, id: i64) -> AppResult<DifferenceExplorer> {
     })
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AccountTrust {
     pub account_id: i64,
     pub account_name: String,
@@ -500,7 +500,7 @@ pub struct AccountTrust {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UntrustedAccount {
     pub account_id: i64,
     pub account_name: String,
@@ -508,13 +508,13 @@ pub struct UntrustedAccount {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HeroTrust {
     pub trusted: bool,
     pub untrusted: Vec<UntrustedAccount>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TrustReport {
     pub as_of: String,
     pub accounts: Vec<AccountTrust>,

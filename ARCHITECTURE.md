@@ -52,21 +52,22 @@ Kept/
 
 ### 1.2 Rust core modules and their contracts
 
-| Module     | Owns                                                                                                                                                                     | Must never                                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `money`    | `Cents(i64)` newtype, checked add/sub/neg, `mul_div_round` (i128 intermediates, half away from zero), bps math, largest-remainder allocation, decimal string for exports | use `f64`; panic on overflow (returns `AppError::Overflow`)                                                                       |
-| `dates`    | civil-date helpers in the user's zone, `today()`, pay-cycle and due-rule occurrence generators, business-day rule                                                        | do pay-cycle math on instants                                                                                                     |
-| `db`       | open/unlock/lock, pragmas, migrations, audit writer, per-entity SQL                                                                                                      | expose a connection to the webview; write without an audit row                                                                    |
-| `import`   | file hashing, profile detection, parsing, normalization, dedup, quarantine, batch report, batch undo                                                                     | overwrite a user-edited field; drop or duplicate a row silently                                                                   |
-| `rules`    | rule matching, heuristics, review queue, transfer/card-payment/refund linking                                                                                            | create a rule from a correction without the user accepting it                                                                     |
-| `recon`    | identity `opening + inflows − outflows = closing`, roll-forward, status, trust per account                                                                               | call a non-zero difference "balanced"                                                                                             |
-| `cash`     | balances, `available`, earmark remaining, obligation occurrences, next confirmed income, safe-to-spend terms                                                             | include firewalled, archived, credit, or venture-owned balances in `available`; count pending borrowing / securities-sale inflows |
-| `forecast` | 91-day daily engine (30-day and 13-week views), variable-spend model, scenarios                                                                                          | invent income to avoid a negative balance                                                                                         |
-| `debt`     | interest in integer cents, schedules, strategy comparison, informal loans                                                                                                | treat a repayment as an expense or proceeds as income                                                                             |
-| `venture`  | bucket rollup, 12-month net cash, cap used, stop-condition alert                                                                                                         | take sunk cost as an input; set the verdict                                                                                       |
-| `review`   | review state machine, dependable surplus, exactly three actions, snapshots, trends                                                                                       | complete a review with ≠ 3 actions                                                                                                |
-| `export`   | CSV/JSON of every table, audit pack, backup, restore roundtrip verification                                                                                              | open a network connection                                                                                                         |
-| `cmd`      | Tauri commands: `Result<T, AppError>`, change-event emission                                                                                                             | compute anything the engines compute                                                                                              |
+| Module     | Owns                                                                                                                                                                        | Must never                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `money`    | `Cents(i64)` newtype, checked add/sub/neg, `mul_div_round` (i128 intermediates, half away from zero), bps math, largest-remainder allocation, decimal string for exports    | use `f64`; panic on overflow (returns `AppError::Overflow`)                                                                       |
+| `dates`    | civil-date helpers in the user's zone, `today()`, pay-cycle and due-rule occurrence generators, business-day rule                                                           | do pay-cycle math on instants                                                                                                     |
+| `db`       | open/unlock/lock, pragmas, migrations, audit writer, per-entity SQL                                                                                                         | expose a connection to the webview; write without an audit row                                                                    |
+| `import`   | file hashing, profile detection, parsing, normalization, dedup, quarantine, batch report, batch undo                                                                        | overwrite a user-edited field; drop or duplicate a row silently                                                                   |
+| `rules`    | rule matching, heuristics, review queue, transfer/card-payment/refund linking                                                                                               | create a rule from a correction without the user accepting it                                                                     |
+| `recon`    | identity `opening + inflows − outflows = closing`, roll-forward, status, trust per account                                                                                  | call a non-zero difference "balanced"                                                                                             |
+| `cash`     | balances, `available`, earmark remaining, obligation occurrences, next confirmed income, safe-to-spend terms                                                                | include firewalled, archived, credit, or venture-owned balances in `available`; count pending borrowing / securities-sale inflows |
+| `plan`     | income streams, obligations, earmarks and their entries; occurrence generation; receipt and payment matching re-run by every write; candidate detection from recurring rows | match one row to two occurrences; generate an occurrence before the account opened; propose a candidate from a name alone         |
+| `forecast` | 91-day daily engine (30-day and 13-week views), variable-spend model, scenarios                                                                                             | invent income to avoid a negative balance                                                                                         |
+| `debt`     | interest in integer cents, schedules, strategy comparison, informal loans                                                                                                   | treat a repayment as an expense or proceeds as income                                                                             |
+| `venture`  | bucket rollup, 12-month net cash, cap used, stop-condition alert                                                                                                            | take sunk cost as an input; set the verdict                                                                                       |
+| `review`   | review state machine, dependable surplus, exactly three actions, snapshots, trends                                                                                          | complete a review with ≠ 3 actions                                                                                                |
+| `export`   | CSV/JSON of every table, audit pack, backup, restore roundtrip verification                                                                                                 | open a network connection                                                                                                         |
+| `cmd`      | Tauri commands: `Result<T, AppError>`, change-event emission                                                                                                                | compute anything the engines compute                                                                                              |
 
 ### 1.3 Frontend modules
 
@@ -724,28 +725,48 @@ Precise terms:
 - `minimum_buffer = setting.timing_buffer_cents` (default 0).
 - `safe = available − earmarks_unfunded − obligations_before_next_income − minimum_buffer` and the returned object satisfies `safe_terms_sum` by construction (the total is computed from the returned terms, not separately).
 
-Returned shape (`cmd::safe_to_spend`):
+Returned shape (`cmd::safe_to_spend`, every figure the dashboard shows; nothing is summed in React):
 
 ```
 SafeToSpend {
   as_of: CivilDate, safe_cents,
   terms: {
-    available:   { cents, accounts: [{ account_id, posted_cents, pending_in_cents, pending_out_cents, pending_row_ids }] },
-    earmarks:    { cents, items: [{ earmark_id, remaining_cents, entry_ids }] },
-    obligations: { cents, next_income: { date, stream_id } | null, window_reason,
-                   items: [{ obligation_id, due_date, expected_cents, earmark_covered_cents, counted_cents }] },
+    available:   { cents, accounts: [{ account_id, account_name, posted_cents, pending_in_cents, pending_out_cents, pending_row_ids }] },
+    earmarks:    { cents, items: [{ earmark_id, name, kind, funding_account_id, remaining_cents, counted_cents, entry_ids }] },
+    obligations: { cents, next_income: { date, stream_id, stream_name, expected_net_cents, days_away } | null,
+                   window_end: CivilDate, window_reason: 'no_confirmed_income' | null,
+                   items: [{ obligation_id, name, due_date, expected_cents, earmark_covered_cents, counted_cents, overdue }] },
     buffer:      { cents }
   },
-  excluded: { firewalled_accounts, venture_accounts, pending_flagged_inflows: [{ txn_id, cents, flag }] },
-  trust: { trusted, accounts: [{ account_id, status, last_balanced_period_end }] }
+  excluded: { firewalled_accounts, venture_accounts: [{ account_id, account_name, kind, posted_cents, reason }],
+              pending_flagged_inflows, posted_flagged_inflows: [{ txn_id, account_id, account_name, posted_date, cents, flags, status }] },
+  trust: TrustReport (§5.3; the hero is marked untrusted when `trust.hero.trusted` is false)
 }
+```
+
+`counted_cents` of an earmark is `max(0, remaining_cents)`; of an obligation occurrence it is
+`expected_cents − earmark_covered_cents`, the earmark's counted remaining being spread over its
+obligation's unpaid occurrences in due order until exhausted (ADR-0041 §4). `safe_cents` =
+`available.cents − earmarks.cents − obligations.cents − buffer.cents`.
+
+`cmd::upcoming(days)` (default 14, clamped to 1..400) returns the same unpaid occurrences for
+`[today − 120, today + days]` — overdue ones first, flagged — with the obligation's
+`expected_cents`, `variability_cents`, `autopay`, `earmark_covered_cents` and source account, plus
+`next_income`:
+
+```
+Upcoming { as_of, horizon_days, next_income,
+           obligations: [{ obligation_id, name, due_date, days_away, expected_cents, variability_cents,
+                           earmark_covered_cents, autopay, overdue, source_account_id, source_account_name }] }
 ```
 
 ### 5.5 Pay-cycle and due-rule occurrences (`dates`)
 
 - `weekly|biweekly`: `anchor + 7k | 14k` days. `semimonthly`: the two days each month, 31 = last day. `monthly`: anchor's day clamped to month length. `once`: anchor only. Then `weekend_rule` (income only; default previous business day; US holidays not modeled in v1, the user can override a single occurrence by editing the stream's anchor or recording the receipt).
 - Obligations: `monthly_day` clamped; `nth_weekday` (5 = last); `biweekly` from anchor; `annual` on `due_month/due_day`; `once`. No weekend shift: being early is conservative.
-- Payment/receipt matching (heuristic, user-overridable): same account, payee match, amount within `expected ± variability`, posted within `[due − 10, due + 5]` days.
+- Payment/receipt matching (ADR-0041): a receipt (payment) is the posted row on the stream's deposit (obligation's source) account whose normalized payee contains the match text, with |amount| within `expected ± variability`, posted within `[due − 10, due + 5]` days. The closest row by |posted − due| wins (earlier posted date on a tie), each row is used at most once, occurrences are filled in due order. `plan::match_all` runs inside every writing transaction (`cmd::write`, import commit, undo, quarantine resolution) over the last `MATCH_LOOKBACK_DAYS = 120` days; a receipt or payment recorded by hand (`matched_by = user`) is never replaced, and deleting a row detaches its receipt or payment.
+- Occurrence windows never start before the source account's `opening_date`; unpaid occurrences count back `OVERDUE_LOOKBACK_DAYS = 120` days and are flagged `overdue` when due before today.
+- Candidate detection (`plan::obligation::detect_candidates`): posted outflows that are not transfers, grouped by `(account, payee_norm)`; a group with ≥ 3 rows, consecutive gaps of 25–36 days and every amount within 2500 bps of the median becomes a `candidate` obligation with `expected = median`, `variability = max |amount − median|`, `due_day = median day of month`, `detected_from_json` = the rows. Groups an existing obligation already names or matches are skipped; nothing is confirmed without the person.
 
 ### 5.6 Forecast (ADR-0023)
 

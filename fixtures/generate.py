@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -256,6 +256,140 @@ RULES: list[tuple[str, str, str, str | None]] = [
 # M3: the mutated August export transposes two digits of one amount (−112.06 → −121.06), so the
 # ledger built from it is 9.00 short of the bank's statement closing.
 MUTATION = ("2026-08-13", "JEWEL-OSCO #3421", -12_106)
+
+# ---------------------------------------------------------------------------------------------
+# M4: the plan (one confirmed income stream, six confirmed obligations, two earmarks) and the
+# safe-to-spend answer as of AS_OF, hand-computed here from ROWS and these definitions.
+# ---------------------------------------------------------------------------------------------
+
+AS_OF = "2026-09-30"
+TIMING_BUFFER_CENTS = 50_000
+MATCH_BEFORE_DAYS, MATCH_AFTER_DAYS = 10, 5      # a receipt/payment posts within [due−10, due+5]
+OVERDUE_LOOKBACK_DAYS = 120
+UPCOMING_DAYS = 14
+
+INCOME_STREAMS = [
+    dict(name="Meridian payroll", kind="base", cycle="biweekly", anchor_date="2026-07-10", expected_net_cents=341_277,
+         variability_cents=0, confidence="confirmed", weekend_rule="previous_business_day", deposit_account="nbc",
+         match_payee_contains="meridian cap"),
+]
+
+OBLIGATIONS = [
+    dict(name="Rent", kind="bill", due_rule="monthly_day", due_day=1, due_month=None, expected_cents=240_000, variability_cents=0,
+         source_account="nbc", autopay=False, category="fixed.rent", match_payee_contains="lakeshore properties"),
+    dict(name="ComEd", kind="bill", due_rule="monthly_day", due_day=7, due_month=None, expected_cents=12_500, variability_cents=2_500,
+         source_account="nbc", autopay=True, category="fixed.utilities", match_payee_contains="comed"),
+    dict(name="Xfinity", kind="bill", due_rule="monthly_day", due_day=12, due_month=None, expected_cents=8_999, variability_cents=0,
+         source_account="nbc", autopay=True, category="fixed.internet", match_payee_contains="xfinity"),
+    dict(name="T-Mobile", kind="bill", due_rule="monthly_day", due_day=18, due_month=None, expected_cents=7_500, variability_cents=0,
+         source_account="nbc", autopay=True, category="fixed.phone", match_payee_contains="t mobile"),
+    dict(name="Peoples Gas", kind="bill", due_rule="monthly_day", due_day=21, due_month=None, expected_cents=4_000, variability_cents=1_000,
+         source_account="nbc", autopay=True, category="fixed.utilities", match_payee_contains="peoples gas"),
+    dict(name="GEICO annual", kind="bill", due_rule="annual", due_day=22, due_month=9, expected_cents=128_400, variability_cents=0,
+         source_account="nbc", autopay=False, category="irregular.insurance", match_payee_contains="geico"),
+]
+
+EARMARKS = [
+    dict(name="Rent", kind="obligation", funding_account="nbc", obligation="Rent", target_cents=240_000, target_date=None,
+         schedule="per_paycheck", schedule_amount_cents=120_000, schedule_day=None, schedule_income_stream="Meridian payroll",
+         entries=[("2026-09-18", "fund", 120_000, "first per-paycheck funding, from the 09-18 pay")]),
+    dict(name="Emergency reserve", kind="emergency_reserve", funding_account="nbs", obligation=None, target_cents=1_200_000,
+         target_date=None, schedule="none", schedule_amount_cents=None, schedule_day=None, schedule_income_stream=None,
+         entries=[("2026-07-01", "adjust", 1_200_000, "existing savings set aside")]),
+]
+
+CASH_KINDS = ("checking", "savings", "cash", "payment_app")
+
+
+def business_day_before(x: date) -> date:
+    while x.weekday() >= 5:
+        x -= timedelta(days=1)
+    return x
+
+
+def clamp_day(y: int, m: int, day: int) -> date:
+    import calendar
+    return date(y, m, min(day, calendar.monthrange(y, m)[1]))
+
+
+def income_occurrences(stream: dict, start: date, end: date) -> list[date]:
+    step = {"weekly": 7, "biweekly": 14}[stream["cycle"]]
+    out, x = [], date.fromisoformat(stream["anchor_date"])
+    while x <= end + timedelta(days=7):
+        y = business_day_before(x) if stream["weekend_rule"] == "previous_business_day" else x
+        if start <= y <= end:
+            out.append(y)
+        x += timedelta(days=step)
+    return out
+
+
+def obligation_occurrences(ob: dict, start: date, end: date) -> list[date]:
+    out = []
+    if ob["due_rule"] == "monthly_day":
+        y, m = start.year, start.month
+        while True:
+            x = clamp_day(y, m, ob["due_day"])
+            if x > end:
+                break
+            if x >= start:
+                out.append(x)
+            y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    elif ob["due_rule"] == "annual":
+        for y in range(start.year, end.year + 1):
+            x = clamp_day(y, ob["due_month"], ob["due_day"])
+            if start <= x <= end:
+                out.append(x)
+    return out
+
+
+def match_rows(dues: list[date], rows: list[Row], expected: int, variability: int, needle: str, taken: set) -> list[tuple[date, Row]]:
+    """For each due date the closest untaken row (by |posted − due|, then date) whose payee contains
+    the needle, whose |amount| is within expected ± variability and which posted inside the window."""
+    pairs = []
+    for due in dues:
+        best = None
+        for r in rows:
+            if id(r) in taken or needle not in normalize(r.description):
+                continue
+            if not (expected - variability <= abs(r.amount) <= expected + variability):
+                continue
+            posted = date.fromisoformat(r.posted)
+            if not (due - timedelta(days=MATCH_BEFORE_DAYS) <= posted <= due + timedelta(days=MATCH_AFTER_DAYS)):
+                continue
+            dist = abs((posted - due).days)
+            if best is None or dist < best[0] or (dist == best[0] and r.posted < best[1].posted):
+                best = (dist, r)
+        if best:
+            taken.add(id(best[1]))
+            pairs.append((due, best[1]))
+    return pairs
+
+
+def detect_candidates() -> list[dict]:
+    """Recurring outflows: ≥ 3 posted, unlinked, non-income/transfer rows per (account, payee_norm) with
+    every consecutive gap in 25..36 days and every |amount| within ±25% of the (upper) median."""
+    groups: dict[tuple[str, str], list[Row]] = {}
+    for r in ROWS:
+        if r.amount >= 0 or r.pair or r.category.startswith(("income.", "transfer.")):
+            continue
+        groups.setdefault((r.account, normalize(r.description)), []).append(r)
+    out = []
+    for (acct, norm), rows in sorted(groups.items()):
+        rows = sorted(rows, key=lambda r: r.posted)
+        if len(rows) < 3:
+            continue
+        gaps = [(date.fromisoformat(b.posted) - date.fromisoformat(a.posted)).days for a, b in zip(rows, rows[1:])]
+        if any(g < 25 or g > 36 for g in gaps):
+            continue
+        amounts = sorted(abs(r.amount) for r in rows)
+        median = amounts[len(amounts) // 2]
+        if any(abs(a - median) * 4 > median for a in amounts):
+            continue
+        days = sorted(date.fromisoformat(r.posted).day for r in rows)
+        out.append(dict(account=acct, payee_norm=norm, rows=len(rows), due_day=days[len(days) // 2], expected_cents=median,
+                        variability_cents=max(abs(a - median) for a in amounts), row_dates=[r.posted for r in rows]))
+    return out
+
 
 PAYMENT_APP_WORDS = ("venmo", "zelle", "cash app", "paypal")
 
@@ -848,17 +982,182 @@ def expected_md(files: dict[str, str]) -> str:
                   "hero_contributing": [k for k in ACCOUNTS if contrib[k]]},
     }
 
-    # Plan inputs for M4 (defined now, numbers derived later from these definitions)
-    p("## Plan inputs (defined now for M4/M5; their answers are appended at those milestones)")
+    # Safe-to-spend (M4): every figure below is computed here from ROWS and the plan definitions
+    p("## Safe-to-spend (M4)")
     p("")
-    p("- As-of date for safe-to-spend: **2026-09-30**. Timing buffer: **500.00**.")
-    p("- Confirmed income: `Meridian payroll`, biweekly, anchor 2026-07-10, 3,412.77 net, deposit nbc →")
-    p("  next confirmed income date **2026-10-02**.")
-    p("- Confirmed obligations: rent 2,400.00 monthly day 1 (nbc); Xfinity 89.99 day 12; T-Mobile 75.00 day 18;")
-    p("  ComEd variable (expected 125.00 ± 25.00) day 7; Peoples Gas (expected 40.00 ± 10.00) day 21;")
-    p("  GEICO annual 1,284.00 on 09-22; Visa minimum and Amex minimum as debt minimums (M6).")
-    p("- Earmarks: rent earmark funded 1,200.00 per paycheck from nbc; emergency reserve 12,000.00 in nbs.")
+    as_of_d = date.fromisoformat(AS_OF)
+    p(f"As-of date **{AS_OF}**; timing buffer **{money(TIMING_BUFFER_CENTS)}** (setting `timing_buffer_cents`). Receipts and payments")
+    p(f"match a posted row on the stream's / obligation's account whose payee contains the match text, whose |amount| is within")
+    p(f"expected ± variability, posted within [due − {MATCH_BEFORE_DAYS}, due + {MATCH_AFTER_DAYS}] days; the closest row wins, each row once.")
     p("")
+    p("### Plan")
+    p("")
+    for st in INCOME_STREAMS:
+        p(f"- Income stream `{st['name']}`: {st['kind']}, {st['cycle']} from {st['anchor_date']}, {money(st['expected_net_cents'])} net ± {money(st['variability_cents'])},")
+        p(f"  {st['confidence']}, weekend rule {st['weekend_rule']}, deposit {st['deposit_account']}, payee contains `{st['match_payee_contains']}`.")
+    for ob in OBLIGATIONS:
+        rule = f"monthly day {ob['due_day']}" if ob["due_rule"] == "monthly_day" else f"annual on {ob['due_month']:02d}-{ob['due_day']:02d}"
+        p(f"- Obligation `{ob['name']}` ({ob['kind']}, confirmed): {rule}, {money(ob['expected_cents'])} ± {money(ob['variability_cents'])}, from {ob['source_account']},")
+        p(f"  autopay {'yes' if ob['autopay'] else 'no'}, category `{ob['category']}`, payee contains `{ob['match_payee_contains']}`.")
+    for em in EARMARKS:
+        sched = em["schedule"] if em["schedule"] == "none" else f"{em['schedule']} {money(em['schedule_amount_cents'])}"
+        p(f"- Earmark `{em['name']}` ({em['kind']}): funded from {em['funding_account']}, target {money(em['target_cents'])}, schedule {sched}"
+          + (f", linked to obligation `{em['obligation']}`" if em["obligation"] else "") + ".")
+        for (dt, kind, cents, note) in em["entries"]:
+            p(f"  - entry {dt} {kind} {money(cents)} — {note}")
+    p("- Visa and Amex minimums become debt-minimum obligations at M6; they are not in this answer.")
+    p("")
+    # receipts
+    taken: set = set()
+    receipts = []
+    for st in INCOME_STREAMS:
+        rows = [r for r in rows_for(st["deposit_account"]) if r.amount > 0]
+        dues = income_occurrences(st, date.fromisoformat(st["anchor_date"]), as_of_d + timedelta(days=MATCH_AFTER_DAYS))
+        for due, r in match_rows(dues, rows, st["expected_net_cents"], st["variability_cents"], st["match_payee_contains"], taken):
+            receipts.append({"stream": st["name"], "due_date": due.isoformat(), "account": r.account, "posted": r.posted,
+                             "description": r.description, "amount_cents": r.amount})
+    p(f"### Receipts matched: {len(receipts)}")
+    p("")
+    p("| stream | due | row |")
+    p("|---|---|---|")
+    for rc in receipts:
+        p(f"| {rc['stream']} | {rc['due_date']} | {rc['account']} {rc['posted']} `{rc['description']}` {money(rc['amount_cents'])} |")
+    p("")
+    # payments
+    taken = set()
+    payments = []
+    for ob in OBLIGATIONS:
+        rows = [r for r in rows_for(ob["source_account"]) if r.amount < 0]
+        dues = obligation_occurrences(ob, date(2026, 7, 1), as_of_d + timedelta(days=MATCH_AFTER_DAYS))
+        for due, r in match_rows(dues, rows, ob["expected_cents"], ob["variability_cents"], ob["match_payee_contains"], taken):
+            payments.append({"obligation": ob["name"], "due_date": due.isoformat(), "account": r.account, "posted": r.posted,
+                             "description": r.description, "amount_cents": r.amount})
+    paid = {(pm["obligation"], pm["due_date"]) for pm in payments}
+    p(f"### Payments matched: {len(payments)}")
+    p("")
+    p("| obligation | due | row |")
+    p("|---|---|---|")
+    for pm in payments:
+        p(f"| {pm['obligation']} | {pm['due_date']} | {pm['account']} {pm['posted']} `{pm['description']}` {money(pm['amount_cents'])} |")
+    p("")
+    # next income
+    received = {(rc["stream"], rc["due_date"]) for rc in receipts}
+    next_income = None
+    for st in INCOME_STREAMS:
+        if st["confidence"] != "confirmed":
+            continue
+        for due in income_occurrences(st, as_of_d, as_of_d + timedelta(days=400)):
+            if (st["name"], due.isoformat()) not in received:
+                if next_income is None or due < next_income[0]:
+                    next_income = (due, st)
+                break
+    assert next_income is not None
+    ni_date, ni_stream = next_income
+    # available
+    avail_accounts = []
+    for k, a in ACCOUNTS.items():
+        if a.kind in CASH_KINDS and not a.firewalled:
+            avail_accounts.append({"account": k, "posted_cents": closing(k, "2026-09"), "pending_in_cents": 0, "pending_out_cents": 0})
+    available = sum(x["posted_cents"] + x["pending_in_cents"] - x["pending_out_cents"] for x in avail_accounts)
+    # earmarks
+    em_items = []
+    for em in EARMARKS:
+        remaining = sum(c for (dt, kind, c, note) in em["entries"] if dt <= AS_OF)
+        em_items.append({"earmark": em["name"], "remaining_cents": remaining})
+    earmarks_total = sum(max(0, x["remaining_cents"]) for x in em_items)
+    remaining_by_ob = {em["obligation"]: sum(c for (dt, k2, c, n) in em["entries"] if dt <= AS_OF) for em in EARMARKS if em["obligation"]}
+    # obligations before next income (overdue within the lookback, unpaid)
+    ob_items = []
+    for ob in OBLIGATIONS:
+        cover_left = remaining_by_ob.get(ob["name"], 0)
+        opened = date.fromisoformat(ACCOUNTS[ob["source_account"]].opening_date)
+        for due in obligation_occurrences(ob, max(as_of_d - timedelta(days=OVERDUE_LOOKBACK_DAYS), opened), ni_date):
+            if (ob["name"], due.isoformat()) in paid:
+                continue
+            covered = min(ob["expected_cents"], max(0, cover_left))
+            cover_left -= covered
+            ob_items.append({"obligation": ob["name"], "due_date": due.isoformat(), "expected_cents": ob["expected_cents"],
+                             "earmark_covered_cents": covered, "counted_cents": ob["expected_cents"] - covered, "overdue": due < as_of_d})
+    obligations_total = sum(x["counted_cents"] for x in ob_items)
+    safe = available - earmarks_total - obligations_total - TIMING_BUFFER_CENTS
+    p(f"### Hero as of {AS_OF}")
+    p("")
+    p(f"- Next confirmed income: **{ni_date.isoformat()}** (`{ni_stream['name']}`, {money(ni_stream['expected_net_cents'])}, {(ni_date - as_of_d).days} days away).")
+    p("- available = Σ over nbc, nbs, rvc, vm of posted balance as of the date (no pending rows exist in the fixture):")
+    for x in avail_accounts:
+        p(f"  - {x['account']}: {money(x['posted_cents'])}")
+    p(f"  → **{money(available)}**")
+    p("- earmarks_unfunded = Σ earmark remaining (entries dated ≤ as-of) over earmarks funded from those accounts:")
+    for x in em_items:
+        p(f"  - {x['earmark']}: {money(x['remaining_cents'])}")
+    p(f"  → **{money(earmarks_total)}**")
+    p(f"- obligations_before_next_income = unpaid confirmed occurrences due ≤ {ni_date.isoformat()} (overdue ones within {OVERDUE_LOOKBACK_DAYS} days")
+    p("  included, never before the source account's opening date), each reduced by what its earmark holds (no dollar subtracted twice):")
+    for x in ob_items:
+        p(f"  - {x['obligation']} due {x['due_date']}: expected {money(x['expected_cents'])}, earmark covers {money(x['earmark_covered_cents'])} → counted {money(x['counted_cents'])}")
+    p(f"  → **{money(obligations_total)}**")
+    p(f"- minimum_buffer = **{money(TIMING_BUFFER_CENTS)}**")
+    p(f"- safe = {money(available)} − {money(earmarks_total)} − {money(obligations_total)} − {money(TIMING_BUFFER_CENTS)} = **{money(safe)}**")
+    p("- Excluded: hb (firewalled, " + money(closing("hb", "2026-09")) + "); the cards are liabilities, not cash. No venture-owned account,")
+    p("  no pending flagged inflow. The hero is trusted only when nbc, nbs, rvc and vm are reconciled (M3).")
+    p("")
+    # next 14 days: the same unpaid occurrences as the hero (overdue within the lookback first), out to +14
+    upcoming = []
+    for ob in OBLIGATIONS:
+        cover_left = remaining_by_ob.get(ob["name"], 0)
+        opened = date.fromisoformat(ACCOUNTS[ob["source_account"]].opening_date)
+        for due in obligation_occurrences(ob, max(as_of_d - timedelta(days=OVERDUE_LOOKBACK_DAYS), opened), as_of_d + timedelta(days=UPCOMING_DAYS)):
+            if (ob["name"], due.isoformat()) in paid:
+                continue
+            covered = min(ob["expected_cents"], max(0, cover_left))
+            cover_left -= covered
+            upcoming.append({"obligation": ob["name"], "due_date": due.isoformat(), "expected_cents": ob["expected_cents"],
+                             "variability_cents": ob["variability_cents"], "earmark_covered_cents": covered, "autopay": ob["autopay"],
+                             "overdue": due < as_of_d, "days_away": (due - as_of_d).days})
+    upcoming.sort(key=lambda x: (x["due_date"], x["obligation"]))
+    p(f"### Next {UPCOMING_DAYS} days from {AS_OF}: {len(upcoming)} obligations")
+    p("")
+    p(f"Unpaid confirmed occurrences due in [{AS_OF} − {OVERDUE_LOOKBACK_DAYS} days, {AS_OF} + {UPCOMING_DAYS} days]; a past-due one is listed first and marked overdue.")
+    p("")
+    p("| due | obligation | expected | earmark covers | autopay | overdue |")
+    p("|---|---|---:|---:|---|---|")
+    for x in upcoming:
+        p(f"| {x['due_date']} | {x['obligation']} | {money(x['expected_cents'])} ± {money(x['variability_cents'])} | {money(x['earmark_covered_cents'])} | {'yes' if x['autopay'] else 'no'} | {'yes' if x['overdue'] else 'no'} |")
+    p("")
+    # candidates
+    cands = detect_candidates()
+    covered_needles = [ob["match_payee_contains"] for ob in OBLIGATIONS]
+    cands_with_plan = [c for c in cands if not any(n in c["payee_norm"] for n in covered_needles)]
+    p(f"### Recurring-row candidates: {len(cands)} payees ({len(cands_with_plan)} once the plan's obligations exist)")
+    p("")
+    p("Rule: ≥ 3 posted, unlinked outflow rows per (account, payee_norm) whose category root is not income or transfer,")
+    p("every consecutive gap 25..36 days, every |amount| within ±25% of the median; due day = median day of month,")
+    p("expected = median |amount|, variability = largest deviation. A payee an existing obligation already matches is skipped.")
+    p("A candidate never enters the hero until it is confirmed.")
+    p("")
+    p("| account | payee_norm | rows | due day | expected | variability | covered by the plan |")
+    p("|---|---|---:|---:|---:|---:|---|")
+    for c in cands:
+        covered = any(n in c["payee_norm"] for n in covered_needles)
+        p(f"| {c['account']} | `{c['payee_norm']}` | {c['rows']} | {c['due_day']} | {money(c['expected_cents'])} | {money(c['variability_cents'])} | {'yes' if covered else 'no'} |")
+    p("")
+    global PLAN_JSON
+    PLAN_JSON = {
+        "as_of": AS_OF, "timing_buffer_cents": TIMING_BUFFER_CENTS, "match_before_days": MATCH_BEFORE_DAYS, "match_after_days": MATCH_AFTER_DAYS,
+        "overdue_lookback_days": OVERDUE_LOOKBACK_DAYS, "upcoming_days": UPCOMING_DAYS,
+        "income_streams": INCOME_STREAMS, "obligations": OBLIGATIONS,
+        "earmarks": [dict(em, entries=[{"entry_date": dt, "kind": k, "amount_cents": c, "note": n} for (dt, k, c, n) in em["entries"]]) for em in EARMARKS],
+        "receipts": receipts, "payments": payments,
+        "next_income": {"date": ni_date.isoformat(), "stream": ni_stream["name"], "expected_net_cents": ni_stream["expected_net_cents"], "days_away": (ni_date - as_of_d).days},
+        "hero": {"available": {"total_cents": available, "accounts": avail_accounts},
+                 "earmarks": {"total_cents": earmarks_total, "items": em_items},
+                 "obligations": {"total_cents": obligations_total, "items": ob_items},
+                 "buffer_cents": TIMING_BUFFER_CENTS, "safe_cents": safe,
+                 "excluded_firewalled": [{"account": "hb", "posted_cents": closing("hb", "2026-09")}]},
+        "upcoming": upcoming,
+        "candidates": cands, "candidates_with_plan": [c["payee_norm"] for c in cands_with_plan],
+    }
+
     return "\n".join(out) + "\n"
 
 
@@ -875,6 +1174,11 @@ def emit_rules_json() -> None:
 
 
 RECON_JSON: dict = {}
+PLAN_JSON: dict = {}
+
+
+def emit_plan_json() -> None:
+    write("plan.json", json.dumps(PLAN_JSON, indent=1) + "\n")
 
 
 def emit_recon_json() -> None:
@@ -914,7 +1218,8 @@ def main() -> None:
     emit_automation_json()
     write("EXPECTED.md", expected_md(files))
     emit_recon_json()
-    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json and EXPECTED.md ({len(ROWS)} ledger rows)")
+    emit_plan_json()
+    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

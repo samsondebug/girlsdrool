@@ -482,13 +482,116 @@ hero's contributing accounts are the cash-kind accounts that are neither firewal
 Hero trust: A → trusted. B → untrusted, naming Northbank Checking (off by -9.00). C → untrusted, naming Northbank Savings (stale). D → untrusted, naming every contributing account.
 Cards and the firewalled brokerage never enter the hero's set, so their status marks only their own figures.
 
-## Plan inputs (defined now for M4/M5; their answers are appended at those milestones)
+## Safe-to-spend (M4)
 
-- As-of date for safe-to-spend: **2026-09-30**. Timing buffer: **500.00**.
-- Confirmed income: `Meridian payroll`, biweekly, anchor 2026-07-10, 3,412.77 net, deposit nbc →
-  next confirmed income date **2026-10-02**.
-- Confirmed obligations: rent 2,400.00 monthly day 1 (nbc); Xfinity 89.99 day 12; T-Mobile 75.00 day 18;
-  ComEd variable (expected 125.00 ± 25.00) day 7; Peoples Gas (expected 40.00 ± 10.00) day 21;
-  GEICO annual 1,284.00 on 09-22; Visa minimum and Amex minimum as debt minimums (M6).
-- Earmarks: rent earmark funded 1,200.00 per paycheck from nbc; emergency reserve 12,000.00 in nbs.
+As-of date **2026-09-30**; timing buffer **500.00** (setting `timing_buffer_cents`). Receipts and payments
+match a posted row on the stream's / obligation's account whose payee contains the match text, whose |amount| is within
+expected ± variability, posted within [due − 10, due + 5] days; the closest row wins, each row once.
+
+### Plan
+
+- Income stream `Meridian payroll`: base, biweekly from 2026-07-10, 3,412.77 net ± 0.00,
+  confirmed, weekend rule previous_business_day, deposit nbc, payee contains `meridian cap`.
+- Obligation `Rent` (bill, confirmed): monthly day 1, 2,400.00 ± 0.00, from nbc,
+  autopay no, category `fixed.rent`, payee contains `lakeshore properties`.
+- Obligation `ComEd` (bill, confirmed): monthly day 7, 125.00 ± 25.00, from nbc,
+  autopay yes, category `fixed.utilities`, payee contains `comed`.
+- Obligation `Xfinity` (bill, confirmed): monthly day 12, 89.99 ± 0.00, from nbc,
+  autopay yes, category `fixed.internet`, payee contains `xfinity`.
+- Obligation `T-Mobile` (bill, confirmed): monthly day 18, 75.00 ± 0.00, from nbc,
+  autopay yes, category `fixed.phone`, payee contains `t mobile`.
+- Obligation `Peoples Gas` (bill, confirmed): monthly day 21, 40.00 ± 10.00, from nbc,
+  autopay yes, category `fixed.utilities`, payee contains `peoples gas`.
+- Obligation `GEICO annual` (bill, confirmed): annual on 09-22, 1,284.00 ± 0.00, from nbc,
+  autopay no, category `irregular.insurance`, payee contains `geico`.
+- Earmark `Rent` (obligation): funded from nbc, target 2,400.00, schedule per_paycheck 1,200.00, linked to obligation `Rent`.
+  - entry 2026-09-18 fund 1,200.00 — first per-paycheck funding, from the 09-18 pay
+- Earmark `Emergency reserve` (emergency_reserve): funded from nbs, target 12,000.00, schedule none.
+  - entry 2026-07-01 adjust 12,000.00 — existing savings set aside
+- Visa and Amex minimums become debt-minimum obligations at M6; they are not in this answer.
+
+### Receipts matched: 6
+
+| stream | due | row |
+|---|---|---|
+| Meridian payroll | 2026-07-10 | nbc 2026-07-10 `MERIDIAN CAP ACH PAYROLL` 3,412.77 |
+| Meridian payroll | 2026-07-24 | nbc 2026-07-24 `MERIDIAN CAP ACH PAYROLL` 3,412.77 |
+| Meridian payroll | 2026-08-07 | nbc 2026-08-07 `MERIDIAN CAP ACH PAYROLL` 3,412.77 |
+| Meridian payroll | 2026-08-21 | nbc 2026-08-21 `MERIDIAN CAP ACH PAYROLL` 3,412.77 |
+| Meridian payroll | 2026-09-04 | nbc 2026-09-04 `MERIDIAN CAP ACH PAYROLL` 3,412.77 |
+| Meridian payroll | 2026-09-18 | nbc 2026-09-18 `MERIDIAN CAP ACH PAYROLL` 3,412.77 |
+
+### Payments matched: 16
+
+| obligation | due | row |
+|---|---|---|
+| Rent | 2026-07-01 | nbc 2026-07-01 `LAKESHORE PROPERTIES RENT` -2,400.00 |
+| Rent | 2026-08-01 | nbc 2026-08-01 `LAKESHORE PROPERTIES RENT` -2,400.00 |
+| Rent | 2026-09-01 | nbc 2026-09-01 `LAKESHORE PROPERTIES RENT` -2,400.00 |
+| ComEd | 2026-07-07 | nbc 2026-07-06 `COMED ELECTRIC` -112.40 |
+| ComEd | 2026-08-07 | nbc 2026-08-06 `COMED ELECTRIC` -138.75 |
+| ComEd | 2026-09-07 | nbc 2026-09-08 `COMED ELECTRIC` -121.10 |
+| Xfinity | 2026-07-12 | nbc 2026-07-12 `XFINITY` -89.99 |
+| Xfinity | 2026-08-12 | nbc 2026-08-12 `XFINITY` -89.99 |
+| Xfinity | 2026-09-12 | nbc 2026-09-12 `XFINITY` -89.99 |
+| T-Mobile | 2026-07-18 | nbc 2026-07-18 `T-MOBILE` -75.00 |
+| T-Mobile | 2026-08-18 | nbc 2026-08-18 `T-MOBILE` -75.00 |
+| T-Mobile | 2026-09-18 | nbc 2026-09-18 `T-MOBILE` -75.00 |
+| Peoples Gas | 2026-07-21 | nbc 2026-07-21 `PEOPLES GAS` -43.12 |
+| Peoples Gas | 2026-08-21 | nbc 2026-08-21 `PEOPLES GAS` -38.90 |
+| Peoples Gas | 2026-09-21 | nbc 2026-09-21 `PEOPLES GAS` -36.55 |
+| GEICO annual | 2026-09-22 | nbc 2026-09-22 `GEICO AUTO INS ANNUAL` -1,284.00 |
+
+### Hero as of 2026-09-30
+
+- Next confirmed income: **2026-10-02** (`Meridian payroll`, 3,412.77, 2 days away).
+- available = Σ over nbc, nbs, rvc, vm of posted balance as of the date (no pending rows exist in the fixture):
+  - nbc: 13,626.47
+  - nbs: 13,531.99
+  - rvc: 1,864.76
+  - vm: 42.00
+  → **29,065.22**
+- earmarks_unfunded = Σ earmark remaining (entries dated ≤ as-of) over earmarks funded from those accounts:
+  - Rent: 1,200.00
+  - Emergency reserve: 12,000.00
+  → **13,200.00**
+- obligations_before_next_income = unpaid confirmed occurrences due ≤ 2026-10-02 (overdue ones within 120 days
+  included, never before the source account's opening date), each reduced by what its earmark holds (no dollar subtracted twice):
+  - Rent due 2026-10-01: expected 2,400.00, earmark covers 1,200.00 → counted 1,200.00
+  → **1,200.00**
+- minimum_buffer = **500.00**
+- safe = 29,065.22 − 13,200.00 − 1,200.00 − 500.00 = **14,165.22**
+- Excluded: hb (firewalled, 418.42); the cards are liabilities, not cash. No venture-owned account,
+  no pending flagged inflow. The hero is trusted only when nbc, nbs, rvc and vm are reconciled (M3).
+
+### Next 14 days from 2026-09-30: 3 obligations
+
+Unpaid confirmed occurrences due in [2026-09-30 − 120 days, 2026-09-30 + 14 days]; a past-due one is listed first and marked overdue.
+
+| due | obligation | expected | earmark covers | autopay | overdue |
+|---|---|---:|---:|---|---|
+| 2026-10-01 | Rent | 2,400.00 ± 0.00 | 1,200.00 | no | no |
+| 2026-10-07 | ComEd | 125.00 ± 25.00 | 0.00 | yes | no |
+| 2026-10-12 | Xfinity | 89.99 ± 0.00 | 0.00 | yes | no |
+
+### Recurring-row candidates: 11 payees (6 once the plan's obligations exist)
+
+Rule: ≥ 3 posted, unlinked outflow rows per (account, payee_norm) whose category root is not income or transfer,
+every consecutive gap 25..36 days, every |amount| within ±25% of the median; due day = median day of month,
+expected = median |amount|, variability = largest deviation. A payee an existing obligation already matches is skipped.
+A candidate never enters the hero until it is confirmed.
+
+| account | payee_norm | rows | due day | expected | variability | covered by the plan |
+|---|---|---:|---:|---:|---:|---|
+| nbc | `comed electric` | 3 | 6 | 121.10 | 17.65 | yes |
+| nbc | `lakeshore properties rent` | 3 | 1 | 2,400.00 | 0.00 | yes |
+| nbc | `peoples gas` | 3 | 21 | 38.90 | 4.22 | yes |
+| nbc | `shell oil` | 3 | 28 | 50.33 | 1.85 | no |
+| nbc | `t mobile` | 3 | 18 | 75.00 | 0.00 | yes |
+| nbc | `xfinity` | 3 | 12 | 89.99 | 0.00 | yes |
+| sa | `linear app` | 3 | 15 | 96.00 | 0.00 | no |
+| sa | `vercel inc` | 3 | 15 | 20.00 | 0.00 | no |
+| sv | `interest charge on purchases` | 3 | 31 | 19.44 | 3.43 | no |
+| sv | `netflix com` | 3 | 26 | 15.49 | 0.00 | no |
+| sv | `uber trip` | 3 | 12 | 23.14 | 4.46 | no |
 

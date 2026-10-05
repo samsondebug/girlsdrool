@@ -3,6 +3,54 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M4 — Earmarks, obligations, income streams, safe-to-spend, dashboard (unreleased)
+
+### Demo
+
+1. Plan › Income streams: add the base pay cycle (weekly, biweekly, semimonthly, monthly, once;
+   weekend rule; net amount ± variability; deposit account; payee text), mark it confirmed. Every
+   write re-matches receipts: the fixture's Meridian payroll finds its six deposits
+   (`fixtures/EXPECTED.md`, "Receipts matched"); the next three occurrences are listed; a receipt
+   can be recorded by hand from the account's rows around the due date, and that choice is kept.
+2. Plan › Obligations: the six fixture bills (monthly day, nth weekday, biweekly, annual, once)
+   find their 16 payments. "Detect candidates" proposes obligations from recurring rows — 11
+   payees on the fixture ledger, 6 once the plan's bills exist (Shell, Uber, Netflix, the Visa
+   interest charge, Linear, Vercel) — each showing the rows it came from; Confirm or Delete. A
+   confirmed obligation is retired, never deleted.
+3. Plan › Earmarks: remaining is derived from entries (fund, release, adjust; each may point at the
+   ledger row that moved the money), never stored. The fixture's Rent earmark holds 1,200.00 from
+   one per-paycheck funding; the Emergency reserve is an earmark of kind `emergency_reserve`
+   holding 12,000.00 in savings. Plan › Reserves sets the timing buffer (500.00 in the fixture)
+   and shows the reserve; Plan › Policies lists the two system policies.
+4. Dashboard: the hero is `safe_to_spend` as of today with the formula's four terms in order —
+   available 29,065.22 across nbc, nbs, rvc, vm; − earmarks 13,200.00; − obligations due by the
+   next confirmed income 1,200.00 (Rent 2,400.00 on 2026-10-01, earmark covers 1,200.00);
+   − buffer 500.00 = **14,165.22** as of 2026-09-30, exactly `EXPECTED.md`'s answer. Click a
+   term: the accounts with posted and pending figures and the firewalled brokerage it leaves out,
+   each earmark, each unpaid occurrence with its coverage and an `overdue` chip, the buffer
+   setting. The hero carries the dashed untrusted marking with the account names whenever an
+   account behind it is not reconciled; without a confirmed stream it shows a 30-day-window chip.
+5. Next confirmed income (2026-10-02, Meridian payroll, 3,412.77, 2 days away as of the fixture
+   date) and Next 14 days (Rent 10-01, ComEd 10-07, Xfinity 10-12 with autopay and earmark chips,
+   Σ expected); an unpaid occurrence that is past due is listed first, never hidden.
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 42 unit (incl. occurrence generators), 12 property
+  (new `safe_terms_sum`, `firewall_excluded`, `borrowing_not_income`), 1 logging, 9 M0, 6 M1,
+  3 M2, 3 M3 and 3 M4 acceptance (`tests/m4_plan.rs`: receipts, payments, hero terms and total,
+  trust, a manual receipt; next income and the next 14 days; candidates before and after the plan).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check`, `pnpm test` (42) — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against the seeded folder (`seed_fixture_data_folder` now installs the
+  plan): `docs/screenshots/m4-dashboard.png` (hero, drill-down of the available term, next
+  income, next 14 days) and `m4-plan.png` (the Plan screen).
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only); the Windows netstat observation.
+
 ## M3 — Reconciliation + untrusted marking (unreleased)
 
 ### Demo

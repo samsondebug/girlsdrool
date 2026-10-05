@@ -1,0 +1,580 @@
+{
+ "as_of": "2026-09-30",
+ "timing_buffer_cents": 50000,
+ "match_before_days": 10,
+ "match_after_days": 5,
+ "overdue_lookback_days": 120,
+ "upcoming_days": 14,
+ "income_streams": [
+  {
+   "name": "Meridian payroll",
+   "kind": "base",
+   "cycle": "biweekly",
+   "anchor_date": "2026-07-10",
+   "expected_net_cents": 341277,
+   "variability_cents": 0,
+   "confidence": "confirmed",
+   "weekend_rule": "previous_business_day",
+   "deposit_account": "nbc",
+   "match_payee_contains": "meridian cap"
+  }
+ ],
+ "obligations": [
+  {
+   "name": "Rent",
+   "kind": "bill",
+   "due_rule": "monthly_day",
+   "due_day": 1,
+   "due_month": null,
+   "expected_cents": 240000,
+   "variability_cents": 0,
+   "source_account": "nbc",
+   "autopay": false,
+   "category": "fixed.rent",
+   "match_payee_contains": "lakeshore properties"
+  },
+  {
+   "name": "ComEd",
+   "kind": "bill",
+   "due_rule": "monthly_day",
+   "due_day": 7,
+   "due_month": null,
+   "expected_cents": 12500,
+   "variability_cents": 2500,
+   "source_account": "nbc",
+   "autopay": true,
+   "category": "fixed.utilities",
+   "match_payee_contains": "comed"
+  },
+  {
+   "name": "Xfinity",
+   "kind": "bill",
+   "due_rule": "monthly_day",
+   "due_day": 12,
+   "due_month": null,
+   "expected_cents": 8999,
+   "variability_cents": 0,
+   "source_account": "nbc",
+   "autopay": true,
+   "category": "fixed.internet",
+   "match_payee_contains": "xfinity"
+  },
+  {
+   "name": "T-Mobile",
+   "kind": "bill",
+   "due_rule": "monthly_day",
+   "due_day": 18,
+   "due_month": null,
+   "expected_cents": 7500,
+   "variability_cents": 0,
+   "source_account": "nbc",
+   "autopay": true,
+   "category": "fixed.phone",
+   "match_payee_contains": "t mobile"
+  },
+  {
+   "name": "Peoples Gas",
+   "kind": "bill",
+   "due_rule": "monthly_day",
+   "due_day": 21,
+   "due_month": null,
+   "expected_cents": 4000,
+   "variability_cents": 1000,
+   "source_account": "nbc",
+   "autopay": true,
+   "category": "fixed.utilities",
+   "match_payee_contains": "peoples gas"
+  },
+  {
+   "name": "GEICO annual",
+   "kind": "bill",
+   "due_rule": "annual",
+   "due_day": 22,
+   "due_month": 9,
+   "expected_cents": 128400,
+   "variability_cents": 0,
+   "source_account": "nbc",
+   "autopay": false,
+   "category": "irregular.insurance",
+   "match_payee_contains": "geico"
+  }
+ ],
+ "earmarks": [
+  {
+   "name": "Rent",
+   "kind": "obligation",
+   "funding_account": "nbc",
+   "obligation": "Rent",
+   "target_cents": 240000,
+   "target_date": null,
+   "schedule": "per_paycheck",
+   "schedule_amount_cents": 120000,
+   "schedule_day": null,
+   "schedule_income_stream": "Meridian payroll",
+   "entries": [
+    {
+     "entry_date": "2026-09-18",
+     "kind": "fund",
+     "amount_cents": 120000,
+     "note": "first per-paycheck funding, from the 09-18 pay"
+    }
+   ]
+  },
+  {
+   "name": "Emergency reserve",
+   "kind": "emergency_reserve",
+   "funding_account": "nbs",
+   "obligation": null,
+   "target_cents": 1200000,
+   "target_date": null,
+   "schedule": "none",
+   "schedule_amount_cents": null,
+   "schedule_day": null,
+   "schedule_income_stream": null,
+   "entries": [
+    {
+     "entry_date": "2026-07-01",
+     "kind": "adjust",
+     "amount_cents": 1200000,
+     "note": "existing savings set aside"
+    }
+   ]
+  }
+ ],
+ "receipts": [
+  {
+   "stream": "Meridian payroll",
+   "due_date": "2026-07-10",
+   "account": "nbc",
+   "posted": "2026-07-10",
+   "description": "MERIDIAN CAP ACH PAYROLL",
+   "amount_cents": 341277
+  },
+  {
+   "stream": "Meridian payroll",
+   "due_date": "2026-07-24",
+   "account": "nbc",
+   "posted": "2026-07-24",
+   "description": "MERIDIAN CAP ACH PAYROLL",
+   "amount_cents": 341277
+  },
+  {
+   "stream": "Meridian payroll",
+   "due_date": "2026-08-07",
+   "account": "nbc",
+   "posted": "2026-08-07",
+   "description": "MERIDIAN CAP ACH PAYROLL",
+   "amount_cents": 341277
+  },
+  {
+   "stream": "Meridian payroll",
+   "due_date": "2026-08-21",
+   "account": "nbc",
+   "posted": "2026-08-21",
+   "description": "MERIDIAN CAP ACH PAYROLL",
+   "amount_cents": 341277
+  },
+  {
+   "stream": "Meridian payroll",
+   "due_date": "2026-09-04",
+   "account": "nbc",
+   "posted": "2026-09-04",
+   "description": "MERIDIAN CAP ACH PAYROLL",
+   "amount_cents": 341277
+  },
+  {
+   "stream": "Meridian payroll",
+   "due_date": "2026-09-18",
+   "account": "nbc",
+   "posted": "2026-09-18",
+   "description": "MERIDIAN CAP ACH PAYROLL",
+   "amount_cents": 341277
+  }
+ ],
+ "payments": [
+  {
+   "obligation": "Rent",
+   "due_date": "2026-07-01",
+   "account": "nbc",
+   "posted": "2026-07-01",
+   "description": "LAKESHORE PROPERTIES RENT",
+   "amount_cents": -240000
+  },
+  {
+   "obligation": "Rent",
+   "due_date": "2026-08-01",
+   "account": "nbc",
+   "posted": "2026-08-01",
+   "description": "LAKESHORE PROPERTIES RENT",
+   "amount_cents": -240000
+  },
+  {
+   "obligation": "Rent",
+   "due_date": "2026-09-01",
+   "account": "nbc",
+   "posted": "2026-09-01",
+   "description": "LAKESHORE PROPERTIES RENT",
+   "amount_cents": -240000
+  },
+  {
+   "obligation": "ComEd",
+   "due_date": "2026-07-07",
+   "account": "nbc",
+   "posted": "2026-07-06",
+   "description": "COMED ELECTRIC",
+   "amount_cents": -11240
+  },
+  {
+   "obligation": "ComEd",
+   "due_date": "2026-08-07",
+   "account": "nbc",
+   "posted": "2026-08-06",
+   "description": "COMED ELECTRIC",
+   "amount_cents": -13875
+  },
+  {
+   "obligation": "ComEd",
+   "due_date": "2026-09-07",
+   "account": "nbc",
+   "posted": "2026-09-08",
+   "description": "COMED ELECTRIC",
+   "amount_cents": -12110
+  },
+  {
+   "obligation": "Xfinity",
+   "due_date": "2026-07-12",
+   "account": "nbc",
+   "posted": "2026-07-12",
+   "description": "XFINITY",
+   "amount_cents": -8999
+  },
+  {
+   "obligation": "Xfinity",
+   "due_date": "2026-08-12",
+   "account": "nbc",
+   "posted": "2026-08-12",
+   "description": "XFINITY",
+   "amount_cents": -8999
+  },
+  {
+   "obligation": "Xfinity",
+   "due_date": "2026-09-12",
+   "account": "nbc",
+   "posted": "2026-09-12",
+   "description": "XFINITY",
+   "amount_cents": -8999
+  },
+  {
+   "obligation": "T-Mobile",
+   "due_date": "2026-07-18",
+   "account": "nbc",
+   "posted": "2026-07-18",
+   "description": "T-MOBILE",
+   "amount_cents": -7500
+  },
+  {
+   "obligation": "T-Mobile",
+   "due_date": "2026-08-18",
+   "account": "nbc",
+   "posted": "2026-08-18",
+   "description": "T-MOBILE",
+   "amount_cents": -7500
+  },
+  {
+   "obligation": "T-Mobile",
+   "due_date": "2026-09-18",
+   "account": "nbc",
+   "posted": "2026-09-18",
+   "description": "T-MOBILE",
+   "amount_cents": -7500
+  },
+  {
+   "obligation": "Peoples Gas",
+   "due_date": "2026-07-21",
+   "account": "nbc",
+   "posted": "2026-07-21",
+   "description": "PEOPLES GAS",
+   "amount_cents": -4312
+  },
+  {
+   "obligation": "Peoples Gas",
+   "due_date": "2026-08-21",
+   "account": "nbc",
+   "posted": "2026-08-21",
+   "description": "PEOPLES GAS",
+   "amount_cents": -3890
+  },
+  {
+   "obligation": "Peoples Gas",
+   "due_date": "2026-09-21",
+   "account": "nbc",
+   "posted": "2026-09-21",
+   "description": "PEOPLES GAS",
+   "amount_cents": -3655
+  },
+  {
+   "obligation": "GEICO annual",
+   "due_date": "2026-09-22",
+   "account": "nbc",
+   "posted": "2026-09-22",
+   "description": "GEICO AUTO INS ANNUAL",
+   "amount_cents": -128400
+  }
+ ],
+ "next_income": {
+  "date": "2026-10-02",
+  "stream": "Meridian payroll",
+  "expected_net_cents": 341277,
+  "days_away": 2
+ },
+ "hero": {
+  "available": {
+   "total_cents": 2906522,
+   "accounts": [
+    {
+     "account": "nbc",
+     "posted_cents": 1362647,
+     "pending_in_cents": 0,
+     "pending_out_cents": 0
+    },
+    {
+     "account": "nbs",
+     "posted_cents": 1353199,
+     "pending_in_cents": 0,
+     "pending_out_cents": 0
+    },
+    {
+     "account": "rvc",
+     "posted_cents": 186476,
+     "pending_in_cents": 0,
+     "pending_out_cents": 0
+    },
+    {
+     "account": "vm",
+     "posted_cents": 4200,
+     "pending_in_cents": 0,
+     "pending_out_cents": 0
+    }
+   ]
+  },
+  "earmarks": {
+   "total_cents": 1320000,
+   "items": [
+    {
+     "earmark": "Rent",
+     "remaining_cents": 120000
+    },
+    {
+     "earmark": "Emergency reserve",
+     "remaining_cents": 1200000
+    }
+   ]
+  },
+  "obligations": {
+   "total_cents": 120000,
+   "items": [
+    {
+     "obligation": "Rent",
+     "due_date": "2026-10-01",
+     "expected_cents": 240000,
+     "earmark_covered_cents": 120000,
+     "counted_cents": 120000,
+     "overdue": false
+    }
+   ]
+  },
+  "buffer_cents": 50000,
+  "safe_cents": 1416522,
+  "excluded_firewalled": [
+   {
+    "account": "hb",
+    "posted_cents": 41842
+   }
+  ]
+ },
+ "upcoming": [
+  {
+   "obligation": "Rent",
+   "due_date": "2026-10-01",
+   "expected_cents": 240000,
+   "variability_cents": 0,
+   "earmark_covered_cents": 120000,
+   "autopay": false,
+   "overdue": false,
+   "days_away": 1
+  },
+  {
+   "obligation": "ComEd",
+   "due_date": "2026-10-07",
+   "expected_cents": 12500,
+   "variability_cents": 2500,
+   "earmark_covered_cents": 0,
+   "autopay": true,
+   "overdue": false,
+   "days_away": 7
+  },
+  {
+   "obligation": "Xfinity",
+   "due_date": "2026-10-12",
+   "expected_cents": 8999,
+   "variability_cents": 0,
+   "earmark_covered_cents": 0,
+   "autopay": true,
+   "overdue": false,
+   "days_away": 12
+  }
+ ],
+ "candidates": [
+  {
+   "account": "nbc",
+   "payee_norm": "comed electric",
+   "rows": 3,
+   "due_day": 6,
+   "expected_cents": 12110,
+   "variability_cents": 1765,
+   "row_dates": [
+    "2026-07-06",
+    "2026-08-06",
+    "2026-09-08"
+   ]
+  },
+  {
+   "account": "nbc",
+   "payee_norm": "lakeshore properties rent",
+   "rows": 3,
+   "due_day": 1,
+   "expected_cents": 240000,
+   "variability_cents": 0,
+   "row_dates": [
+    "2026-07-01",
+    "2026-08-01",
+    "2026-09-01"
+   ]
+  },
+  {
+   "account": "nbc",
+   "payee_norm": "peoples gas",
+   "rows": 3,
+   "due_day": 21,
+   "expected_cents": 3890,
+   "variability_cents": 422,
+   "row_dates": [
+    "2026-07-21",
+    "2026-08-21",
+    "2026-09-21"
+   ]
+  },
+  {
+   "account": "nbc",
+   "payee_norm": "shell oil",
+   "rows": 3,
+   "due_day": 28,
+   "expected_cents": 5033,
+   "variability_cents": 185,
+   "row_dates": [
+    "2026-07-28",
+    "2026-08-26",
+    "2026-09-29"
+   ]
+  },
+  {
+   "account": "nbc",
+   "payee_norm": "t mobile",
+   "rows": 3,
+   "due_day": 18,
+   "expected_cents": 7500,
+   "variability_cents": 0,
+   "row_dates": [
+    "2026-07-18",
+    "2026-08-18",
+    "2026-09-18"
+   ]
+  },
+  {
+   "account": "nbc",
+   "payee_norm": "xfinity",
+   "rows": 3,
+   "due_day": 12,
+   "expected_cents": 8999,
+   "variability_cents": 0,
+   "row_dates": [
+    "2026-07-12",
+    "2026-08-12",
+    "2026-09-12"
+   ]
+  },
+  {
+   "account": "sa",
+   "payee_norm": "linear app",
+   "rows": 3,
+   "due_day": 15,
+   "expected_cents": 9600,
+   "variability_cents": 0,
+   "row_dates": [
+    "2026-07-15",
+    "2026-08-15",
+    "2026-09-15"
+   ]
+  },
+  {
+   "account": "sa",
+   "payee_norm": "vercel inc",
+   "rows": 3,
+   "due_day": 15,
+   "expected_cents": 2000,
+   "variability_cents": 0,
+   "row_dates": [
+    "2026-07-15",
+    "2026-08-15",
+    "2026-09-15"
+   ]
+  },
+  {
+   "account": "sv",
+   "payee_norm": "interest charge on purchases",
+   "rows": 3,
+   "due_day": 31,
+   "expected_cents": 1944,
+   "variability_cents": 343,
+   "row_dates": [
+    "2026-07-31",
+    "2026-08-31",
+    "2026-09-30"
+   ]
+  },
+  {
+   "account": "sv",
+   "payee_norm": "netflix com",
+   "rows": 3,
+   "due_day": 26,
+   "expected_cents": 1549,
+   "variability_cents": 0,
+   "row_dates": [
+    "2026-07-26",
+    "2026-08-26",
+    "2026-09-26"
+   ]
+  },
+  {
+   "account": "sv",
+   "payee_norm": "uber trip",
+   "rows": 3,
+   "due_day": 12,
+   "expected_cents": 2314,
+   "variability_cents": 446,
+   "row_dates": [
+    "2026-07-11",
+    "2026-08-12",
+    "2026-09-13"
+   ]
+  }
+ ],
+ "candidates_with_plan": [
+  "shell oil",
+  "linear app",
+  "vercel inc",
+  "interest charge on purchases",
+  "netflix com",
+  "uber trip"
+ ]
+}

@@ -293,14 +293,24 @@ fn duplicate_overlap_and_eur_files_behave_as_written_down() {
     assert_eq!(count(&conn, "SELECT count(*) FROM txn"), 104);
 
     // resolving the quarantine as a real row inserts it; discarding leaves the ledger alone
-    let inserted = import::resolve_quarantine(&mut conn, q.quarantine_id, QuarantineAction::Insert)
-        .unwrap()
-        .unwrap();
+    let inserted = import::resolve_quarantine(
+        &mut conn,
+        q.quarantine_id,
+        QuarantineAction::Insert,
+        date(TODAY),
+    )
+    .unwrap()
+    .unwrap();
     assert_eq!(inserted.payee_raw, "JEWEL-OSCO #3421 CHICAGO");
     assert_eq!(count(&conn, "SELECT count(*) FROM txn"), 105);
     assert!(batch::quarantine_pending(&conn).unwrap().is_empty());
     assert!(matches!(
-        import::resolve_quarantine(&mut conn, q.quarantine_id, QuarantineAction::Discard),
+        import::resolve_quarantine(
+            &mut conn,
+            q.quarantine_id,
+            QuarantineAction::Discard,
+            date(TODAY)
+        ),
         Err(AppError::Conflict(_))
     ));
 }
@@ -629,4 +639,7 @@ fn seed_fixture_data_folder() {
         ),
         21
     );
+    // the plan (fixtures/plan.json), so the hero has terms
+    let plan: common::plan::PlanFile = load_json("plan.json");
+    common::plan::install_plan(db.conn_mut(), &accounts, &plan);
 }

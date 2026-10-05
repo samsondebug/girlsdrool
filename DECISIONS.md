@@ -604,3 +604,57 @@ computed over when none has been reconciled.
 **Consequences.** `tests/m3_recon.rs` and the `recon_identity` property pin the mechanics;
 `fixtures/recon.json` is `EXPECTED.md`'s machine-readable twin for them. The batched M3 question
 (ADR-0021: window 45 days, stale → untrusted) stays open with its defaults in force.
+
+## ADR-0041 — Plan matching, candidate detection and the hero's windows
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** ADR-0022 fixed what each term of the formula means. Building M4 left open how a
+receipt or payment is tied to a ledger row, how far back an unpaid occurrence still counts, how a
+recurring bill is proposed, how one earmark's money is spread over several unpaid occurrences, and
+what the Plan stores versus derives.
+
+**Decision.**
+
+1. **Matching is a function of the ledger and is re-run by every write.** A receipt (payment) is
+   the posted row on the stream's deposit (obligation's source) account whose normalized payee
+   contains the match text, whose |amount| is within `expected ± variability`, and which posted
+   within `[due − 10, due + 5]` days; the closest row by |posted − due| wins (earlier posted date
+   on a tie), each row is used at most once, occurrences are filled in due order. `plan::match_all`
+   runs inside `cmd::write`, import commit, undo and quarantine resolution, next to
+   `recon::refresh_all`, so a row that arrives later finds its occurrence and an undone import
+   releases it (`detach_plan_links` drops the receipt or payment of a deleted row). A receipt or
+   payment the person records by hand (`matched_by = user`) is kept; automation only fills
+   occurrences that have none.
+2. **Windows are bounded by the source account's opening date.** Unpaid occurrences count back
+   `OVERDUE_LOOKBACK_DAYS = 120` days, matching looks back the same 120 days, and neither ever
+   generates an occurrence before the account existed: the fixture's rent is due on the 1st but the
+   account opened on 2026-07-01, so no June occurrence is "overdue".
+3. **Candidates come from recurrence, never from names.** `detect_candidates` groups posted
+   outflows that are not transfers by `(account, payee_norm)` and proposes one obligation per group
+   with ≥ 3 rows, consecutive gaps of 25–36 days, and every amount within 25% (2500 bps) of the
+   median: `expected = median`, `variability = max |amount − median|`, `due_day = median day of
+month`, name = the payee in title case, `detected_from` lists the row ids. Groups already
+   covered by an obligation (same name or matching payee text) are skipped. A candidate is deleted
+   outright; a confirmed obligation is retired, never deleted, because its payments are history.
+4. **Earmark coverage is distributed in due order.** An earmark's counted remaining
+   (`max(0, Σ entries ≤ today)`) covers its obligation's unpaid occurrences one after another until
+   it is exhausted; each occurrence counts `expected − covered`. An over-released earmark counts as
+   zero and covers nothing; the drill-down labels it.
+5. **The hero's drill-down lists what it left out and what it contains.** `excluded` carries the
+   firewalled and venture-owned accounts with their balances and reasons, the pending flagged
+   inflows that are not counted, and the posted flagged inflows that are inside the balance
+   (ADR-0022 §2) so the person can see the borrowing or securities-sale money the figure holds.
+6. **"Next 14 days" never hides a bill that is past due.** `upcoming` returns the unpaid
+   confirmed occurrences from `today − 120` days to `today + horizon`, overdue ones first and
+   flagged `overdue`, so the panel and the hero's obligation term list the same past-due items.
+7. **The Plan stores inputs; the dashboard renders outputs.** Streams, obligations, earmarks and
+   their entries are the only writes; `safe_to_spend` and `upcoming` return every figure the
+   dashboard shows, terms and row ids included. Nothing on the dashboard is summed in React.
+
+**Consequences.** `tests/m4_plan.rs` pins the receipts, payments, hero, next-14-days and candidate
+answers of `fixtures/EXPECTED.md` (`fixtures/plan.json` is the machine-readable twin); the
+`safe_terms_sum`, `firewall_excluded` and `borrowing_not_income` properties hold by construction.
+The batched M4 questions (ADR-0022: venture accounts excluded, posted flagged proceeds inside the
+balance, emergency reserve as an earmark, 30-day window without confirmed income) stay open with
+their defaults in force.

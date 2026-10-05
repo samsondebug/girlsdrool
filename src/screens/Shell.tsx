@@ -6,6 +6,7 @@ import { Accounts } from "./Accounts";
 import { Dashboard } from "./Dashboard";
 import { Import } from "./Import";
 import { Ledger } from "./Ledger";
+import { Plan } from "./Plan";
 import { Reconcile } from "./Reconcile";
 import { Review } from "./Review";
 import { Rules } from "./Rules";
@@ -21,6 +22,7 @@ const navItems: { screen: Screen; label: string }[] = [
   { screen: "review", label: "Review" },
   { screen: "rules", label: "Rules" },
   { screen: "reconcile", label: "Reconcile" },
+  { screen: "plan", label: "Plan" },
   { screen: "import", label: "Import" },
   { screen: "accounts", label: "Accounts" },
   { screen: "settings", label: "Settings" },
@@ -38,6 +40,8 @@ function ActiveScreen({ screen, status }: { screen: Screen; status: AppStatus })
       return <Rules />;
     case "reconcile":
       return <Reconcile />;
+    case "plan":
+      return <Plan />;
     case "import":
       return <Import />;
     case "accounts":

@@ -11,6 +11,7 @@ pub mod export;
 pub mod import;
 pub mod logging;
 pub mod money;
+pub mod plan;
 pub mod rules;
 pub mod secret;
 
@@ -140,6 +141,31 @@ pub fn run() {
             cmd::delete_reconciliation,
             cmd::difference_explorer,
             cmd::trust_status,
+            cmd::list_income_streams,
+            cmd::create_income_stream,
+            cmd::update_income_stream,
+            cmd::list_receipts,
+            cmd::record_receipt,
+            cmd::remove_receipt,
+            cmd::list_obligations,
+            cmd::create_obligation,
+            cmd::update_obligation,
+            cmd::set_obligation_status,
+            cmd::delete_obligation_candidate,
+            cmd::detect_obligation_candidates,
+            cmd::list_payments,
+            cmd::record_payment,
+            cmd::remove_payment,
+            cmd::list_earmarks,
+            cmd::create_earmark,
+            cmd::update_earmark,
+            cmd::list_earmark_entries,
+            cmd::add_earmark_entry,
+            cmd::delete_earmark_entry,
+            cmd::next_occurrences,
+            cmd::list_policies,
+            cmd::safe_to_spend,
+            cmd::upcoming,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

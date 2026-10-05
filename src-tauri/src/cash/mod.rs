@@ -2,4 +2,5 @@
 //! here is a function of ledger rows; the webview only displays what comes back.
 
 pub mod recon;
+pub mod safe;
 pub mod views;

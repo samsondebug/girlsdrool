@@ -617,6 +617,272 @@ export interface TrustReport {
   hero: HeroTrust;
 }
 
+// ---- plan and the hero (M4) -----------------------------------------------------------------------
+
+export type IncomeKind = "base" | "bonus" | "rsu" | "deferred_comp" | "other";
+export type Cycle = "weekly" | "biweekly" | "semimonthly" | "monthly" | "once";
+export type Confidence = "confirmed" | "expected" | "rumored";
+export type WeekendRule = "none" | "previous_business_day" | "next_business_day";
+
+export interface IncomeStream {
+  id: number;
+  name: string;
+  kind: IncomeKind;
+  cycle: Cycle;
+  anchor_date: string;
+  semimonthly_day_1: number | null;
+  semimonthly_day_2: number | null;
+  expected_net_cents: number;
+  variability_cents: number;
+  confidence: Confidence;
+  weekend_rule: WeekendRule;
+  deposit_account_id: number | null;
+  match_payee_contains: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IncomeInput {
+  name: string;
+  kind: IncomeKind;
+  cycle: Cycle;
+  anchor_date: string;
+  semimonthly_day_1?: number | null;
+  semimonthly_day_2?: number | null;
+  expected_net_cents: number;
+  variability_cents?: number;
+  confidence: Confidence;
+  weekend_rule?: WeekendRule;
+  deposit_account_id?: number | null;
+  match_payee_contains?: string | null;
+  active?: boolean;
+}
+
+export interface Receipt {
+  income_stream_id: number;
+  due_date: string;
+  txn_id: number;
+  matched_by: "user" | "heuristic";
+}
+
+export type ObligationKind = "bill" | "debt_minimum" | "other";
+export type ObligationStatus = "candidate" | "confirmed" | "retired";
+export type DueRule = "monthly_day" | "nth_weekday" | "biweekly" | "annual" | "once";
+
+export interface Obligation {
+  id: number;
+  name: string;
+  kind: ObligationKind;
+  status: ObligationStatus;
+  due_rule: DueRule;
+  due_day: number | null;
+  due_month: number | null;
+  due_weekday: number | null;
+  due_nth: number | null;
+  anchor_date: string | null;
+  expected_cents: number;
+  variability_cents: number;
+  source_account_id: number;
+  autopay: boolean;
+  category_id: number | null;
+  debt_id: number | null;
+  match_payee_contains: string | null;
+  detected_from_json: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ObligationInput {
+  name: string;
+  kind?: ObligationKind;
+  status?: ObligationStatus;
+  due_rule: DueRule;
+  due_day?: number | null;
+  due_month?: number | null;
+  due_weekday?: number | null;
+  due_nth?: number | null;
+  anchor_date?: string | null;
+  expected_cents: number;
+  variability_cents?: number;
+  source_account_id: number;
+  autopay?: boolean;
+  category_id?: number | null;
+  debt_id?: number | null;
+  match_payee_contains?: string | null;
+}
+
+export interface Payment {
+  obligation_id: number;
+  due_date: string;
+  txn_id: number;
+  matched_by: "user" | "heuristic";
+}
+
+export type EarmarkKind = "obligation" | "sinking_fund" | "emergency_reserve";
+export type EarmarkSchedule = "none" | "monthly" | "per_paycheck" | "by_date";
+export type EntryKind = "fund" | "release" | "adjust";
+
+export interface Earmark {
+  id: number;
+  name: string;
+  kind: EarmarkKind;
+  funding_account_id: number;
+  obligation_id: number | null;
+  target_cents: number;
+  target_date: string | null;
+  schedule: EarmarkSchedule;
+  schedule_amount_cents: number | null;
+  schedule_day: number | null;
+  schedule_income_stream_id: number | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EarmarkInput {
+  name: string;
+  kind: EarmarkKind;
+  funding_account_id: number;
+  obligation_id?: number | null;
+  target_cents: number;
+  target_date?: string | null;
+  schedule?: EarmarkSchedule;
+  schedule_amount_cents?: number | null;
+  schedule_day?: number | null;
+  schedule_income_stream_id?: number | null;
+  active?: boolean;
+}
+
+export interface EarmarkEntry {
+  id: number;
+  earmark_id: number;
+  entry_date: string;
+  kind: EntryKind;
+  amount_cents: number;
+  txn_id: number | null;
+  note: string;
+  created_at: string;
+}
+
+export interface EntryInput {
+  entry_date: string;
+  kind: EntryKind;
+  amount_cents: number;
+  txn_id?: number | null;
+  note?: string;
+}
+
+export interface Policy {
+  id: number;
+  code: string | null;
+  name: string;
+  kind: "firewall_exclusion" | "informal_first" | "reminder";
+  params_json: string;
+  is_system: boolean;
+  created_at: string;
+}
+
+export interface AvailableAccount {
+  account_id: number;
+  account_name: string;
+  posted_cents: number;
+  pending_in_cents: number;
+  pending_out_cents: number;
+  pending_row_ids: number[];
+}
+
+export interface EarmarkItem {
+  earmark_id: number;
+  name: string;
+  kind: EarmarkKind;
+  funding_account_id: number;
+  remaining_cents: number;
+  counted_cents: number;
+  entry_ids: number[];
+}
+
+export interface NextIncome {
+  date: string;
+  stream_id: number;
+  stream_name: string;
+  expected_net_cents: number;
+  days_away: number;
+}
+
+export interface ObligationItem {
+  obligation_id: number;
+  name: string;
+  due_date: string;
+  expected_cents: number;
+  earmark_covered_cents: number;
+  counted_cents: number;
+  overdue: boolean;
+}
+
+export interface ExcludedAccount {
+  account_id: number;
+  account_name: string;
+  kind: AccountKind;
+  posted_cents: number;
+  reason: string;
+}
+
+export interface FlaggedInflow {
+  txn_id: number;
+  account_id: number;
+  account_name: string;
+  posted_date: string;
+  cents: number;
+  flags: string[];
+  status: RowStatus;
+}
+
+export interface SafeToSpend {
+  as_of: string;
+  safe_cents: number;
+  terms: {
+    available: { cents: number; accounts: AvailableAccount[] };
+    earmarks: { cents: number; items: EarmarkItem[] };
+    obligations: {
+      cents: number;
+      next_income: NextIncome | null;
+      window_end: string;
+      window_reason: string | null;
+      items: ObligationItem[];
+    };
+    buffer: { cents: number };
+  };
+  excluded: {
+    firewalled_accounts: ExcludedAccount[];
+    venture_accounts: ExcludedAccount[];
+    pending_flagged_inflows: FlaggedInflow[];
+    posted_flagged_inflows: FlaggedInflow[];
+  };
+  trust: TrustReport;
+}
+
+export interface UpcomingObligation {
+  obligation_id: number;
+  name: string;
+  due_date: string;
+  days_away: number;
+  expected_cents: number;
+  variability_cents: number;
+  earmark_covered_cents: number;
+  autopay: boolean;
+  overdue: boolean;
+  source_account_id: number;
+  source_account_name: string;
+}
+
+export interface Upcoming {
+  as_of: string;
+  horizon_days: number;
+  next_income: NextIncome | null;
+  obligations: UpcomingObligation[];
+}
+
 export const api = {
   appStatus: () => call<AppStatus>("app_status"),
   chooseDataDir: (path: string) => call<AppStatus>("choose_data_dir", { path }),
@@ -702,6 +968,43 @@ export const api = {
   deleteReconciliation: (id: number) => call<null>("delete_reconciliation", { id }),
   differenceExplorer: (id: number) => call<DifferenceExplorer>("difference_explorer", { id }),
   trustStatus: () => call<TrustReport>("trust_status"),
+
+  listIncomeStreams: () => call<IncomeStream[]>("list_income_streams"),
+  createIncomeStream: (input: IncomeInput) => call<IncomeStream>("create_income_stream", { input }),
+  updateIncomeStream: (id: number, input: IncomeInput) =>
+    call<IncomeStream>("update_income_stream", { id, input }),
+  listReceipts: (streamId: number) => call<Receipt[]>("list_receipts", { streamId }),
+  recordReceipt: (streamId: number, dueDate: string, txnId: number) =>
+    call<Receipt>("record_receipt", { streamId, dueDate, txnId }),
+  removeReceipt: (streamId: number, dueDate: string) =>
+    call<null>("remove_receipt", { streamId, dueDate }),
+  listObligations: () => call<Obligation[]>("list_obligations"),
+  createObligation: (input: ObligationInput) => call<Obligation>("create_obligation", { input }),
+  updateObligation: (id: number, input: ObligationInput) =>
+    call<Obligation>("update_obligation", { id, input }),
+  setObligationStatus: (id: number, status: ObligationStatus) =>
+    call<Obligation>("set_obligation_status", { id, status }),
+  deleteObligationCandidate: (id: number) => call<null>("delete_obligation_candidate", { id }),
+  detectObligationCandidates: () => call<Obligation[]>("detect_obligation_candidates"),
+  listPayments: (obligationId: number) => call<Payment[]>("list_payments", { obligationId }),
+  recordPayment: (obligationId: number, dueDate: string, txnId: number) =>
+    call<Payment>("record_payment", { obligationId, dueDate, txnId }),
+  removePayment: (obligationId: number, dueDate: string) =>
+    call<null>("remove_payment", { obligationId, dueDate }),
+  listEarmarks: () => call<Earmark[]>("list_earmarks"),
+  createEarmark: (input: EarmarkInput) => call<Earmark>("create_earmark", { input }),
+  updateEarmark: (id: number, input: EarmarkInput) =>
+    call<Earmark>("update_earmark", { id, input }),
+  listEarmarkEntries: (earmarkId: number) =>
+    call<EarmarkEntry[]>("list_earmark_entries", { earmarkId }),
+  addEarmarkEntry: (earmarkId: number, input: EntryInput) =>
+    call<EarmarkEntry>("add_earmark_entry", { earmarkId, input }),
+  deleteEarmarkEntry: (id: number) => call<null>("delete_earmark_entry", { id }),
+  nextOccurrences: (kind: "income" | "obligation", id: number, count?: number) =>
+    call<string[]>("next_occurrences", { kind, id, count: count ?? null }),
+  listPolicies: () => call<Policy[]>("list_policies"),
+  safeToSpend: () => call<SafeToSpend>("safe_to_spend"),
+  upcoming: (days?: number) => call<Upcoming>("upcoming", { days: days ?? null }),
 };
 
 export const CHANGED_EVENT = "kept://changed";
