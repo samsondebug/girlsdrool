@@ -979,6 +979,192 @@ export interface Forecast {
   trust: TrustReport;
 }
 
+export type DebtKind = "credit_card" | "loan" | "informal";
+export type InterestMethod = "monthly_nominal" | "actual_365";
+export type MinimumRule =
+  "fixed" | "percent_of_balance" | "interest_plus_percent" | "full_balance" | "none";
+export type Strategy = "avalanche" | "snowball" | "custom";
+
+export interface Debt {
+  id: number;
+  name: string;
+  kind: DebtKind;
+  account_id: number | null;
+  apr_bps: number;
+  promo_apr_bps: number | null;
+  promo_end: string | null;
+  interest_method: InterestMethod;
+  minimum_rule: MinimumRule;
+  minimum_fixed_cents: number;
+  minimum_bps: number;
+  minimum_floor_cents: number;
+  due_day: number | null;
+  strategy_participation: boolean;
+  custom_order: number | null;
+  standalone_opening_cents: number | null;
+  standalone_opening_date: string | null;
+  active: boolean;
+  payment_account_id: number | null;
+  match_payee_contains: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DebtInput {
+  name: string;
+  kind: DebtKind;
+  account_id?: number | null;
+  apr_bps?: number;
+  promo_apr_bps?: number | null;
+  promo_end?: string | null;
+  interest_method?: InterestMethod;
+  minimum_rule: MinimumRule;
+  minimum_fixed_cents?: number;
+  minimum_bps?: number;
+  minimum_floor_cents?: number;
+  due_day?: number | null;
+  strategy_participation?: boolean;
+  custom_order?: number | null;
+  standalone_opening_cents?: number | null;
+  standalone_opening_date?: string | null;
+  active?: boolean;
+  payment_account_id?: number | null;
+  match_payee_contains?: string | null;
+}
+
+export interface DebtView extends Debt {
+  account_name: string | null;
+  payment_account_name: string | null;
+  owed_cents: number;
+  paid_cents: number;
+  effective_apr_bps: number;
+  next_period_start: string;
+  next_period_end: string;
+  next_interest_cents: number;
+  next_minimum_cents: number;
+  obligation_id: number | null;
+}
+
+export interface DebtPayment {
+  id: number;
+  debt_id: number;
+  paid_date: string;
+  amount_cents: number;
+  txn_id: number | null;
+  note: string;
+  created_at: string;
+}
+
+export interface DebtPaymentInput {
+  paid_date: string;
+  amount_cents: number;
+  txn_id?: number | null;
+  note?: string;
+}
+
+/** `[txn_id, posted_date, payee, amount_cents]`. */
+export type PaymentCandidate = [number, string, string, number];
+
+export interface ScheduleRow {
+  id: number;
+  debt_id: number;
+  due_date: string;
+  amount_cents: number;
+  unpaid_cents: number;
+}
+
+export interface InformalLoan {
+  debt_id: number;
+  name: string;
+  counterparty: string;
+  original_cents: number;
+  borrowed_date: string;
+  promised_terms: string;
+  promised_date: string | null;
+  proceeds_txn_id: number | null;
+  note_draft: string;
+  strategy_participation: boolean;
+  active: boolean;
+  payment_account_id: number | null;
+  match_payee_contains: string | null;
+  schedule: ScheduleRow[];
+  repayments: DebtPayment[];
+  repaid_cents: number;
+  remaining_cents: number;
+}
+
+export interface InformalInput {
+  counterparty: string;
+  original_cents: number;
+  borrowed_date: string;
+  promised_terms?: string;
+  promised_date?: string | null;
+  proceeds_txn_id?: number | null;
+  payment_account_id?: number | null;
+  match_payee_contains?: string | null;
+  strategy_participation?: boolean;
+  active?: boolean;
+}
+
+export interface PeriodRow {
+  period: number;
+  start: string;
+  end: string;
+  opening_cents: number;
+  interest_cents: number;
+  minimum_cents: number;
+  payment_cents: number;
+  closing_cents: number;
+}
+
+export interface DebtSchedule {
+  debt_id: number;
+  name: string;
+  kind: DebtKind;
+  informal: boolean;
+  owed_cents: number;
+  total_interest_cents: number;
+  total_paid_cents: number;
+  payoff_date: string | null;
+  periods: PeriodRow[];
+}
+
+export interface StrategyRun {
+  strategy: Strategy;
+  extra_cents: number;
+  budget_cents: number;
+  total_interest_cents: number;
+  payoff_date: string | null;
+  unfinished: boolean;
+  debts: DebtSchedule[];
+}
+
+export interface InformalScenario {
+  extra_cents: number;
+  periods: number;
+  remaining_cents: number;
+  achievable: boolean;
+  gap_cents: number;
+  payoff_date: string | null;
+}
+
+export interface DebtTotals {
+  as_of: string;
+  total_debt_cents: number;
+  informal_remaining_cents: number;
+  open_informal: number;
+  debts: number;
+}
+
+export interface DebtComparison {
+  as_of: string;
+  extra_cents: number;
+  extra_source: "user" | "none";
+  informal_first: boolean;
+  strategies: StrategyRun[];
+  scenario: InformalScenario;
+}
+
 export const api = {
   appStatus: () => call<AppStatus>("app_status"),
   chooseDataDir: (path: string) => call<AppStatus>("choose_data_dir", { path }),
@@ -1107,6 +1293,29 @@ export const api = {
   setVariableSpendOverride: (categoryId: number, per30DaysCents: number | null) =>
     call<CategoryModel[]>("set_variable_spend_override", { categoryId, per30DaysCents }),
   saveForecastPlan: () => call<PlanOverlay>("save_forecast_plan"),
+
+  listDebts: () => call<DebtView[]>("list_debts"),
+  createDebt: (input: DebtInput) => call<Debt>("create_debt", { input }),
+  updateDebt: (id: number, input: DebtInput) => call<Debt>("update_debt", { id, input }),
+  listDebtPayments: (debtId: number) => call<DebtPayment[]>("list_debt_payments", { debtId }),
+  recordDebtPayment: (debtId: number, input: DebtPaymentInput) =>
+    call<DebtPayment>("record_debt_payment", { debtId, input }),
+  removeDebtPayment: (id: number) => call<null>("remove_debt_payment", { id }),
+  debtPaymentCandidates: (debtId: number) =>
+    call<PaymentCandidate[]>("debt_payment_candidates", { debtId }),
+  listInformalLoans: () => call<InformalLoan[]>("list_informal_loans"),
+  createInformalLoan: (input: InformalInput) =>
+    call<InformalLoan>("create_informal_loan", { input }),
+  updateInformalLoan: (debtId: number, input: InformalInput) =>
+    call<InformalLoan>("update_informal_loan", { debtId, input }),
+  setInformalNote: (debtId: number, note: string) =>
+    call<null>("set_informal_note", { debtId, note }),
+  addInformalScheduleRow: (debtId: number, dueDate: string, amountCents: number) =>
+    call<number>("add_informal_schedule_row", { debtId, dueDate, amountCents }),
+  deleteInformalScheduleRow: (id: number) => call<null>("delete_informal_schedule_row", { id }),
+  debtComparison: (extraCents: number | null) =>
+    call<DebtComparison>("debt_comparison", { extraCents }),
+  debtTotals: () => call<DebtTotals>("debt_totals"),
 };
 
 export const CHANGED_EVENT = "kept://changed";

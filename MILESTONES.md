@@ -160,17 +160,17 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] a two-debt fixture matches a hand-computed schedule within one cent per period
+- [x] a two-debt fixture matches a hand-computed schedule within one cent per period
 
 **Engineering checklist**
 
-- [ ] Debt model (linked/standalone, APR/promo, interest method, minimum rules, participation, custom order)
-- [ ] Informal loans: counterparty, original, promised terms/date, schedule rows, repayment log, local-only note draft
-- [ ] Amortization per debt; avalanche / snowball / custom; `informal_first`; comparison in interest cents and payoff dates; 12-month informal scenario with gap and achievable date
-- [ ] Debts and loans screen
-- [ ] Integration test: two-debt fixture schedule vs `EXPECTED.md` within one cent per period; informal repayments appear as transfers, never expenses
+- [x] Debt model (linked/standalone, APR/promo, interest method, minimum rules, participation, custom order)
+- [x] Informal loans: counterparty, original, promised terms/date, schedule rows, repayment log, local-only note draft
+- [x] Amortization per debt; avalanche / snowball / custom; `informal_first`; comparison in interest cents and payoff dates; 12-month informal scenario with gap and achievable date
+- [x] Debts and loans screen
+- [x] Integration test: two-debt fixture schedule vs `EXPECTED.md` within one cent per period; informal repayments appear as transfers, never expenses
 
-**Questions to batch:** none unless the fixture exposes an interest-convention ambiguity (then: monthly nominal vs actual/365 default).
+**Questions to batch:** none — the fixture exposed no interest-convention ambiguity (ADR-0043); monthly nominal stays the default, the auto loan exercises actual/365.
 
 ---
 

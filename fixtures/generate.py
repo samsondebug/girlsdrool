@@ -425,6 +425,177 @@ def forecast_run(scenario: dict, as_of: date, received: set, paid: set, model: l
 
 
 
+# ---------------------------------------------------------------------------------------------
+# M6: debts and informal loans — the two-debt schedule (and the cards) hand-computed here in
+# interest cents, avalanche vs snowball vs custom, the informal_first policy, the 12-month scenario.
+# ---------------------------------------------------------------------------------------------
+
+DEBT_EXTRA_CENTS = 30_000       # monthly extra for the comparison: a user input until a review supplies the surplus
+DEBT_PERIODS_MAX = 120
+INFORMAL_SCENARIO_PERIODS = 12
+DEBTS = [
+    # linked card debts: owed = max(0, −posted balance of the account) as of the date
+    dict(key="visa", name="Summit Visa", kind="credit_card", account="sv", standalone_opening=None, apr_bps=2_499, promo_apr_bps=None,
+         promo_end=None, interest_method="monthly_nominal", minimum_rule="interest_plus_percent", minimum_fixed_cents=0, minimum_bps=100,
+         minimum_floor_cents=2_500, due_day=19, participation=True, custom_order=3, payment_account="nbc",
+         match_payee_contains="summit card services payment"),
+    dict(key="amex", name="Summit Amex", kind="credit_card", account="sa", standalone_opening=None, apr_bps=0, promo_apr_bps=None,
+         promo_end=None, interest_method="monthly_nominal", minimum_rule="full_balance", minimum_fixed_cents=0, minimum_bps=0,
+         minimum_floor_cents=0, due_day=22, participation=True, custom_order=4, payment_account="nbc",
+         match_payee_contains="summit card svcs amex pymt"),
+    # standalone debts: owed = opening − Σ recorded payments
+    dict(key="auto", name="Auto loan", kind="loan", account=None, standalone_opening=320_000, apr_bps=649, promo_apr_bps=None,
+         promo_end=None, interest_method="actual_365", minimum_rule="fixed", minimum_fixed_cents=9_500, minimum_bps=0,
+         minimum_floor_cents=0, due_day=15, participation=True, custom_order=1, payment_account="nbc",
+         match_payee_contains="lakeside auto finance"),
+    dict(key="transfer", name="Balance transfer card", kind="credit_card", account=None, standalone_opening=480_000, apr_bps=2_499,
+         promo_apr_bps=0, promo_end="2026-12-31", interest_method="monthly_nominal", minimum_rule="percent_of_balance",
+         minimum_fixed_cents=0, minimum_bps=200, minimum_floor_cents=2_500, due_day=5, participation=True, custom_order=2,
+         payment_account="nbc", match_payee_contains="meridian bank card"),
+]
+INFORMAL = [
+    dict(key="chris", counterparty="Chris Park", original_cents=60_000, borrowed_date="2026-08-05",
+         promised_terms="300 on each of the next two paydays", promised_date="2026-09-30",
+         proceeds=("vm", "2026-08-05", "Chris Park"), repayment_account="nbc", repayment_needle="zelle payment to chris park",
+         schedule=[("2026-08-28", 30_000), ("2026-09-28", 30_000)], participation=True),
+    dict(key="mom", counterparty="Mom", original_cents=200_000, borrowed_date="2026-06-15",
+         promised_terms="pay it back within the year", promised_date="2027-06-15",
+         proceeds=None, repayment_account="nbc", repayment_needle="zelle payment to mom", schedule=[], participation=True),
+]
+STRATEGIES = ["avalanche", "snowball", "custom"]
+
+
+def mul_div_round(a: int, b: int, d: int) -> int:
+    """a × b / d rounded half away from zero — money::mul_div_round."""
+    n = a * b
+    q, r = divmod(abs(n), d)
+    if 2 * r >= d:
+        q += 1
+    return q if n >= 0 else -q
+
+
+def balance_as_of(account: str, as_of: date) -> int:
+    return ACCOUNTS[account].opening_cents + sum(r.amount for r in rows_for(account) if r.posted <= as_of.isoformat())
+
+
+def period_bounds(as_of: date, k: int) -> tuple[date, date]:
+    """Period k ≥ 1 is the k-th calendar month after the as-of month."""
+    import calendar
+    y, m = as_of.year, as_of.month
+    for _ in range(k):
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])
+
+
+def informal_repayments(loan: dict, as_of: date) -> list[dict]:
+    rows = [r for r in rows_for(loan["repayment_account"]) if r.amount < 0]
+    taken: set = set()
+    out = []
+    for due, r in match_rows([date.fromisoformat(d) for (d, _) in loan["schedule"]], rows, 0, 10**9, loan["repayment_needle"], taken):
+        if r.posted <= as_of.isoformat():
+            out.append({"due_date": due.isoformat(), "account": r.account, "posted": r.posted, "description": r.description, "amount_cents": -r.amount})
+    return out
+
+
+def debt_states(as_of: date) -> list[dict]:
+    """Every participating debt with a balance, cards and loans first (in definition order), informal loans after."""
+    out = []
+    for d in DEBTS:
+        owed = max(0, -balance_as_of(d["account"], as_of)) if d["account"] else d["standalone_opening"]
+        out.append(dict(d, owed_cents=owed, informal=False, schedule=[]))
+    for loan in INFORMAL:
+        paid = sum(x["amount_cents"] for x in informal_repayments(loan, as_of))
+        out.append(dict(key=loan["key"], name=f"Loan from {loan['counterparty']}", kind="informal", apr_bps=0, promo_apr_bps=None,
+                        promo_end=None, interest_method="monthly_nominal", minimum_rule="none", minimum_fixed_cents=0, minimum_bps=0,
+                        minimum_floor_cents=0, due_day=None, participation=loan["participation"], custom_order=None,
+                        owed_cents=max(0, loan["original_cents"] - paid), informal=True, promised_date=loan["promised_date"],
+                        schedule=loan["schedule"]))
+    return out
+
+
+def period_interest(d: dict, opening: int, start: date, end: date) -> int:
+    apr = d["promo_apr_bps"] if d["promo_apr_bps"] is not None and d["promo_end"] and start.isoformat() <= d["promo_end"] else d["apr_bps"]
+    if d["interest_method"] == "actual_365":
+        return mul_div_round(opening, apr * ((end - start).days + 1), 3_650_000)
+    return mul_div_round(opening, apr, 120_000)
+
+
+def effective_apr(d: dict, start: date) -> int:
+    return d["promo_apr_bps"] if d["promo_apr_bps"] is not None and d["promo_end"] and start.isoformat() <= d["promo_end"] else d["apr_bps"]
+
+
+def period_minimum(d: dict, opening: int, interest: int, start: date, end: date) -> int:
+    rule = d["minimum_rule"]
+    if rule == "fixed":
+        m = d["minimum_fixed_cents"]
+    elif rule == "percent_of_balance":
+        m = max(d["minimum_floor_cents"], mul_div_round(opening, d["minimum_bps"], 10_000))
+    elif rule == "interest_plus_percent":
+        m = interest + max(d["minimum_floor_cents"], mul_div_round(opening, d["minimum_bps"], 10_000))
+    elif rule == "full_balance":
+        m = opening + interest
+    else:  # none: an informal loan's schedule rows falling due in the period
+        m = sum(c for (dt, c) in d["schedule"] if start.isoformat() <= dt <= end.isoformat())
+    return min(m, opening + interest)
+
+
+def run_strategy(strategy: str, as_of: date, extra: int) -> dict:
+    """ARCHITECTURE §5.8: every open debt gets its minimum; the budget (extra + first-period minimums,
+    constant) pays informal loans first (earliest promised date), then the strategy's target."""
+    debts = [dict(d, balance=d["owed_cents"], rows=[], payoff=None, interest_total=0) for d in debt_states(as_of)
+             if d["participation"] and d["owed_cents"] > 0]
+    budget = None
+    for k in range(1, DEBT_PERIODS_MAX + 1):
+        open_debts = [d for d in debts if d["balance"] > 0]
+        if not open_debts:
+            break
+        start, end = period_bounds(as_of, k)
+        for d in open_debts:
+            d["opening"] = d["balance"]
+            d["interest"] = period_interest(d, d["opening"], start, end)
+            d["minimum"] = period_minimum(d, d["opening"], d["interest"], start, end)
+            d["payment"] = d["minimum"]
+        if budget is None:
+            budget = extra + sum(d["minimum"] for d in open_debts)
+        pool = budget - sum(d["payment"] for d in open_debts)
+        informal = sorted([d for d in open_debts if d["informal"]], key=lambda d: (d["promised_date"] or "9999-12-31", d["name"]))
+        others = [d for d in open_debts if not d["informal"]]
+        if strategy == "avalanche":
+            others.sort(key=lambda d: (-effective_apr(d, start), d["opening"], d["name"]))
+        elif strategy == "snowball":
+            others.sort(key=lambda d: (d["opening"], d["name"]))
+        else:
+            others.sort(key=lambda d: (d["custom_order"] if d["custom_order"] is not None else 10**9, d["name"]))
+        for d in informal + others:
+            room = d["opening"] + d["interest"] - d["payment"]
+            add = min(max(0, pool), room)
+            d["payment"] += add
+            pool -= add
+        for d in open_debts:
+            d["balance"] = d["opening"] + d["interest"] - d["payment"]
+            d["interest_total"] += d["interest"]
+            d["rows"].append({"period": k, "start": start.isoformat(), "end": end.isoformat(), "opening_cents": d["opening"],
+                              "interest_cents": d["interest"], "minimum_cents": d["minimum"], "payment_cents": d["payment"],
+                              "closing_cents": d["balance"]})
+            if d["balance"] == 0 and d["payoff"] is None:
+                d["payoff"] = end.isoformat()
+    return {"strategy": strategy, "extra_cents": extra, "budget_cents": budget or extra,
+            "total_interest_cents": sum(d["interest_total"] for d in debts),
+            "payoff_date": max((d["payoff"] for d in debts if d["payoff"]), default=None),
+            "debts": [{"key": d["key"], "name": d["name"], "informal": d["informal"], "owed_cents": d["owed_cents"],
+                       "total_interest_cents": d["interest_total"], "payoff_date": d["payoff"], "periods": d["rows"]} for d in debts]}
+
+
+def informal_scenario(as_of: date, extra: int) -> dict:
+    run = run_strategy("avalanche", as_of, extra)   # informal_first makes the informal payoff strategy-independent
+    loans = [d for d in run["debts"] if d["informal"]]
+    gap = sum(next((r["closing_cents"] for r in d["periods"] if r["period"] == INFORMAL_SCENARIO_PERIODS), 0) for d in loans)
+    payoff = max((d["payoff_date"] for d in loans if d["payoff_date"]), default=None)
+    return {"extra_cents": extra, "periods": INFORMAL_SCENARIO_PERIODS, "remaining_cents": sum(d["owed_cents"] for d in loans),
+            "achievable": bool(loans) and all(d["payoff_date"] is not None and d["periods"][-1]["period"] <= INFORMAL_SCENARIO_PERIODS for d in loans),
+            "gap_cents": gap, "payoff_date": payoff}
+
+
 def business_day_before(x: date) -> date:
     while x.weekday() >= 5:
         x -= timedelta(days=1)
@@ -1352,6 +1523,111 @@ def expected_md(files: dict[str, str]) -> str:
     for w in base["weeks"]:
         p(f"| {w['week']} | {w['start']} | {w['end']} | {money(w['inflows_cents'])} | {money(w['outflows_cents'])} | {money(w['closing_cents'])} | {money(w['lowest_cents'])} |")
     p("")
+    # Debts and informal loans (M6)
+    p("## Debts and informal loans (M6)")
+    p("")
+    states = debt_states(as_of_d)
+    p(f"As of **{AS_OF}**. A linked debt owes `max(0, −posted balance)` of its account; a standalone debt owes its opening minus")
+    p("recorded payments; an informal loan owes its original minus the repayments matched to its schedule. Interest per period")
+    p("(ARCHITECTURE §5.8, `mul_div_round`): monthly nominal `opening × apr_bps / 120 000`; actual/365 `opening × apr_bps × days / 3 650 000`;")
+    p("the promo APR applies while the period starts on or before `promo_end`. Periods are the calendar months after the as-of month.")
+    p("")
+    p("| debt | kind | balance source | owed | APR | method | minimum rule | period-1 minimum |")
+    p("|---|---|---|---:|---|---|---|---:|")
+    for d in states:
+        if d["informal"]:
+            continue
+        src = f"linked `{d['account']}`" if d["account"] else f"standalone {money(d['standalone_opening'])} on {AS_OF}"
+        apr = f"{d['apr_bps'] / 100:.2f}%" + (f" (promo {d['promo_apr_bps'] / 100:.2f}% through {d['promo_end']})" if d["promo_apr_bps"] is not None else "")
+        rule = {"fixed": f"fixed {money(d['minimum_fixed_cents'])}", "percent_of_balance": f"{d['minimum_bps'] / 100:.0f}% of balance, floor {money(d['minimum_floor_cents'])}",
+                "interest_plus_percent": f"interest + {d['minimum_bps'] / 100:.0f}% of balance, floor {money(d['minimum_floor_cents'])}", "full_balance": "full balance"}[d["minimum_rule"]]
+        st, en = period_bounds(as_of_d, 1)
+        i1 = period_interest(d, d["owed_cents"], st, en)
+        m1 = period_minimum(d, d["owed_cents"], i1, st, en) if d["owed_cents"] > 0 else 0
+        p(f"| {d['name']} | {d['kind']} | {src} | {money(d['owed_cents'])} | {apr} | {d['interest_method']} | {rule} | {money(m1)} |")
+    p("")
+    p(f"Summit Visa carries a credit balance of {money(balance_as_of('sv', as_of_d))} on {AS_OF} (the August payment exceeded the balance), so it owes")
+    p("nothing and has no schedule and no minimum obligation; the Amex owes its September charges.")
+    p("")
+    p("### Informal loans")
+    p("")
+    repayments_all = {}
+    for loan in INFORMAL:
+        reps = informal_repayments(loan, as_of_d)
+        repayments_all[loan["key"]] = reps
+        remaining = loan["original_cents"] - sum(x["amount_cents"] for x in reps)
+        src = f"proceeds row {loan['proceeds'][0]} {loan['proceeds'][1]} `{loan['proceeds'][2]}` (flagged borrowing, never income)" if loan["proceeds"] else "borrowed before the ledger starts; no proceeds row"
+        p(f"- `{loan['counterparty']}`: {money(loan['original_cents'])} borrowed {loan['borrowed_date']}, promised \"{loan['promised_terms']}\" by {loan['promised_date']}; {src}.")
+        if loan["schedule"]:
+            p("  - schedule: " + ", ".join(f"{dt} {money(c)}" for (dt, c) in loan["schedule"]))
+        for x in reps:
+            p(f"  - repayment {x['due_date']} ← {x['account']} {x['posted']} `{x['description']}` {money(x['amount_cents'])} (a transfer to a liability, never an expense)")
+        p(f"  - remaining **{money(remaining)}**")
+    p("")
+    informal_total = sum(d["owed_cents"] for d in states if d["informal"])
+    p(f"Dashboard: total debt (cards and loans) **{money(sum(d['owed_cents'] for d in states if not d['informal']))}**, informal remaining **{money(informal_total)}**.")
+    p("")
+    strategy_runs = {st: run_strategy(st, as_of_d, DEBT_EXTRA_CENTS) for st in STRATEGIES}
+    base_run = strategy_runs["avalanche"]
+    p(f"### Strategies with {money(DEBT_EXTRA_CENTS)} extra per month")
+    p("")
+    p(f"Budget = extra + the first period's minimums = **{money(base_run['budget_cents'])}** per month, constant: a paid-off debt's minimum")
+    p("rolls to the next target. Every open debt gets its minimum; policy `informal_first` sends the rest to informal loans by")
+    p("promised date; then avalanche = highest effective APR this period (tie: smaller balance), snowball = smallest balance,")
+    p("custom = the user's order (auto loan, balance transfer, Visa, Amex). A payment never exceeds opening + interest.")
+    p("")
+    p("| strategy | total interest | last payoff | " + " | ".join(f"{d['name']}" for d in base_run["debts"]) + " |")
+    p("|---|---:|---|" + "---|" * len(base_run["debts"]))
+    for st, r in strategy_runs.items():
+        cells = " | ".join(f"{money(d['total_interest_cents'])} by {d['payoff_date']}" for d in r["debts"])
+        p(f"| {st} | **{money(r['total_interest_cents'])}** | {r['payoff_date']} | {cells} |")
+    p("")
+    p("### Avalanche, first six periods per debt (the full schedules are in debts.json)")
+    p("")
+    for d in base_run["debts"]:
+        p(f"**{d['name']}** — owed {money(d['owed_cents'])}, interest {money(d['total_interest_cents'])}, paid off {d['payoff_date']}")
+        p("")
+        p("| period | start | end | opening | interest | minimum | payment | closing |")
+        p("|---:|---|---|---:|---:|---:|---:|---:|")
+        for r in d["periods"][:6]:
+            p(f"| {r['period']} | {r['start']} | {r['end']} | {money(r['opening_cents'])} | {money(r['interest_cents'])} | {money(r['minimum_cents'])} | {money(r['payment_cents'])} | {money(r['closing_cents'])} |")
+        p("")
+    scen = [informal_scenario(as_of_d, DEBT_EXTRA_CENTS), informal_scenario(as_of_d, 0)]
+    p(f"### Informal loans repaid within {INFORMAL_SCENARIO_PERIODS} months — a scenario, not an assumption")
+    p("")
+    for sc in scen:
+        verdict = "achievable" if sc["achievable"] else f"not achievable: gap after {INFORMAL_SCENARIO_PERIODS} months {money(sc['gap_cents'])}"
+        p(f"- Extra {money(sc['extra_cents'])} per month: remaining {money(sc['remaining_cents'])}; {verdict}; the budget repays it by **{sc['payoff_date'] or 'never'}**.")
+    p("")
+    p("### Debt-minimum obligations the engine keeps in sync")
+    p("")
+    p("Every active debt with a minimum rule, a due day and a payment account gets one confirmed obligation of kind `debt_minimum`")
+    p("(expected = the current period's minimum, re-derived on every write; retired when the debt owes nothing or is inactive).")
+    p("None falls due before the next confirmed income (2026-10-02), so the M4 hero is unchanged; the forecast counts them as outflows.")
+    p("")
+    min_obls = []
+    st, en = period_bounds(as_of_d, 1)
+    for d in states:
+        if d["informal"] or d["owed_cents"] == 0 or d["minimum_rule"] == "none" or not d["due_day"] or not d["payment_account"]:
+            continue
+        i1 = period_interest(d, d["owed_cents"], st, en)
+        min_obls.append({"debt": d["key"], "name": f"{d['name']} minimum", "due_day": d["due_day"], "expected_cents": period_minimum(d, d["owed_cents"], i1, st, en),
+                         "source_account": d["payment_account"], "match_payee_contains": d["match_payee_contains"]})
+    p("| obligation | due day | expected | source | payee contains |")
+    p("|---|---:|---:|---|---|")
+    for o in min_obls:
+        p(f"| {o['name']} | {o['due_day']} | {money(o['expected_cents'])} | {o['source_account']} | `{o['match_payee_contains']}` |")
+    p("")
+    global DEBTS_JSON
+    DEBTS_JSON = {"as_of": AS_OF, "extra_cents": DEBT_EXTRA_CENTS, "periods_max": DEBT_PERIODS_MAX, "scenario_periods": INFORMAL_SCENARIO_PERIODS,
+                  "debts": [dict(d, owed_cents=next(s_["owed_cents"] for s_ in states if s_["key"] == d["key"])) for d in DEBTS],
+                  "informal": [dict(loan, proceeds=None if not loan["proceeds"] else {"account": loan["proceeds"][0], "posted": loan["proceeds"][1], "description": loan["proceeds"][2]},
+                                    schedule=[{"due_date": dt, "amount_cents": c} for (dt, c) in loan["schedule"]],
+                                    repayments=repayments_all[loan["key"]],
+                                    remaining_cents=loan["original_cents"] - sum(x["amount_cents"] for x in repayments_all[loan["key"]])) for loan in INFORMAL],
+                  "total_debt_cents": sum(d["owed_cents"] for d in states if not d["informal"]), "informal_remaining_cents": informal_total,
+                  "strategies": strategy_runs, "informal_scenarios": scen, "minimum_obligations": min_obls}
+
     global FORECAST_JSON
     FORECAST_JSON = {"as_of": AS_OF, "horizon_days": HORIZON_DAYS, "bucket_days": BUCKET_DAYS, "pay_shift_days": PAY_SHIFT_DAYS,
                      "timing_buffer_cents": TIMING_BUFFER_CENTS, "model": model, "model_total_cents": model_total, "scenarios": runs}
@@ -1374,6 +1650,7 @@ def emit_rules_json() -> None:
 RECON_JSON: dict = {}
 PLAN_JSON: dict = {}
 FORECAST_JSON: dict = {}
+DEBTS_JSON: dict = {}
 
 
 def emit_plan_json() -> None:
@@ -1382,6 +1659,10 @@ def emit_plan_json() -> None:
 
 def emit_forecast_json() -> None:
     write("forecast.json", json.dumps(FORECAST_JSON, indent=1) + "\n")
+
+
+def emit_debts_json() -> None:
+    write("debts.json", json.dumps(DEBTS_JSON, indent=1) + "\n")
 
 
 def emit_recon_json() -> None:
@@ -1423,7 +1704,8 @@ def main() -> None:
     emit_recon_json()
     emit_plan_json()
     emit_forecast_json()
-    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json and EXPECTED.md ({len(ROWS)} ledger rows)")
+    emit_debts_json()
+    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json, debts.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

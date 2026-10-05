@@ -3,6 +3,7 @@
 
 #![allow(dead_code)]
 
+pub mod debts;
 pub mod forecast;
 pub mod plan;
 

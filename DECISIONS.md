@@ -711,3 +711,58 @@ the model, the override and the plan overlay against `fixtures/forecast.json` (t
 the downside and surprise bills. The batched M5 questions (ADR-0023: median of three 30-day
 buckets vs weekly; overdraft vs buffer breach as "shortfall") stay open with their defaults in
 force: the dashboard shows the overdraft as the shortfall and the buffer breach as a warning.
+
+## ADR-0043 — Debt periods, the constant budget, minimum obligations and informal repayments
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** ADR-0024 fixed the interest formulas, the minimum rules and the strategy order.
+Building M6 left open what a "period" is, how a paid-off debt's minimum is reused, how a minimum
+reaches the hero and the forecast, how a standalone balance and an informal loan move with the
+ledger, and what the debt engine does with a card that is overpaid.
+
+**Decision.**
+
+1. **Periods are the calendar months after the as-of month.** Period k runs from the first to the
+   last day of the k-th month after today's month; interest is computed on the period's opening
+   balance (`actual_365` uses the period's day count); the promo rate applies while the period
+   starts on or before `promo_end`; the payoff date is the last day of the period that closes at
+   zero. The engine stops after 120 periods and reports `unfinished` when a balance remains.
+2. **The monthly budget is constant.** `budget = extra + Σ first-period minimums`. Every open debt
+   gets its current minimum (never more than opening + interest); the remainder goes to the
+   targets in order, so a paid-off debt's minimum and a shrinking percent minimum both roll to
+   the next target. Under policy `informal_first` the targets are the informal loans by promised
+   date (earliest first), then the strategy's order: avalanche by effective APR this period (tie:
+   smaller balance), snowball by opening balance, custom by `custom_order` (unset last).
+3. **A minimum is an obligation that starts today.** Every active debt that owes something and
+   has a minimum rule, a due day and a payment account carries one confirmed `debt_minimum`
+   obligation (expected = the next period's minimum, re-derived by every write, retired when the
+   debt owes nothing). Its `anchor_date` is the day it appeared, and for the calendar due rules
+   the anchor is now a floor: nothing falls due before an obligation exists. Migration 0004 adds
+   `debt.payment_account_id` and `debt.match_payee_contains` so the obligation can match the
+   ledger. Card purchases stay variable spend in the forecast; the minimum is the cash that
+   leaves for the balance already run up — counting both is the cash view.
+4. **Balances move with the ledger.** A linked debt owes `max(0, −posted balance)` of its account
+   (an overpaid card owes nothing, has no schedule and no obligation). A standalone debt owes its
+   opening minus `debt_payment` rows: every row its minimum obligation matches is adopted as a
+   payment once; the person can also record one by hand or from a ledger row. Deleting a row
+   detaches its payment.
+5. **Informal repayments are found like payments.** An informal loan has no interest, rule `none`,
+   schedule rows and a repayment account; each unpaid schedule row (repayments are applied to
+   rows in due order) is matched to the closest outflow for exactly its amount on that account
+   whose payee contains the match text, posted within `[due − 10, due + 5]`. The forecast counts
+   unpaid schedule rows as outflows (`informal` events); the hero's obligation term does not (the
+   spec's formula names confirmed obligations). Creating the loan from its proceeds row flags the
+   row borrowing, categorises it `transfer.borrowing_proceeds` and takes it out of the review
+   queue: never income.
+6. **The 12-month scenario is read off the run.** With the given extra: achievable iff every
+   informal loan is off within 12 periods; otherwise the gap is what is still owed after period
+   12 and the date is when this budget actually gets there (or never). The extra is a user input
+   until a review supplies the dependable surplus (M8); the UI names the source.
+
+**Consequences.** `tests/m6_debts.rs` pins every period of every strategy against
+`fixtures/debts.json` (the twin of `EXPECTED.md` "Debts and informal loans (M6)"): avalanche beats
+snowball by 336.38 of interest on the fixture; the Visa's credit balance owes nothing; the Chris
+loan's two Zelle repayments are found and the Mom loan's gap and date are stated. No M6 question
+is batched: the fixture exposed no interest-convention ambiguity (monthly nominal stays the
+default; the auto loan exercises actual/365).

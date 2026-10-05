@@ -456,11 +456,11 @@ fn undo_reverses_a_batch_and_refuses_after_later_changes() {
     assert_eq!(count(&conn, "SELECT count(*) FROM txn"), 28);
 
     // August inserted the pending row that September updated: August cannot be undone first
-    let err = import::undo(&mut conn, august.batch_id).expect_err("conflict");
+    let err = import::undo(&mut conn, august.batch_id, date("2026-09-30")).expect_err("conflict");
     assert!(matches!(err, AppError::Conflict(_)), "{err:?}");
 
     // September undone: its 8 rows go, the Amazon row returns to pending with its old descriptor
-    let undone = import::undo(&mut conn, september.batch_id).unwrap();
+    let undone = import::undo(&mut conn, september.batch_id, date("2026-09-30")).unwrap();
     assert_eq!(undone.deleted, 8);
     assert_eq!(undone.restored, 1);
     assert_eq!(count(&conn, "SELECT count(*) FROM txn"), 20);
@@ -473,16 +473,23 @@ fn undo_reverses_a_batch_and_refuses_after_later_changes() {
         .undone_at
         .is_some());
     assert!(matches!(
-        import::undo(&mut conn, september.batch_id),
+        import::undo(&mut conn, september.batch_id, date("2026-09-30")),
         Err(AppError::Conflict(_))
     ));
 
     // now August can go, then July
     assert_eq!(
-        import::undo(&mut conn, august.batch_id).unwrap().deleted,
+        import::undo(&mut conn, august.batch_id, date("2026-09-30"))
+            .unwrap()
+            .deleted,
         10
     );
-    assert_eq!(import::undo(&mut conn, july.batch_id).unwrap().deleted, 10);
+    assert_eq!(
+        import::undo(&mut conn, july.batch_id, date("2026-09-30"))
+            .unwrap()
+            .deleted,
+        10
+    );
     assert_eq!(count(&conn, "SELECT count(*) FROM txn"), 0);
     assert_eq!(
         count(&conn, "SELECT count(*) FROM command WHERE actor = 'undo'"),
@@ -642,4 +649,6 @@ fn seed_fixture_data_folder() {
     // the plan (fixtures/plan.json), so the hero has terms
     let plan: common::plan::PlanFile = load_json("plan.json");
     common::plan::install_plan(db.conn_mut(), &accounts, &plan);
+    let debts: common::debts::DebtsFile = load_json("debts.json");
+    common::debts::install_debts(db.conn_mut(), &accounts, &debts, date(&debts.as_of));
 }

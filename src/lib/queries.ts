@@ -35,6 +35,9 @@ import {
   type TxnPatch,
   type VentureInput,
   type Scenario,
+  type DebtInput,
+  type DebtPaymentInput,
+  type InformalInput,
 } from "./ipc";
 import type { LedgerFilter } from "./query-chips";
 import { reportError } from "./report";
@@ -90,6 +93,14 @@ export const keys = {
   forecastAll: ["forecast"] as const,
   forecast: (scenario: Scenario) => ["forecast", scenario] as const,
   variableModel: ["variable_spend_model"] as const,
+  debts: ["debts"] as const,
+  debtPaymentsAll: ["debt_payments"] as const,
+  debtPayments: (debtId: number) => ["debt_payments", debtId] as const,
+  debtCandidates: (debtId: number) => ["debt_candidates", debtId] as const,
+  informalLoans: ["informal_loans"] as const,
+  debtComparisonAll: ["debt_comparison"] as const,
+  debtComparison: (extra: number | null) => ["debt_comparison", extra] as const,
+  debtTotals: ["debt_totals"] as const,
 };
 
 /** The hero and the upcoming panel read the plan and the ledger; anything there moves them. */
@@ -98,6 +109,10 @@ const heroDependent: readonly QueryKey[] = [
   ["upcoming"],
   ["forecast"],
   ["variable_spend_model"],
+  ["debts"],
+  ["informal_loans"],
+  ["debt_comparison"],
+  ["debt_totals"],
 ];
 
 /** Reconciliation periods, the explorer and trust move whenever a ledger row does. */
@@ -140,6 +155,15 @@ const invalidationMap: Record<string, readonly QueryKey[]> = {
   venture: [keys.ventures, keys.accounts],
   variable_spend_override: [keys.variableModel, keys.forecastAll],
   snapshot: [keys.forecastAll],
+  debt: [
+    keys.debts,
+    keys.informalLoans,
+    keys.debtComparisonAll,
+    keys.obligations,
+    ...heroDependent,
+  ],
+  debt_payment: [keys.debts, keys.debtPaymentsAll, keys.informalLoans, keys.debtComparisonAll],
+  informal_loan: [keys.informalLoans, keys.debts, keys.debtComparisonAll, ...heroDependent],
 };
 
 const LEDGER_PAGE = 200;
@@ -573,6 +597,97 @@ export function useSetVariableOverride() {
 
 export function useSaveForecastPlan() {
   return useMutation({ mutationFn: () => api.saveForecastPlan() });
+}
+
+export function useDebtTotals() {
+  return useQuery({ queryKey: keys.debtTotals, queryFn: api.debtTotals, staleTime: Infinity });
+}
+
+export function useDebts() {
+  return useQuery({ queryKey: keys.debts, queryFn: api.listDebts, staleTime: Infinity });
+}
+
+export function useDebtPayments(debtId: number) {
+  return useQuery({
+    queryKey: keys.debtPayments(debtId),
+    queryFn: () => api.listDebtPayments(debtId),
+    staleTime: Infinity,
+  });
+}
+
+export function useDebtPaymentCandidates(debtId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.debtCandidates(debtId),
+    queryFn: () => api.debtPaymentCandidates(debtId),
+    enabled,
+    staleTime: 0,
+  });
+}
+
+export function useInformalLoans() {
+  return useQuery({
+    queryKey: keys.informalLoans,
+    queryFn: api.listInformalLoans,
+    staleTime: Infinity,
+  });
+}
+
+export function useDebtComparison(extra: number | null) {
+  return useQuery({
+    queryKey: keys.debtComparison(extra),
+    queryFn: () => api.debtComparison(extra),
+    staleTime: Infinity,
+  });
+}
+
+export function useCreateDebt() {
+  return useMutation({ mutationFn: (input: DebtInput) => api.createDebt(input) });
+}
+
+export function useUpdateDebt() {
+  return useMutation({
+    mutationFn: (input: { id: number; input: DebtInput }) => api.updateDebt(input.id, input.input),
+  });
+}
+
+export function useRecordDebtPayment() {
+  return useMutation({
+    mutationFn: (input: { debtId: number; input: DebtPaymentInput }) =>
+      api.recordDebtPayment(input.debtId, input.input),
+  });
+}
+
+export function useRemoveDebtPayment() {
+  return useMutation({ mutationFn: (id: number) => api.removeDebtPayment(id) });
+}
+
+export function useCreateInformalLoan() {
+  return useMutation({ mutationFn: (input: InformalInput) => api.createInformalLoan(input) });
+}
+
+export function useUpdateInformalLoan() {
+  return useMutation({
+    mutationFn: (input: { debtId: number; input: InformalInput }) =>
+      api.updateInformalLoan(input.debtId, input.input),
+  });
+}
+
+export function useSetInformalNote() {
+  return useMutation({
+    mutationFn: (input: { debtId: number; note: string }) =>
+      api.setInformalNote(input.debtId, input.note),
+  });
+}
+
+export function useAddInformalScheduleRow() {
+  return useMutation({
+    mutationFn: (input: { debtId: number; dueDate: string; amountCents: number }) =>
+      api.addInformalScheduleRow(input.debtId, input.dueDate, input.amountCents),
+  });
+}
+
+export function useDeleteInformalScheduleRow() {
+  return useMutation({ mutationFn: (id: number) => api.deleteInformalScheduleRow(id) });
 }
 
 export function useUpcoming(days = 14) {

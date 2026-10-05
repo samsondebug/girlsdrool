@@ -1,0 +1,1497 @@
+{
+ "as_of": "2026-09-30",
+ "extra_cents": 30000,
+ "periods_max": 120,
+ "scenario_periods": 12,
+ "debts": [
+  {
+   "key": "visa",
+   "name": "Summit Visa",
+   "kind": "credit_card",
+   "account": "sv",
+   "standalone_opening": null,
+   "apr_bps": 2499,
+   "promo_apr_bps": null,
+   "promo_end": null,
+   "interest_method": "monthly_nominal",
+   "minimum_rule": "interest_plus_percent",
+   "minimum_fixed_cents": 0,
+   "minimum_bps": 100,
+   "minimum_floor_cents": 2500,
+   "due_day": 19,
+   "participation": true,
+   "custom_order": 3,
+   "payment_account": "nbc",
+   "match_payee_contains": "summit card services payment",
+   "owed_cents": 0
+  },
+  {
+   "key": "amex",
+   "name": "Summit Amex",
+   "kind": "credit_card",
+   "account": "sa",
+   "standalone_opening": null,
+   "apr_bps": 0,
+   "promo_apr_bps": null,
+   "promo_end": null,
+   "interest_method": "monthly_nominal",
+   "minimum_rule": "full_balance",
+   "minimum_fixed_cents": 0,
+   "minimum_bps": 0,
+   "minimum_floor_cents": 0,
+   "due_day": 22,
+   "participation": true,
+   "custom_order": 4,
+   "payment_account": "nbc",
+   "match_payee_contains": "summit card svcs amex pymt",
+   "owed_cents": 11600
+  },
+  {
+   "key": "auto",
+   "name": "Auto loan",
+   "kind": "loan",
+   "account": null,
+   "standalone_opening": 320000,
+   "apr_bps": 649,
+   "promo_apr_bps": null,
+   "promo_end": null,
+   "interest_method": "actual_365",
+   "minimum_rule": "fixed",
+   "minimum_fixed_cents": 9500,
+   "minimum_bps": 0,
+   "minimum_floor_cents": 0,
+   "due_day": 15,
+   "participation": true,
+   "custom_order": 1,
+   "payment_account": "nbc",
+   "match_payee_contains": "lakeside auto finance",
+   "owed_cents": 320000
+  },
+  {
+   "key": "transfer",
+   "name": "Balance transfer card",
+   "kind": "credit_card",
+   "account": null,
+   "standalone_opening": 480000,
+   "apr_bps": 2499,
+   "promo_apr_bps": 0,
+   "promo_end": "2026-12-31",
+   "interest_method": "monthly_nominal",
+   "minimum_rule": "percent_of_balance",
+   "minimum_fixed_cents": 0,
+   "minimum_bps": 200,
+   "minimum_floor_cents": 2500,
+   "due_day": 5,
+   "participation": true,
+   "custom_order": 2,
+   "payment_account": "nbc",
+   "match_payee_contains": "meridian bank card",
+   "owed_cents": 480000
+  }
+ ],
+ "informal": [
+  {
+   "key": "chris",
+   "counterparty": "Chris Park",
+   "original_cents": 60000,
+   "borrowed_date": "2026-08-05",
+   "promised_terms": "300 on each of the next two paydays",
+   "promised_date": "2026-09-30",
+   "proceeds": {
+    "account": "vm",
+    "posted": "2026-08-05",
+    "description": "Chris Park"
+   },
+   "repayment_account": "nbc",
+   "repayment_needle": "zelle payment to chris park",
+   "schedule": [
+    {
+     "due_date": "2026-08-28",
+     "amount_cents": 30000
+    },
+    {
+     "due_date": "2026-09-28",
+     "amount_cents": 30000
+    }
+   ],
+   "participation": true,
+   "repayments": [
+    {
+     "due_date": "2026-08-28",
+     "account": "nbc",
+     "posted": "2026-08-28",
+     "description": "ZELLE PAYMENT TO CHRIS PARK",
+     "amount_cents": 30000
+    },
+    {
+     "due_date": "2026-09-28",
+     "account": "nbc",
+     "posted": "2026-09-28",
+     "description": "ZELLE PAYMENT TO CHRIS PARK",
+     "amount_cents": 30000
+    }
+   ],
+   "remaining_cents": 0
+  },
+  {
+   "key": "mom",
+   "counterparty": "Mom",
+   "original_cents": 200000,
+   "borrowed_date": "2026-06-15",
+   "promised_terms": "pay it back within the year",
+   "promised_date": "2027-06-15",
+   "proceeds": null,
+   "repayment_account": "nbc",
+   "repayment_needle": "zelle payment to mom",
+   "schedule": [],
+   "participation": true,
+   "repayments": [],
+   "remaining_cents": 200000
+  }
+ ],
+ "total_debt_cents": 811600,
+ "informal_remaining_cents": 200000,
+ "strategies": {
+  "avalanche": {
+   "strategy": "avalanche",
+   "extra_cents": 30000,
+   "budget_cents": 60700,
+   "total_interest_cents": 95777,
+   "payoff_date": "2028-04-30",
+   "debts": [
+    {
+     "key": "amex",
+     "name": "Summit Amex",
+     "informal": false,
+     "owed_cents": 11600,
+     "total_interest_cents": 0,
+     "payoff_date": "2026-10-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 11600,
+       "interest_cents": 0,
+       "minimum_cents": 11600,
+       "payment_cents": 11600,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "auto",
+     "name": "Auto loan",
+     "informal": false,
+     "owed_cents": 320000,
+     "total_interest_cents": 23732,
+     "payoff_date": "2028-04-30",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 320000,
+       "interest_cents": 1764,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 312264
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 312264,
+       "interest_cents": 1666,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 304430
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 304430,
+       "interest_cents": 1678,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 296608
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 296608,
+       "interest_cents": 1635,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 288743
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 288743,
+       "interest_cents": 1438,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 280681
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 280681,
+       "interest_cents": 1547,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 272728
+      },
+      {
+       "period": 7,
+       "start": "2027-04-01",
+       "end": "2027-04-30",
+       "opening_cents": 272728,
+       "interest_cents": 1455,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 264683
+      },
+      {
+       "period": 8,
+       "start": "2027-05-01",
+       "end": "2027-05-31",
+       "opening_cents": 264683,
+       "interest_cents": 1459,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 256642
+      },
+      {
+       "period": 9,
+       "start": "2027-06-01",
+       "end": "2027-06-30",
+       "opening_cents": 256642,
+       "interest_cents": 1369,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 248511
+      },
+      {
+       "period": 10,
+       "start": "2027-07-01",
+       "end": "2027-07-31",
+       "opening_cents": 248511,
+       "interest_cents": 1370,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 240381
+      },
+      {
+       "period": 11,
+       "start": "2027-08-01",
+       "end": "2027-08-31",
+       "opening_cents": 240381,
+       "interest_cents": 1325,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 232206
+      },
+      {
+       "period": 12,
+       "start": "2027-09-01",
+       "end": "2027-09-30",
+       "opening_cents": 232206,
+       "interest_cents": 1239,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 223945
+      },
+      {
+       "period": 13,
+       "start": "2027-10-01",
+       "end": "2027-10-31",
+       "opening_cents": 223945,
+       "interest_cents": 1234,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 215679
+      },
+      {
+       "period": 14,
+       "start": "2027-11-01",
+       "end": "2027-11-30",
+       "opening_cents": 215679,
+       "interest_cents": 1150,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 207329
+      },
+      {
+       "period": 15,
+       "start": "2027-12-01",
+       "end": "2027-12-31",
+       "opening_cents": 207329,
+       "interest_cents": 1143,
+       "minimum_cents": 9500,
+       "payment_cents": 13855,
+       "closing_cents": 194617
+      },
+      {
+       "period": 16,
+       "start": "2028-01-01",
+       "end": "2028-01-31",
+       "opening_cents": 194617,
+       "interest_cents": 1073,
+       "minimum_cents": 9500,
+       "payment_cents": 60700,
+       "closing_cents": 134990
+      },
+      {
+       "period": 17,
+       "start": "2028-02-01",
+       "end": "2028-02-29",
+       "opening_cents": 134990,
+       "interest_cents": 696,
+       "minimum_cents": 9500,
+       "payment_cents": 60700,
+       "closing_cents": 74986
+      },
+      {
+       "period": 18,
+       "start": "2028-03-01",
+       "end": "2028-03-31",
+       "opening_cents": 74986,
+       "interest_cents": 413,
+       "minimum_cents": 9500,
+       "payment_cents": 60700,
+       "closing_cents": 14699
+      },
+      {
+       "period": 19,
+       "start": "2028-04-01",
+       "end": "2028-04-30",
+       "opening_cents": 14699,
+       "interest_cents": 78,
+       "minimum_cents": 9500,
+       "payment_cents": 14777,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "transfer",
+     "name": "Balance transfer card",
+     "informal": false,
+     "owed_cents": 480000,
+     "total_interest_cents": 72045,
+     "payoff_date": "2027-12-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 480000,
+       "interest_cents": 0,
+       "minimum_cents": 9600,
+       "payment_cents": 9600,
+       "closing_cents": 470400
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 470400,
+       "interest_cents": 0,
+       "minimum_cents": 9408,
+       "payment_cents": 9408,
+       "closing_cents": 460992
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 460992,
+       "interest_cents": 0,
+       "minimum_cents": 9220,
+       "payment_cents": 9220,
+       "closing_cents": 451772
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 451772,
+       "interest_cents": 9408,
+       "minimum_cents": 9035,
+       "payment_cents": 9035,
+       "closing_cents": 452145
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 452145,
+       "interest_cents": 9416,
+       "minimum_cents": 9043,
+       "payment_cents": 9043,
+       "closing_cents": 452518
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 452518,
+       "interest_cents": 9424,
+       "minimum_cents": 9050,
+       "payment_cents": 49294,
+       "closing_cents": 412648
+      },
+      {
+       "period": 7,
+       "start": "2027-04-01",
+       "end": "2027-04-30",
+       "opening_cents": 412648,
+       "interest_cents": 8593,
+       "minimum_cents": 8253,
+       "payment_cents": 51200,
+       "closing_cents": 370041
+      },
+      {
+       "period": 8,
+       "start": "2027-05-01",
+       "end": "2027-05-31",
+       "opening_cents": 370041,
+       "interest_cents": 7706,
+       "minimum_cents": 7401,
+       "payment_cents": 51200,
+       "closing_cents": 326547
+      },
+      {
+       "period": 9,
+       "start": "2027-06-01",
+       "end": "2027-06-30",
+       "opening_cents": 326547,
+       "interest_cents": 6800,
+       "minimum_cents": 6531,
+       "payment_cents": 51200,
+       "closing_cents": 282147
+      },
+      {
+       "period": 10,
+       "start": "2027-07-01",
+       "end": "2027-07-31",
+       "opening_cents": 282147,
+       "interest_cents": 5876,
+       "minimum_cents": 5643,
+       "payment_cents": 51200,
+       "closing_cents": 236823
+      },
+      {
+       "period": 11,
+       "start": "2027-08-01",
+       "end": "2027-08-31",
+       "opening_cents": 236823,
+       "interest_cents": 4932,
+       "minimum_cents": 4736,
+       "payment_cents": 51200,
+       "closing_cents": 190555
+      },
+      {
+       "period": 12,
+       "start": "2027-09-01",
+       "end": "2027-09-30",
+       "opening_cents": 190555,
+       "interest_cents": 3968,
+       "minimum_cents": 3811,
+       "payment_cents": 51200,
+       "closing_cents": 143323
+      },
+      {
+       "period": 13,
+       "start": "2027-10-01",
+       "end": "2027-10-31",
+       "opening_cents": 143323,
+       "interest_cents": 2985,
+       "minimum_cents": 2866,
+       "payment_cents": 51200,
+       "closing_cents": 95108
+      },
+      {
+       "period": 14,
+       "start": "2027-11-01",
+       "end": "2027-11-30",
+       "opening_cents": 95108,
+       "interest_cents": 1981,
+       "minimum_cents": 2500,
+       "payment_cents": 51200,
+       "closing_cents": 45889
+      },
+      {
+       "period": 15,
+       "start": "2027-12-01",
+       "end": "2027-12-31",
+       "opening_cents": 45889,
+       "interest_cents": 956,
+       "minimum_cents": 2500,
+       "payment_cents": 46845,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "mom",
+     "name": "Loan from Mom",
+     "informal": true,
+     "owed_cents": 200000,
+     "total_interest_cents": 0,
+     "payoff_date": "2027-03-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 200000,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 30000,
+       "closing_cents": 170000
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 170000,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 41792,
+       "closing_cents": 128208
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 128208,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 41980,
+       "closing_cents": 86228
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 86228,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 42165,
+       "closing_cents": 44063
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 44063,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 42157,
+       "closing_cents": 1906
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 1906,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 1906,
+       "closing_cents": 0
+      }
+     ]
+    }
+   ]
+  },
+  "snowball": {
+   "strategy": "snowball",
+   "extra_cents": 30000,
+   "budget_cents": 60700,
+   "total_interest_cents": 129415,
+   "payoff_date": "2028-04-30",
+   "debts": [
+    {
+     "key": "amex",
+     "name": "Summit Amex",
+     "informal": false,
+     "owed_cents": 11600,
+     "total_interest_cents": 0,
+     "payoff_date": "2026-10-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 11600,
+       "interest_cents": 0,
+       "minimum_cents": 11600,
+       "payment_cents": 11600,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "auto",
+     "name": "Auto loan",
+     "informal": false,
+     "owed_cents": 320000,
+     "total_interest_cents": 13279,
+     "payoff_date": "2027-08-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 320000,
+       "interest_cents": 1764,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 312264
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 312264,
+       "interest_cents": 1666,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 304430
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 304430,
+       "interest_cents": 1678,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 296608
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 296608,
+       "interest_cents": 1635,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 288743
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 288743,
+       "interest_cents": 1438,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 280681
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 280681,
+       "interest_cents": 1547,
+       "minimum_cents": 9500,
+       "payment_cents": 49744,
+       "closing_cents": 232484
+      },
+      {
+       "period": 7,
+       "start": "2027-04-01",
+       "end": "2027-04-30",
+       "opening_cents": 232484,
+       "interest_cents": 1240,
+       "minimum_cents": 9500,
+       "payment_cents": 51642,
+       "closing_cents": 182082
+      },
+      {
+       "period": 8,
+       "start": "2027-05-01",
+       "end": "2027-05-31",
+       "opening_cents": 182082,
+       "interest_cents": 1004,
+       "minimum_cents": 9500,
+       "payment_cents": 51635,
+       "closing_cents": 131451
+      },
+      {
+       "period": 9,
+       "start": "2027-06-01",
+       "end": "2027-06-30",
+       "opening_cents": 131451,
+       "interest_cents": 701,
+       "minimum_cents": 9500,
+       "payment_cents": 51627,
+       "closing_cents": 80525
+      },
+      {
+       "period": 10,
+       "start": "2027-07-01",
+       "end": "2027-07-31",
+       "opening_cents": 80525,
+       "interest_cents": 444,
+       "minimum_cents": 9500,
+       "payment_cents": 51620,
+       "closing_cents": 29349
+      },
+      {
+       "period": 11,
+       "start": "2027-08-01",
+       "end": "2027-08-31",
+       "opening_cents": 29349,
+       "interest_cents": 162,
+       "minimum_cents": 9500,
+       "payment_cents": 29511,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "transfer",
+     "name": "Balance transfer card",
+     "informal": false,
+     "owed_cents": 480000,
+     "total_interest_cents": 116136,
+     "payoff_date": "2028-04-30",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 480000,
+       "interest_cents": 0,
+       "minimum_cents": 9600,
+       "payment_cents": 9600,
+       "closing_cents": 470400
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 470400,
+       "interest_cents": 0,
+       "minimum_cents": 9408,
+       "payment_cents": 9408,
+       "closing_cents": 460992
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 460992,
+       "interest_cents": 0,
+       "minimum_cents": 9220,
+       "payment_cents": 9220,
+       "closing_cents": 451772
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 451772,
+       "interest_cents": 9408,
+       "minimum_cents": 9035,
+       "payment_cents": 9035,
+       "closing_cents": 452145
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 452145,
+       "interest_cents": 9416,
+       "minimum_cents": 9043,
+       "payment_cents": 9043,
+       "closing_cents": 452518
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 452518,
+       "interest_cents": 9424,
+       "minimum_cents": 9050,
+       "payment_cents": 9050,
+       "closing_cents": 452892
+      },
+      {
+       "period": 7,
+       "start": "2027-04-01",
+       "end": "2027-04-30",
+       "opening_cents": 452892,
+       "interest_cents": 9431,
+       "minimum_cents": 9058,
+       "payment_cents": 9058,
+       "closing_cents": 453265
+      },
+      {
+       "period": 8,
+       "start": "2027-05-01",
+       "end": "2027-05-31",
+       "opening_cents": 453265,
+       "interest_cents": 9439,
+       "minimum_cents": 9065,
+       "payment_cents": 9065,
+       "closing_cents": 453639
+      },
+      {
+       "period": 9,
+       "start": "2027-06-01",
+       "end": "2027-06-30",
+       "opening_cents": 453639,
+       "interest_cents": 9447,
+       "minimum_cents": 9073,
+       "payment_cents": 9073,
+       "closing_cents": 454013
+      },
+      {
+       "period": 10,
+       "start": "2027-07-01",
+       "end": "2027-07-31",
+       "opening_cents": 454013,
+       "interest_cents": 9455,
+       "minimum_cents": 9080,
+       "payment_cents": 9080,
+       "closing_cents": 454388
+      },
+      {
+       "period": 11,
+       "start": "2027-08-01",
+       "end": "2027-08-31",
+       "opening_cents": 454388,
+       "interest_cents": 9463,
+       "minimum_cents": 9088,
+       "payment_cents": 31189,
+       "closing_cents": 432662
+      },
+      {
+       "period": 12,
+       "start": "2027-09-01",
+       "end": "2027-09-30",
+       "opening_cents": 432662,
+       "interest_cents": 9010,
+       "minimum_cents": 8653,
+       "payment_cents": 60700,
+       "closing_cents": 380972
+      },
+      {
+       "period": 13,
+       "start": "2027-10-01",
+       "end": "2027-10-31",
+       "opening_cents": 380972,
+       "interest_cents": 7934,
+       "minimum_cents": 7619,
+       "payment_cents": 60700,
+       "closing_cents": 328206
+      },
+      {
+       "period": 14,
+       "start": "2027-11-01",
+       "end": "2027-11-30",
+       "opening_cents": 328206,
+       "interest_cents": 6835,
+       "minimum_cents": 6564,
+       "payment_cents": 60700,
+       "closing_cents": 274341
+      },
+      {
+       "period": 15,
+       "start": "2027-12-01",
+       "end": "2027-12-31",
+       "opening_cents": 274341,
+       "interest_cents": 5713,
+       "minimum_cents": 5487,
+       "payment_cents": 60700,
+       "closing_cents": 219354
+      },
+      {
+       "period": 16,
+       "start": "2028-01-01",
+       "end": "2028-01-31",
+       "opening_cents": 219354,
+       "interest_cents": 4568,
+       "minimum_cents": 4387,
+       "payment_cents": 60700,
+       "closing_cents": 163222
+      },
+      {
+       "period": 17,
+       "start": "2028-02-01",
+       "end": "2028-02-29",
+       "opening_cents": 163222,
+       "interest_cents": 3399,
+       "minimum_cents": 3264,
+       "payment_cents": 60700,
+       "closing_cents": 105921
+      },
+      {
+       "period": 18,
+       "start": "2028-03-01",
+       "end": "2028-03-31",
+       "opening_cents": 105921,
+       "interest_cents": 2206,
+       "minimum_cents": 2500,
+       "payment_cents": 60700,
+       "closing_cents": 47427
+      },
+      {
+       "period": 19,
+       "start": "2028-04-01",
+       "end": "2028-04-30",
+       "opening_cents": 47427,
+       "interest_cents": 988,
+       "minimum_cents": 2500,
+       "payment_cents": 48415,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "mom",
+     "name": "Loan from Mom",
+     "informal": true,
+     "owed_cents": 200000,
+     "total_interest_cents": 0,
+     "payoff_date": "2027-03-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 200000,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 30000,
+       "closing_cents": 170000
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 170000,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 41792,
+       "closing_cents": 128208
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 128208,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 41980,
+       "closing_cents": 86228
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 86228,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 42165,
+       "closing_cents": 44063
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 44063,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 42157,
+       "closing_cents": 1906
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 1906,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 1906,
+       "closing_cents": 0
+      }
+     ]
+    }
+   ]
+  },
+  "custom": {
+   "strategy": "custom",
+   "extra_cents": 30000,
+   "budget_cents": 60700,
+   "total_interest_cents": 129415,
+   "payoff_date": "2028-04-30",
+   "debts": [
+    {
+     "key": "amex",
+     "name": "Summit Amex",
+     "informal": false,
+     "owed_cents": 11600,
+     "total_interest_cents": 0,
+     "payoff_date": "2026-10-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 11600,
+       "interest_cents": 0,
+       "minimum_cents": 11600,
+       "payment_cents": 11600,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "auto",
+     "name": "Auto loan",
+     "informal": false,
+     "owed_cents": 320000,
+     "total_interest_cents": 13279,
+     "payoff_date": "2027-08-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 320000,
+       "interest_cents": 1764,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 312264
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 312264,
+       "interest_cents": 1666,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 304430
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 304430,
+       "interest_cents": 1678,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 296608
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 296608,
+       "interest_cents": 1635,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 288743
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 288743,
+       "interest_cents": 1438,
+       "minimum_cents": 9500,
+       "payment_cents": 9500,
+       "closing_cents": 280681
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 280681,
+       "interest_cents": 1547,
+       "minimum_cents": 9500,
+       "payment_cents": 49744,
+       "closing_cents": 232484
+      },
+      {
+       "period": 7,
+       "start": "2027-04-01",
+       "end": "2027-04-30",
+       "opening_cents": 232484,
+       "interest_cents": 1240,
+       "minimum_cents": 9500,
+       "payment_cents": 51642,
+       "closing_cents": 182082
+      },
+      {
+       "period": 8,
+       "start": "2027-05-01",
+       "end": "2027-05-31",
+       "opening_cents": 182082,
+       "interest_cents": 1004,
+       "minimum_cents": 9500,
+       "payment_cents": 51635,
+       "closing_cents": 131451
+      },
+      {
+       "period": 9,
+       "start": "2027-06-01",
+       "end": "2027-06-30",
+       "opening_cents": 131451,
+       "interest_cents": 701,
+       "minimum_cents": 9500,
+       "payment_cents": 51627,
+       "closing_cents": 80525
+      },
+      {
+       "period": 10,
+       "start": "2027-07-01",
+       "end": "2027-07-31",
+       "opening_cents": 80525,
+       "interest_cents": 444,
+       "minimum_cents": 9500,
+       "payment_cents": 51620,
+       "closing_cents": 29349
+      },
+      {
+       "period": 11,
+       "start": "2027-08-01",
+       "end": "2027-08-31",
+       "opening_cents": 29349,
+       "interest_cents": 162,
+       "minimum_cents": 9500,
+       "payment_cents": 29511,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "transfer",
+     "name": "Balance transfer card",
+     "informal": false,
+     "owed_cents": 480000,
+     "total_interest_cents": 116136,
+     "payoff_date": "2028-04-30",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 480000,
+       "interest_cents": 0,
+       "minimum_cents": 9600,
+       "payment_cents": 9600,
+       "closing_cents": 470400
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 470400,
+       "interest_cents": 0,
+       "minimum_cents": 9408,
+       "payment_cents": 9408,
+       "closing_cents": 460992
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 460992,
+       "interest_cents": 0,
+       "minimum_cents": 9220,
+       "payment_cents": 9220,
+       "closing_cents": 451772
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 451772,
+       "interest_cents": 9408,
+       "minimum_cents": 9035,
+       "payment_cents": 9035,
+       "closing_cents": 452145
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 452145,
+       "interest_cents": 9416,
+       "minimum_cents": 9043,
+       "payment_cents": 9043,
+       "closing_cents": 452518
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 452518,
+       "interest_cents": 9424,
+       "minimum_cents": 9050,
+       "payment_cents": 9050,
+       "closing_cents": 452892
+      },
+      {
+       "period": 7,
+       "start": "2027-04-01",
+       "end": "2027-04-30",
+       "opening_cents": 452892,
+       "interest_cents": 9431,
+       "minimum_cents": 9058,
+       "payment_cents": 9058,
+       "closing_cents": 453265
+      },
+      {
+       "period": 8,
+       "start": "2027-05-01",
+       "end": "2027-05-31",
+       "opening_cents": 453265,
+       "interest_cents": 9439,
+       "minimum_cents": 9065,
+       "payment_cents": 9065,
+       "closing_cents": 453639
+      },
+      {
+       "period": 9,
+       "start": "2027-06-01",
+       "end": "2027-06-30",
+       "opening_cents": 453639,
+       "interest_cents": 9447,
+       "minimum_cents": 9073,
+       "payment_cents": 9073,
+       "closing_cents": 454013
+      },
+      {
+       "period": 10,
+       "start": "2027-07-01",
+       "end": "2027-07-31",
+       "opening_cents": 454013,
+       "interest_cents": 9455,
+       "minimum_cents": 9080,
+       "payment_cents": 9080,
+       "closing_cents": 454388
+      },
+      {
+       "period": 11,
+       "start": "2027-08-01",
+       "end": "2027-08-31",
+       "opening_cents": 454388,
+       "interest_cents": 9463,
+       "minimum_cents": 9088,
+       "payment_cents": 31189,
+       "closing_cents": 432662
+      },
+      {
+       "period": 12,
+       "start": "2027-09-01",
+       "end": "2027-09-30",
+       "opening_cents": 432662,
+       "interest_cents": 9010,
+       "minimum_cents": 8653,
+       "payment_cents": 60700,
+       "closing_cents": 380972
+      },
+      {
+       "period": 13,
+       "start": "2027-10-01",
+       "end": "2027-10-31",
+       "opening_cents": 380972,
+       "interest_cents": 7934,
+       "minimum_cents": 7619,
+       "payment_cents": 60700,
+       "closing_cents": 328206
+      },
+      {
+       "period": 14,
+       "start": "2027-11-01",
+       "end": "2027-11-30",
+       "opening_cents": 328206,
+       "interest_cents": 6835,
+       "minimum_cents": 6564,
+       "payment_cents": 60700,
+       "closing_cents": 274341
+      },
+      {
+       "period": 15,
+       "start": "2027-12-01",
+       "end": "2027-12-31",
+       "opening_cents": 274341,
+       "interest_cents": 5713,
+       "minimum_cents": 5487,
+       "payment_cents": 60700,
+       "closing_cents": 219354
+      },
+      {
+       "period": 16,
+       "start": "2028-01-01",
+       "end": "2028-01-31",
+       "opening_cents": 219354,
+       "interest_cents": 4568,
+       "minimum_cents": 4387,
+       "payment_cents": 60700,
+       "closing_cents": 163222
+      },
+      {
+       "period": 17,
+       "start": "2028-02-01",
+       "end": "2028-02-29",
+       "opening_cents": 163222,
+       "interest_cents": 3399,
+       "minimum_cents": 3264,
+       "payment_cents": 60700,
+       "closing_cents": 105921
+      },
+      {
+       "period": 18,
+       "start": "2028-03-01",
+       "end": "2028-03-31",
+       "opening_cents": 105921,
+       "interest_cents": 2206,
+       "minimum_cents": 2500,
+       "payment_cents": 60700,
+       "closing_cents": 47427
+      },
+      {
+       "period": 19,
+       "start": "2028-04-01",
+       "end": "2028-04-30",
+       "opening_cents": 47427,
+       "interest_cents": 988,
+       "minimum_cents": 2500,
+       "payment_cents": 48415,
+       "closing_cents": 0
+      }
+     ]
+    },
+    {
+     "key": "mom",
+     "name": "Loan from Mom",
+     "informal": true,
+     "owed_cents": 200000,
+     "total_interest_cents": 0,
+     "payoff_date": "2027-03-31",
+     "periods": [
+      {
+       "period": 1,
+       "start": "2026-10-01",
+       "end": "2026-10-31",
+       "opening_cents": 200000,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 30000,
+       "closing_cents": 170000
+      },
+      {
+       "period": 2,
+       "start": "2026-11-01",
+       "end": "2026-11-30",
+       "opening_cents": 170000,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 41792,
+       "closing_cents": 128208
+      },
+      {
+       "period": 3,
+       "start": "2026-12-01",
+       "end": "2026-12-31",
+       "opening_cents": 128208,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 41980,
+       "closing_cents": 86228
+      },
+      {
+       "period": 4,
+       "start": "2027-01-01",
+       "end": "2027-01-31",
+       "opening_cents": 86228,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 42165,
+       "closing_cents": 44063
+      },
+      {
+       "period": 5,
+       "start": "2027-02-01",
+       "end": "2027-02-28",
+       "opening_cents": 44063,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 42157,
+       "closing_cents": 1906
+      },
+      {
+       "period": 6,
+       "start": "2027-03-01",
+       "end": "2027-03-31",
+       "opening_cents": 1906,
+       "interest_cents": 0,
+       "minimum_cents": 0,
+       "payment_cents": 1906,
+       "closing_cents": 0
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "informal_scenarios": [
+  {
+   "extra_cents": 30000,
+   "periods": 12,
+   "remaining_cents": 200000,
+   "achievable": true,
+   "gap_cents": 0,
+   "payoff_date": "2027-03-31"
+  },
+  {
+   "extra_cents": 0,
+   "periods": 12,
+   "remaining_cents": 200000,
+   "achievable": false,
+   "gap_cents": 67015,
+   "payoff_date": "2028-03-31"
+  }
+ ],
+ "minimum_obligations": [
+  {
+   "debt": "amex",
+   "name": "Summit Amex minimum",
+   "due_day": 22,
+   "expected_cents": 11600,
+   "source_account": "nbc",
+   "match_payee_contains": "summit card svcs amex pymt"
+  },
+  {
+   "debt": "auto",
+   "name": "Auto loan minimum",
+   "due_day": 15,
+   "expected_cents": 9500,
+   "source_account": "nbc",
+   "match_payee_contains": "lakeside auto finance"
+  },
+  {
+   "debt": "transfer",
+   "name": "Balance transfer card minimum",
+   "due_day": 5,
+   "expected_cents": 9600,
+   "source_account": "nbc",
+   "match_payee_contains": "meridian bank card"
+  }
+ ]
+}

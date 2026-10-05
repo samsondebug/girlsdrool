@@ -559,6 +559,7 @@ pub fn commit(
     )?;
     recon::refresh_all(&tx, &cmd)?;
     crate::plan::match_all(&tx, &cmd, today)?;
+    crate::debt::refresh(&tx, &cmd, today)?;
     tx.commit()?;
     tracing::info!(
         batch_id,
@@ -596,7 +597,7 @@ fn parse_row(json: &str) -> AppResult<txn::TxnRecord> {
 /// Reverse a batch: delete what it inserted, restore what it updated, remove the links its
 /// automation made, discard its quarantine rows. Refused when any touched row changed since
 /// (undo later batches and edits first).
-pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
+pub fn undo(conn: &mut Connection, batch_id: i64, today: CivilDate) -> AppResult<UndoReport> {
     let b = batch::get(conn, batch_id)?;
     if b.undone_at.is_some() {
         return Err(AppError::Conflict(format!(
@@ -743,6 +744,7 @@ pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
         params![undo_cmd.id, b.command_id],
     )?;
     recon::refresh_all(&tx, &undo_cmd)?;
+    crate::debt::refresh(&tx, &undo_cmd, today)?;
     tx.commit()?;
     tracing::info!(
         batch_id,
@@ -828,6 +830,7 @@ pub fn resolve_quarantine(
     )?;
     recon::refresh_all(&tx, &cmd)?;
     crate::plan::match_all(&tx, &cmd, today)?;
+    crate::debt::refresh(&tx, &cmd, today)?;
     tx.commit()?;
     Ok(inserted)
 }

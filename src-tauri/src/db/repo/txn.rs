@@ -546,6 +546,7 @@ pub fn delete_row(conn: &Connection, cmd: &CommandRecord, id: i64) -> AppResult<
         None,
     )?;
     detach_plan_links(conn, cmd, id)?;
+    crate::debt::detach_row(conn, cmd, id)?;
     conn.execute("DELETE FROM txn_tag WHERE txn_id = ?1", [id])?;
     conn.execute("DELETE FROM txn WHERE id = ?1", [id])?;
     Ok(())

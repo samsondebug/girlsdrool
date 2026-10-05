@@ -453,7 +453,7 @@ fn mutated_fixture_shows_the_difference_rolls_it_forward_and_marks_the_hero_untr
             |r| r.get(0),
         )
         .unwrap();
-    import::undo(&mut conn, mutated_batch).unwrap();
+    import::undo(&mut conn, mutated_batch, date("2026-09-30")).unwrap();
     let after_undo = recon::get(&conn, r_aug.id).unwrap();
     assert_eq!(
         after_undo.status, "off",

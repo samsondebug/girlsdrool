@@ -14,6 +14,7 @@ export type Screen =
   | "reconcile"
   | "plan"
   | "forecast"
+  | "debts"
   | "import"
   | "accounts"
   | "settings";

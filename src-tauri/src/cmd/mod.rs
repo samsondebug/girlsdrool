@@ -26,6 +26,12 @@ use crate::db::repo::txn::{self, SplitPart, TxnPatch, TxnRecord};
 use crate::db::repo::venture::{self, Venture, VentureInput};
 use crate::db::settings::{self, Settings};
 use crate::db::{Db, OpenMode};
+use crate::debt::{
+    self,
+    informal::{InformalInput, InformalLoan},
+    strategy::Comparison,
+    Debt, DebtInput, DebtView, Payment as DebtPayment, PaymentInput as DebtPaymentInput, Totals,
+};
 use crate::error::{AppError, AppResult};
 use crate::forecast::{self, variable::CategoryModel, Forecast, PlanOverlay, Scenario};
 use crate::import::profile::{self, Profile};
@@ -124,6 +130,7 @@ fn write<T>(
         let out = f(&tx, &cmd)?;
         recon::refresh_all(&tx, &cmd)?;
         crate::plan::match_all(&tx, &cmd, today)?;
+        crate::debt::refresh(&tx, &cmd, today)?;
         tx.commit()?;
         Ok(out)
     })
@@ -429,7 +436,10 @@ pub async fn undo_import_batch(
     state: State<'_, AppState>,
     batch_id: i64,
 ) -> AppResult<UndoReport> {
-    let report = with_db(&state, |db| import::undo(db.conn_mut(), batch_id))?;
+    let report = with_db(&state, |db| {
+        let today = today(db)?;
+        import::undo(db.conn_mut(), batch_id, today)
+    })?;
     emit_changed(&app, &["txn", "import_batch", "import_quarantine"]);
     Ok(report)
 }
@@ -1291,6 +1301,192 @@ pub async fn set_variable_spend_override(
     })?;
     emit_changed(&app, &["variable_spend_override"]);
     Ok(model)
+}
+
+// ---- debts and informal loans (M6) --------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_debts(state: State<'_, AppState>) -> AppResult<Vec<DebtView>> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        debt::views(db.conn(), today)
+    })
+}
+
+#[tauri::command]
+pub async fn create_debt(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: DebtInput,
+) -> AppResult<Debt> {
+    let created = write(&state, "debt.create", |tx, cmd| {
+        debt::create(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["debt", "obligation"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn update_debt(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    input: DebtInput,
+) -> AppResult<Debt> {
+    let updated = write(&state, "debt.update", |tx, cmd| {
+        debt::update(tx, cmd, id, &input)
+    })?;
+    emit_changed(&app, &["debt", "obligation"]);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn list_debt_payments(
+    state: State<'_, AppState>,
+    debt_id: i64,
+) -> AppResult<Vec<DebtPayment>> {
+    with_db(&state, |db| debt::payments(db.conn(), debt_id))
+}
+
+#[tauri::command]
+pub async fn record_debt_payment(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    debt_id: i64,
+    input: DebtPaymentInput,
+) -> AppResult<DebtPayment> {
+    let payment = write(&state, "debt.record_payment", |tx, cmd| {
+        debt::record_payment(tx, cmd, debt_id, &input)
+    })?;
+    emit_changed(&app, &["debt", "debt_payment", "obligation"]);
+    Ok(payment)
+}
+
+#[tauri::command]
+pub async fn remove_debt_payment(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    write(&state, "debt.remove_payment", |tx, cmd| {
+        debt::remove_payment(tx, cmd, id)
+    })?;
+    emit_changed(&app, &["debt", "debt_payment", "obligation"]);
+    Ok(())
+}
+
+/// Rows a payment could be recorded against: `(txn_id, posted_date, payee, amount_cents)`.
+#[tauri::command]
+pub async fn debt_payment_candidates(
+    state: State<'_, AppState>,
+    debt_id: i64,
+) -> AppResult<Vec<(i64, String, String, i64)>> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        let d = debt::get(db.conn(), debt_id)?;
+        debt::candidate_rows(db.conn(), &d, today)
+    })
+}
+
+#[tauri::command]
+pub async fn list_informal_loans(state: State<'_, AppState>) -> AppResult<Vec<InformalLoan>> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        debt::informal::list(db.conn(), today)
+    })
+}
+
+#[tauri::command]
+pub async fn create_informal_loan(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: InformalInput,
+) -> AppResult<InformalLoan> {
+    let today = with_db(&state, |db| today(db))?;
+    let loan = write(&state, "debt.create_informal", |tx, cmd| {
+        debt::informal::create(tx, cmd, &input, today)
+    })?;
+    emit_changed(&app, &["debt", "informal_loan", "txn"]);
+    Ok(loan)
+}
+
+#[tauri::command]
+pub async fn update_informal_loan(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    debt_id: i64,
+    input: InformalInput,
+) -> AppResult<InformalLoan> {
+    let today = with_db(&state, |db| today(db))?;
+    let loan = write(&state, "debt.update_informal", |tx, cmd| {
+        debt::informal::update(tx, cmd, debt_id, &input, today)
+    })?;
+    emit_changed(&app, &["debt", "informal_loan", "txn"]);
+    Ok(loan)
+}
+
+/// The repayment note drafted here; it is stored locally and never sent by the app.
+#[tauri::command]
+pub async fn set_informal_note(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    debt_id: i64,
+    note: String,
+) -> AppResult<()> {
+    write(&state, "debt.set_informal_note", |tx, cmd| {
+        debt::informal::set_note_draft(tx, cmd, debt_id, &note)
+    })?;
+    emit_changed(&app, &["informal_loan"]);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn add_informal_schedule_row(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    debt_id: i64,
+    due_date: String,
+    amount_cents: i64,
+) -> AppResult<i64> {
+    let id = write(&state, "debt.add_schedule_row", |tx, cmd| {
+        debt::informal::add_schedule_row(tx, cmd, debt_id, &due_date, amount_cents)
+    })?;
+    emit_changed(&app, &["informal_loan", "debt_payment"]);
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn delete_informal_schedule_row(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    write(&state, "debt.delete_schedule_row", |tx, cmd| {
+        debt::informal::delete_schedule_row(tx, cmd, id)
+    })?;
+    emit_changed(&app, &["informal_loan"]);
+    Ok(())
+}
+
+/// Total debt and informal remaining for the dashboard.
+#[tauri::command]
+pub async fn debt_totals(state: State<'_, AppState>) -> AppResult<Totals> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        debt::totals(db.conn(), today)
+    })
+}
+
+/// Avalanche, snowball and custom side by side for a monthly extra (none → 0).
+#[tauri::command]
+pub async fn debt_comparison(
+    state: State<'_, AppState>,
+    extra_cents: Option<i64>,
+) -> AppResult<Comparison> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        debt::strategy::compare(db.conn(), today, extra_cents)
+    })
 }
 
 /// Store today's baseline as the plan later forecasts are drawn against.

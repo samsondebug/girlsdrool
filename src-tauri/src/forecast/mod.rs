@@ -48,7 +48,7 @@ pub struct SurpriseBill {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Event {
-    /// `pending | income | obligation | variable | surprise`.
+    /// `pending | income | obligation | informal | variable | surprise`.
     pub kind: String,
     pub name: String,
     /// Signed from the cash accounts' point of view.
@@ -270,6 +270,21 @@ pub fn run(conn: &Connection, today: CivilDate, scenario: &Scenario) -> AppResul
             name: item.name,
             cents: neg(item.expected_cents)?,
             ref_id: Some(item.obligation_id),
+        });
+    }
+
+    // unpaid informal repayments due in the window (overdue ones on day 0)
+    for (debt_id, name, due, cents) in crate::debt::informal::unpaid_due_between(
+        conn,
+        today,
+        today - Duration::days(OVERDUE_LOOKBACK_DAYS),
+        horizon,
+    )? {
+        events[day_index(parse_civil(&due)?)].push(Event {
+            kind: "informal".into(),
+            name,
+            cents: neg(cents)?,
+            ref_id: Some(debt_id),
         });
     }
 

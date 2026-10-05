@@ -8,7 +8,14 @@ import { Money } from "../components/Money";
 import { Panel } from "../components/Panel";
 import { MarkedMoney } from "../components/Untrusted";
 import type { Forecast, SafeToSpend, UpcomingObligation } from "../lib/ipc";
-import { useAccounts, useForecast, useSafeToSpend, useTrust, useUpcoming } from "../lib/queries";
+import {
+  useAccounts,
+  useDebtTotals,
+  useForecast,
+  useSafeToSpend,
+  useTrust,
+  useUpcoming,
+} from "../lib/queries";
 import { BASELINE, useUiStore } from "../lib/store";
 import { TRUST_LABEL, TRUST_TONE } from "../lib/trust";
 
@@ -22,6 +29,7 @@ export function Dashboard() {
   const trust = useTrust();
   const accounts = useAccounts();
   const forecast = useForecast(BASELINE);
+  const totals = useDebtTotals();
   const firewalled = (accounts.data ?? []).filter((a) => a.firewalled && !a.archived);
   const setScreen = useUiStore((s) => s.setScreen);
   const nextIncome = safe.data?.terms.obligations.next_income ?? null;
@@ -150,11 +158,52 @@ export function Dashboard() {
         )}
       </Panel>
 
-      <Panel title="Debt total" className="col-span-3">
-        <EmptyState missing="No debts recorded." fix="Debts and loans (M6)." />
+      <Panel
+        title="Debt total"
+        className="col-span-3"
+        aside={
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setScreen("debts");
+            }}
+          >
+            Debts…
+          </Button>
+        }
+      >
+        {totals.data && totals.data.debts > 0 ? (
+          <div className="flex flex-col gap-1 text-14">
+            <Money cents={totals.data.total_debt_cents} size={28} tone={false} />
+            <p className="text-12 text-text-dim">
+              owed across {String(totals.data.debts)} debt{totals.data.debts === 1 ? "" : "s"}; each
+              minimum is an obligation in the plan.
+            </p>
+          </div>
+        ) : (
+          <EmptyState
+            missing="No debt recorded."
+            fix="Debts: add the cards and loans you owe on, linked to their accounts or standalone."
+          />
+        )}
       </Panel>
       <Panel title="Informal loans" className="col-span-3">
-        <EmptyState missing="No informal loans recorded." fix="Debts and loans (M6)." />
+        {totals.data &&
+        (totals.data.open_informal > 0 || totals.data.informal_remaining_cents > 0) ? (
+          <div className="flex flex-col gap-1 text-14">
+            <Money cents={totals.data.informal_remaining_cents} size={28} tone={false} />
+            <p className="text-12 text-text-dim">
+              still owed on {String(totals.data.open_informal)} informal loan
+              {totals.data.open_informal === 1 ? "" : "s"}; repayments are transfers, scheduled
+              before any accelerated paydown.
+            </p>
+          </div>
+        ) : (
+          <EmptyState
+            missing="No informal loan open."
+            fix="Debts › Informal loans: record money borrowed from a person and the row it arrived on."
+          />
+        )}
       </Panel>
       <Panel title="Venture cap" className="col-span-3">
         <EmptyState missing="No ventures recorded." fix="Ventures (M7)." />

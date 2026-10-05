@@ -6,6 +6,7 @@ pub mod cash;
 pub mod config;
 pub mod dates;
 pub mod db;
+pub mod debt;
 pub mod error;
 pub mod export;
 pub mod forecast;
@@ -171,6 +172,21 @@ pub fn run() {
             cmd::variable_spend_model,
             cmd::set_variable_spend_override,
             cmd::save_forecast_plan,
+            cmd::list_debts,
+            cmd::create_debt,
+            cmd::update_debt,
+            cmd::list_debt_payments,
+            cmd::record_debt_payment,
+            cmd::remove_debt_payment,
+            cmd::debt_payment_candidates,
+            cmd::list_informal_loans,
+            cmd::create_informal_loan,
+            cmd::update_informal_loan,
+            cmd::set_informal_note,
+            cmd::add_informal_schedule_row,
+            cmd::delete_informal_schedule_row,
+            cmd::debt_comparison,
+            cmd::debt_totals,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

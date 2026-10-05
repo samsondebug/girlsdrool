@@ -180,6 +180,12 @@ pub fn obligation_occurrences(
 ) -> AppResult<Vec<CivilDate>> {
     let mut out: Vec<CivilDate> = Vec::new();
     let day = u32::try_from(rule.due_day.unwrap_or(1)).unwrap_or(1);
+    // for the calendar rules the anchor is the first day the obligation exists: nothing falls
+    // due before it (a biweekly anchor is its first occurrence, a once rule's its only one)
+    let from = match rule.anchor {
+        Some(a) if a > from && !matches!(rule.rule, "biweekly" | "once") => a,
+        _ => from,
+    };
     match rule.rule {
         "monthly_day" => {
             let (mut y, mut m) = (from.year(), from.month());

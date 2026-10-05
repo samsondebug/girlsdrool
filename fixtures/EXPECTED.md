@@ -683,3 +683,103 @@ The downside moves the lowest point down (and here later: seven more days of bil
 | 11 | 2026-12-16 | 2026-12-22 | 0.00 | 239.03 | 39,862.01 | 39,862.01 |
 | 12 | 2026-12-23 | 2026-12-29 | 3,412.77 | 124.03 | 43,150.75 | 39,826.59 |
 
+## Debts and informal loans (M6)
+
+As of **2026-09-30**. A linked debt owes `max(0, −posted balance)` of its account; a standalone debt owes its opening minus
+recorded payments; an informal loan owes its original minus the repayments matched to its schedule. Interest per period
+(ARCHITECTURE §5.8, `mul_div_round`): monthly nominal `opening × apr_bps / 120 000`; actual/365 `opening × apr_bps × days / 3 650 000`;
+the promo APR applies while the period starts on or before `promo_end`. Periods are the calendar months after the as-of month.
+
+| debt | kind | balance source | owed | APR | method | minimum rule | period-1 minimum |
+|---|---|---|---:|---|---|---|---:|
+| Summit Visa | credit_card | linked `sv` | 0.00 | 24.99% | monthly_nominal | interest + 1% of balance, floor 25.00 | 0.00 |
+| Summit Amex | credit_card | linked `sa` | 116.00 | 0.00% | monthly_nominal | full balance | 116.00 |
+| Auto loan | loan | standalone 3,200.00 on 2026-09-30 | 3,200.00 | 6.49% | actual_365 | fixed 95.00 | 95.00 |
+| Balance transfer card | credit_card | standalone 4,800.00 on 2026-09-30 | 4,800.00 | 24.99% (promo 0.00% through 2026-12-31) | monthly_nominal | 2% of balance, floor 25.00 | 96.00 |
+
+Summit Visa carries a credit balance of 1,421.33 on 2026-09-30 (the August payment exceeded the balance), so it owes
+nothing and has no schedule and no minimum obligation; the Amex owes its September charges.
+
+### Informal loans
+
+- `Chris Park`: 600.00 borrowed 2026-08-05, promised "300 on each of the next two paydays" by 2026-09-30; proceeds row vm 2026-08-05 `Chris Park` (flagged borrowing, never income).
+  - schedule: 2026-08-28 300.00, 2026-09-28 300.00
+  - repayment 2026-08-28 ← nbc 2026-08-28 `ZELLE PAYMENT TO CHRIS PARK` 300.00 (a transfer to a liability, never an expense)
+  - repayment 2026-09-28 ← nbc 2026-09-28 `ZELLE PAYMENT TO CHRIS PARK` 300.00 (a transfer to a liability, never an expense)
+  - remaining **0.00**
+- `Mom`: 2,000.00 borrowed 2026-06-15, promised "pay it back within the year" by 2027-06-15; borrowed before the ledger starts; no proceeds row.
+  - remaining **2,000.00**
+
+Dashboard: total debt (cards and loans) **8,116.00**, informal remaining **2,000.00**.
+
+### Strategies with 300.00 extra per month
+
+Budget = extra + the first period's minimums = **607.00** per month, constant: a paid-off debt's minimum
+rolls to the next target. Every open debt gets its minimum; policy `informal_first` sends the rest to informal loans by
+promised date; then avalanche = highest effective APR this period (tie: smaller balance), snowball = smallest balance,
+custom = the user's order (auto loan, balance transfer, Visa, Amex). A payment never exceeds opening + interest.
+
+| strategy | total interest | last payoff | Summit Amex | Auto loan | Balance transfer card | Loan from Mom |
+|---|---:|---|---|---|---|---|
+| avalanche | **957.77** | 2028-04-30 | 0.00 by 2026-10-31 | 237.32 by 2028-04-30 | 720.45 by 2027-12-31 | 0.00 by 2027-03-31 |
+| snowball | **1,294.15** | 2028-04-30 | 0.00 by 2026-10-31 | 132.79 by 2027-08-31 | 1,161.36 by 2028-04-30 | 0.00 by 2027-03-31 |
+| custom | **1,294.15** | 2028-04-30 | 0.00 by 2026-10-31 | 132.79 by 2027-08-31 | 1,161.36 by 2028-04-30 | 0.00 by 2027-03-31 |
+
+### Avalanche, first six periods per debt (the full schedules are in debts.json)
+
+**Summit Amex** — owed 116.00, interest 0.00, paid off 2026-10-31
+
+| period | start | end | opening | interest | minimum | payment | closing |
+|---:|---|---|---:|---:|---:|---:|---:|
+| 1 | 2026-10-01 | 2026-10-31 | 116.00 | 0.00 | 116.00 | 116.00 | 0.00 |
+
+**Auto loan** — owed 3,200.00, interest 237.32, paid off 2028-04-30
+
+| period | start | end | opening | interest | minimum | payment | closing |
+|---:|---|---|---:|---:|---:|---:|---:|
+| 1 | 2026-10-01 | 2026-10-31 | 3,200.00 | 17.64 | 95.00 | 95.00 | 3,122.64 |
+| 2 | 2026-11-01 | 2026-11-30 | 3,122.64 | 16.66 | 95.00 | 95.00 | 3,044.30 |
+| 3 | 2026-12-01 | 2026-12-31 | 3,044.30 | 16.78 | 95.00 | 95.00 | 2,966.08 |
+| 4 | 2027-01-01 | 2027-01-31 | 2,966.08 | 16.35 | 95.00 | 95.00 | 2,887.43 |
+| 5 | 2027-02-01 | 2027-02-28 | 2,887.43 | 14.38 | 95.00 | 95.00 | 2,806.81 |
+| 6 | 2027-03-01 | 2027-03-31 | 2,806.81 | 15.47 | 95.00 | 95.00 | 2,727.28 |
+
+**Balance transfer card** — owed 4,800.00, interest 720.45, paid off 2027-12-31
+
+| period | start | end | opening | interest | minimum | payment | closing |
+|---:|---|---|---:|---:|---:|---:|---:|
+| 1 | 2026-10-01 | 2026-10-31 | 4,800.00 | 0.00 | 96.00 | 96.00 | 4,704.00 |
+| 2 | 2026-11-01 | 2026-11-30 | 4,704.00 | 0.00 | 94.08 | 94.08 | 4,609.92 |
+| 3 | 2026-12-01 | 2026-12-31 | 4,609.92 | 0.00 | 92.20 | 92.20 | 4,517.72 |
+| 4 | 2027-01-01 | 2027-01-31 | 4,517.72 | 94.08 | 90.35 | 90.35 | 4,521.45 |
+| 5 | 2027-02-01 | 2027-02-28 | 4,521.45 | 94.16 | 90.43 | 90.43 | 4,525.18 |
+| 6 | 2027-03-01 | 2027-03-31 | 4,525.18 | 94.24 | 90.50 | 492.94 | 4,126.48 |
+
+**Loan from Mom** — owed 2,000.00, interest 0.00, paid off 2027-03-31
+
+| period | start | end | opening | interest | minimum | payment | closing |
+|---:|---|---|---:|---:|---:|---:|---:|
+| 1 | 2026-10-01 | 2026-10-31 | 2,000.00 | 0.00 | 0.00 | 300.00 | 1,700.00 |
+| 2 | 2026-11-01 | 2026-11-30 | 1,700.00 | 0.00 | 0.00 | 417.92 | 1,282.08 |
+| 3 | 2026-12-01 | 2026-12-31 | 1,282.08 | 0.00 | 0.00 | 419.80 | 862.28 |
+| 4 | 2027-01-01 | 2027-01-31 | 862.28 | 0.00 | 0.00 | 421.65 | 440.63 |
+| 5 | 2027-02-01 | 2027-02-28 | 440.63 | 0.00 | 0.00 | 421.57 | 19.06 |
+| 6 | 2027-03-01 | 2027-03-31 | 19.06 | 0.00 | 0.00 | 19.06 | 0.00 |
+
+### Informal loans repaid within 12 months — a scenario, not an assumption
+
+- Extra 300.00 per month: remaining 2,000.00; achievable; the budget repays it by **2027-03-31**.
+- Extra 0.00 per month: remaining 2,000.00; not achievable: gap after 12 months 670.15; the budget repays it by **2028-03-31**.
+
+### Debt-minimum obligations the engine keeps in sync
+
+Every active debt with a minimum rule, a due day and a payment account gets one confirmed obligation of kind `debt_minimum`
+(expected = the current period's minimum, re-derived on every write; retired when the debt owes nothing or is inactive).
+None falls due before the next confirmed income (2026-10-02), so the M4 hero is unchanged; the forecast counts them as outflows.
+
+| obligation | due day | expected | source | payee contains |
+|---|---:|---:|---|---|
+| Summit Amex minimum | 22 | 116.00 | nbc | `summit card svcs amex pymt` |
+| Auto loan minimum | 15 | 95.00 | nbc | `lakeside auto finance` |
+| Balance transfer card minimum | 5 | 96.00 | nbc | `meridian bank card` |
+

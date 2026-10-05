@@ -3,6 +3,49 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M6 — Debts, informal loans, avalanche vs snowball in interest cents (unreleased)
+
+### Demo
+
+1. Debts: each card or loan, linked to its account (what it owes is the account's balance; the
+   fixture's Visa carries a credit balance and owes nothing) or standalone with an opening
+   balance; APR, promo rate and end, interest method (monthly nominal or actual/365), minimum
+   rule (fixed, % of balance with a floor, interest + %, full balance), due day, the account it
+   is paid from and the payee text that finds the payments. Every debt that owes something gets a
+   confirmed `debt_minimum` obligation (expected = next period's minimum, re-derived by every
+   write, starting the day it appears), so the hero and the forecast count it once: the fixture's
+   three minimums (Amex 116.00 on the 22nd, auto loan 95.00 on the 15th, balance transfer 96.00
+   on the 5th) add 921.00 of outflows to the 91-day forecast and nothing to today's hero.
+2. Strategy comparison: enter the monthly extra (a user input until a review supplies the
+   dependable surplus) and read avalanche, snowball and custom in interest cents with payoff
+   dates, then each debt's period-by-period schedule. On the fixture with 300.00 extra: avalanche
+   957.77 of interest, snowball and custom 1,294.15, every period equal to `EXPECTED.md` to the
+   cent; the budget (607.00) is constant and a paid-off minimum rolls to the next target.
+3. Informal loans: the loan from Chris (600.00 on Venmo, flagged borrowing and categorised
+   borrowing proceeds — never income — and out of the review queue) with its two scheduled
+   repayments found in the ledger (the Zelle transfers, never expenses) and a remaining of 0.00;
+   the loan from Mom (2,000.00, no schedule). Policy `informal_first` sends the extra to informal
+   loans first: "repaid within 12 months" is a scenario — achievable by 2027-03-31 with 300.00
+   extra; with no extra the gap after 12 months is 670.15 and the budget gets there 2028-03-31.
+   Each loan keeps a repayment note draft that never leaves the machine.
+4. Dashboard: Debt total (8,116.00 across 4 debts) and Informal loans (2,000.00 still owed on 1).
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 42 unit, 13 property, 1 logging, 9 M0, 6 M1,
+  3 M2, 3 M3, 3 M4, 5 M5 and 5 M6 acceptance (`tests/m6_debts.rs`: balances, minimum
+  obligations and informal loans; every strategy's every period to the cent; the 12-month
+  scenario; minimums in the forecast but not today's hero; standalone payments and detached rows).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check`, `pnpm test` (42) — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against the seeded folder (`seed_fixture_data_folder` now installs the
+  debts): `docs/screenshots/m6-debts.png` (the Debts screen) and `m6-dashboard.png`.
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only); the Windows netstat observation.
+
 ## M5 — Forecast + scenarios (unreleased)
 
 ### Demo
