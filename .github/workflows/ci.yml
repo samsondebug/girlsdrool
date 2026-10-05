@@ -39,6 +39,10 @@ jobs:
   # real app, then the unsigned installer as an artifact.
   windows:
     runs-on: windows-latest
+    env:
+      # `just` runs its recipes under Git Bash, whose MSYS perl lacks the modules OpenSSL's
+      # Configure needs; the vendored OpenSSL build must use Strawberry Perl.
+      OPENSSL_SRC_PERL: C:\Strawberry\perl\bin\perl.exe
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

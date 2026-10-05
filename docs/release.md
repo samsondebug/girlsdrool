@@ -54,4 +54,7 @@ just build-debug      # debug binary without an installer (what the E2E drives)
 ```
 
 The Rust build compiles SQLCipher and OpenSSL from source (`bundled-sqlcipher-vendored-openssl`),
-which needs Perl on PATH (Strawberry Perl on Windows) and takes several minutes the first time.
+which needs Perl and takes several minutes the first time. On Windows that Perl must be
+Strawberry Perl: `just` runs its recipes under Git Bash, whose own MSYS perl lacks the modules
+OpenSSL's Configure loads, so set `OPENSSL_SRC_PERL=C:\Strawberry\perl\bin\perl.exe` (CI does)
+before `just check` or `pnpm tauri build`.
