@@ -61,7 +61,7 @@ export async function launchKept(): Promise<KeptApp> {
       KEPT_DATA_DIR: dataDir,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
     },
-    stdio: "ignore",
+    stdio: ["ignore", "inherit", "inherit"],
   });
   const browser = await connectWithRetry(`http://127.0.0.1:${port}`, 60_000);
   const context = browser.contexts()[0] ?? (await browser.newContext());
