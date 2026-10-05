@@ -1,4 +1,6 @@
-//! Everything that writes outside the database: backups and (from M9) exports and the audit
-//! pack. No network, ever.
+//! Everything that writes outside the database: backups, restore, the full export and the
+//! audit pack (ARCHITECTURE §6.6). No network, ever.
 
 pub mod backup;
+pub mod full;
+pub mod restore;

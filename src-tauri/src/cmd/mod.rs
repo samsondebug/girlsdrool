@@ -2,7 +2,7 @@
 //! (ARCHITECTURE §7). Every write runs in one transaction under one command group and emits
 //! `kept://changed` so the webview recomputes. Nothing monetary is computed here.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
@@ -33,8 +33,11 @@ use crate::debt::{
     Debt, DebtInput, DebtView, Payment as DebtPayment, PaymentInput as DebtPaymentInput, Totals,
 };
 use crate::error::{AppError, AppResult};
+use crate::export::backup::{self, BackupEntry};
+use crate::export::full::{self, ExportReport};
+use crate::export::restore::{self, RestoreComparison};
 use crate::forecast::{self, variable::CategoryModel, Forecast, PlanOverlay, Scenario};
-use crate::import::profile::{self, Profile};
+use crate::import::profile::{self, Draft, Profile, ProfileInput, ProfileSpec};
 use crate::import::report::ImportReport;
 use crate::import::{self, ImportInput, Preview, QuarantineAction, UndoReport};
 use crate::plan::earmark::{self, Earmark, EarmarkInput, Entry, EntryInput};
@@ -204,6 +207,7 @@ pub async fn unlock(
     let paths = current_paths(&state)?;
     let mut db = Db::open(&paths, &passphrase, OpenMode::Existing)?;
     daily_snapshot(&mut db);
+    daily_backup(&db);
     *state.db.lock().map_err(|_| poisoned())? = Some(db);
     if remember {
         secret::remember(&paths.root, &passphrase)?;
@@ -230,6 +234,21 @@ fn daily_snapshot(db: &mut Db) {
     }
 }
 
+/// The daily rotating backup, once per civil day on unlock (ARCHITECTURE §6.6). A failure is
+/// logged and never blocks the unlock; the Backups panel shows what was taken.
+fn daily_backup(db: &Db) {
+    let attempt = || -> AppResult<Option<PathBuf>> {
+        let today = today(db)?;
+        let keep = settings::load(db.conn())?.backup_keep_daily;
+        backup::daily(db.conn(), db.paths(), db.passphrase(), today, keep)
+    };
+    match attempt() {
+        Ok(Some(path)) => tracing::info!(path = %path.display(), "daily backup taken"),
+        Ok(None) => {}
+        Err(e) => tracing::warn!(error = %e, "daily backup not taken"),
+    }
+}
+
 #[tauri::command]
 pub async fn unlock_remembered(state: State<'_, AppState>) -> AppResult<AppStatus> {
     let paths = current_paths(&state)?;
@@ -241,6 +260,7 @@ pub async fn unlock_remembered(state: State<'_, AppState>) -> AppResult<AppStatu
     };
     let mut db = Db::open(&paths, &passphrase, OpenMode::Existing)?;
     daily_snapshot(&mut db);
+    daily_backup(&db);
     *state.db.lock().map_err(|_| poisoned())? = Some(db);
     tracing::info!("database unlocked from credential store");
     status(&state)
@@ -400,6 +420,190 @@ fn load_source(source: &ImportSource) -> AppResult<(String, Vec<u8>)> {
 #[tauri::command]
 pub async fn list_import_profiles(state: State<'_, AppState>) -> AppResult<Vec<Profile>> {
     with_db(&state, |db| profile::list(db.conn()))
+}
+
+// ---- institution profiles (M9, ADR-0046) ---------------------------------------------------
+
+#[tauri::command]
+pub async fn create_import_profile(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: ProfileInput,
+) -> AppResult<Profile> {
+    let created = write(&state, "import_profile.create", |tx, cmd| {
+        profile::create(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["import_profile"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn update_import_profile(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    input: ProfileInput,
+) -> AppResult<Profile> {
+    let updated = write(&state, "import_profile.update", |tx, cmd| {
+        profile::update(tx, cmd, id, &input)
+    })?;
+    emit_changed(&app, &["import_profile"]);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn delete_import_profile(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    write(&state, "import_profile.delete", |tx, cmd| {
+        profile::delete(tx, cmd, id)
+    })?;
+    emit_changed(&app, &["import_profile"]);
+    Ok(())
+}
+
+/// A mapping guessed from a sample file, for the editor to correct. Nothing is stored.
+#[tauri::command]
+pub async fn draft_import_profile(source: ImportSource) -> AppResult<Draft> {
+    let (_, bytes) = load_source(&source)?;
+    profile::draft_from_sample(&bytes)
+}
+
+/// Run a mapping against a file: the first rows as the ledger would see them, or the problem.
+#[tauri::command]
+pub async fn test_import_profile(spec: ProfileSpec, source: ImportSource) -> AppResult<Preview> {
+    let (_, bytes) = load_source(&source)?;
+    import::test_spec(&bytes, &spec)
+}
+
+// ---- backups, restore, passphrase, exports (M9, ADR-0046) ----------------------------------
+
+#[tauri::command]
+pub async fn list_backups(state: State<'_, AppState>) -> AppResult<Vec<BackupEntry>> {
+    with_db(&state, |db| backup::list_log(db.conn()))
+}
+
+#[tauri::command]
+pub async fn backup_now(app: AppHandle, state: State<'_, AppState>) -> AppResult<BackupEntry> {
+    let entry = with_db(&state, |db| {
+        backup::manual(db.conn(), db.paths(), db.passphrase(), &backup::stamp())
+    })?;
+    emit_changed(&app, &["backup"]);
+    Ok(entry)
+}
+
+/// Open a backup with its passphrase, stage it beside the live database and compare the two.
+#[tauri::command]
+pub async fn restore_stage(
+    state: State<'_, AppState>,
+    path: String,
+    passphrase: String,
+) -> AppResult<RestoreComparison> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        restore::stage(db, Path::new(path.trim()), &passphrase, today)
+    })
+}
+
+#[tauri::command]
+pub async fn restore_discard(state: State<'_, AppState>) -> AppResult<()> {
+    let paths = current_paths(&state)?;
+    restore::discard(&paths)
+}
+
+/// Replace the live database with the staged copy (ADR-0012). A verified pre-restore copy is
+/// taken first; if the swap itself fails Kept is left locked and the copy is in `backups/`.
+#[tauri::command]
+pub async fn restore_confirm(app: AppHandle, state: State<'_, AppState>) -> AppResult<AppStatus> {
+    let mut guard = state.db.lock().map_err(|_| poisoned())?;
+    let live = guard.as_ref().ok_or(AppError::Locked)?;
+    let pre_restore = restore::prepare(live, &backup::stamp())?;
+    let live = guard.take().ok_or(AppError::Locked)?;
+    let swapped = restore::swap(live, &pre_restore);
+    let restored = match swapped {
+        Ok(db) => db,
+        Err(e) => {
+            drop(guard);
+            tracing::error!(error = %e, "restore failed after the live database was closed");
+            return Err(e);
+        }
+    };
+    *guard = Some(restored);
+    drop(guard);
+    emit_changed(&app, &["restore"]);
+    status(&state)
+}
+
+/// Fresh manual backup under the current passphrase, then `PRAGMA rekey`; the credential store
+/// follows when the passphrase is remembered (ARCHITECTURE §9).
+#[tauri::command]
+pub async fn change_passphrase(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    passphrase: String,
+    confirm: String,
+) -> AppResult<AppStatus> {
+    if passphrase != confirm {
+        return Err(AppError::validation(
+            "confirm",
+            "the two passphrases do not match",
+        ));
+    }
+    crate::db::validate_passphrase(&passphrase)?;
+    let paths = current_paths(&state)?;
+    with_db(&state, |db| {
+        if db.passphrase() == passphrase {
+            return Err(AppError::validation(
+                "passphrase",
+                "that is already the passphrase",
+            ));
+        }
+        backup::manual(db.conn(), db.paths(), db.passphrase(), &backup::stamp())?;
+        db.rekey(&passphrase)?;
+        if secret::is_remembered(&paths.root)? {
+            secret::remember(&paths.root, &passphrase)?;
+        }
+        Ok(())
+    })?;
+    tracing::info!("passphrase changed");
+    emit_changed(&app, &["backup"]);
+    status(&state)
+}
+
+fn export_dir(db: &Db, dir: Option<String>, kind: &str) -> PathBuf {
+    match dir.map(|d| d.trim().to_string()).filter(|d| !d.is_empty()) {
+        Some(d) => PathBuf::from(d),
+        None => db
+            .paths()
+            .exports
+            .join(format!("{kind}-{}", backup::stamp())),
+    }
+}
+
+/// One CSV per table plus `kept.json`, into `dir` or a stamped folder under `exports/`.
+#[tauri::command]
+pub async fn export_full(
+    state: State<'_, AppState>,
+    dir: Option<String>,
+) -> AppResult<ExportReport> {
+    with_db(&state, |db| {
+        let target = export_dir(db, dir, "full");
+        full::full(db.conn(), &target, env!("CARGO_PKG_VERSION"))
+    })
+}
+
+#[tauri::command]
+pub async fn export_audit_pack(
+    state: State<'_, AppState>,
+    dir: Option<String>,
+) -> AppResult<ExportReport> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        let target = export_dir(db, dir, "audit-pack");
+        full::audit_pack(db.conn(), &target, today, env!("CARGO_PKG_VERSION"))
+    })
 }
 
 #[tauri::command]

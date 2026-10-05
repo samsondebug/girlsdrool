@@ -216,17 +216,17 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] restore into a temp data dir matches row counts and the hero number
+- [x] restore into a temp data dir matches row counts and the hero number (`tests/m9_backup_export.rs`)
 
 **Engineering checklist**
 
-- [ ] OFX/QFX parser (SGML and XML forms), `FITID` → `external_id`, bank-provided ledger balance → reconciliation statement source `file`
-- [ ] Institution profile editor in Settings (create from a sample file, edit mapping, test against a file)
-- [ ] Daily rotating backups on launch; manual backup; `pre_migration` and `pre_restore`; `backup_log`
-- [ ] Restore flow: open backup with its passphrase → temp data dir → migrate → compare per-table row counts and hero → confirm swap (ADR-0012)
-- [ ] Passphrase change via `rekey` with fresh backup; keyring update
-- [ ] Full export (CSV per table + JSON) and the audit pack with its README (ARCHITECTURE §6.6)
-- [ ] Integration test: backup → restore into temp dir → row counts per table and hero equal the source; restore under a new passphrase opens only with the new one
+- [x] OFX/QFX parser (SGML and XML forms), `FITID` → `external_id`, bank-provided ledger balance → reconciliation statement source `file`
+- [x] Institution profile editor in Settings (create from a sample file, edit mapping, test against a file)
+- [x] Daily rotating backups on launch; manual backup; `pre_migration` and `pre_restore`; `backup_log`
+- [x] Restore flow: open backup with its passphrase → temp data dir → migrate → compare per-table row counts and hero → confirm swap (ADR-0012)
+- [x] Passphrase change via `rekey` with fresh backup; keyring update
+- [x] Full export (CSV per table + JSON) and the audit pack with its README (ARCHITECTURE §6.6)
+- [x] Integration test: backup → restore into temp dir → row counts per table and hero equal the source; restore under a new passphrase opens only with the new one
 
 **Questions to batch:** none.
 

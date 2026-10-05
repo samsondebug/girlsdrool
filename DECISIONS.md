@@ -841,3 +841,66 @@ an app that may not be running at night.
 two-or-four refusal, the stored snapshot, persistence across unlock on a real file database, and
 daily uniqueness. The batched M8 question (ADR-0026: 90 days of receipts vs three pay cycles)
 stays open with its default in force.
+
+## ADR-0046 — OFX/QFX, the profile editor, backups that verify, restore by comparison, exports
+
+Status: Accepted · Date: 2026-10-05 · Source: product spec (M9) + tech lead (mechanics)
+
+**Decision.**
+
+1. **One OFX/QFX profile.** The OFX standard names every field, so a single system profile
+   (`ofx_qfx`, migration 0005, format `ofx`) serves every bank; its only knob is `TRNTYPE` →
+   row flags (`ATM`/`CASH` → cash withdrawal + needs review, `FEE`/`SRVCHG` → fee, `INT` →
+   interest). Detection is by the bytes (`OFXHEADER`, `<?OFX`, `<OFX>`), never by profile. One
+   tolerant tokenizer reads both the SGML form (leaf tags left open) and the XML form. Mapping:
+   `FITID` → `external_id` (required), `DTPOSTED` → posted date, `DTUSER` → effective date,
+   `TRNAMT` → amount as signed by the bank (account's point of view), `NAME` → payee, `MEMO` →
+   memo, `CHECKNUM` → payee when `NAME` is absent; rows are posted (OFX has no pending state);
+   dates are the first eight digits as the bank states them; `CURDEF` other than USD is
+   refused; a file with more than one account is refused. `<LEDGERBAL>` becomes the file's
+   closing, which Reconcile takes as statement source `file`. A CSV running balance is now
+   reported the same way (`ParsedFile.closing`), so both formats hand Reconcile one figure.
+2. **Dedup across formats follows ADR-0017 unchanged.** An OFX row that matches a CSV-imported
+   row (same account, amount, ±3 days, payee above the threshold) is a better observation and
+   updates it with the FITID; user-edited fields are never touched; nothing is quarantined. The
+   same file twice is a duplicate batch. The fixture pins both.
+3. **Profiles are data the person edits.** `import_profile.spec` is `Spec::Csv(ProfileSpec)` or
+   `Spec::Ofx(OfxSpec)` by the `format` column. CSV profiles are created from a sample file
+   (`draft_from_sample`: the first plausible header within ten preamble rows, columns guessed by
+   name, the date format from the first data row), corrected in a form or as JSON, tested against
+   a file without touching the database (`test_spec`: signature match, then the parse), and
+   stored only after `validate_spec` (every named column in the signature, every flag known).
+   Built-in profiles are read-only; a profile an import batch used cannot be deleted so the
+   batch report keeps its meaning. Every change is one audit row.
+4. **Every backup is verified before it is logged**: opened with its passphrase and compared
+   table by table with the live row counts at export time. Daily copies are
+   `backups/kept-YYYY-MM-DD.db`, one per civil day on the day's first unlock, rotated to
+   `backup_keep_daily` by file name only (manual, pre-migration and pre-restore copies never
+   rotate); a failure is logged and never blocks the unlock. `sqlcipher_export` does not copy
+   `user_version`, so the writer sets it on the copy, and the migration runner restores a
+   missing `user_version` from `schema_migration` so copies made by earlier builds still open.
+5. **Restore compares before it swaps.** The backup is opened with its own passphrase and
+   exported into `<data>/restore-staging/` under the live passphrase, migrated there, and
+   compared with the live database: every table's row count and the hero as of today. Confirming
+   takes a verified pre-restore copy (`kept-pre-restore-<stamp>.db`), closes the live database,
+   removes its WAL sidecars, renames the staged file into place, reopens it and logs the
+   pre-restore copy there. If the restored file does not open, the pre-restore copy is put back.
+   The restored database keeps the live passphrase, so a remembered credential stays valid.
+6. **Passphrase change** = fresh verified manual backup under the current passphrase, WAL
+   checkpoint, `PRAGMA rekey`, credential store updated when remembered. Earlier backups keep
+   the passphrase they were taken with; the Settings panel says so.
+7. **Exports never overwrite** (`create_new`) and are written only where asked (a stamped folder
+   under `exports/` by default). Full export: one CSV per user table plus `kept.json`; a column
+   stored as `*_cents` is exported without the suffix as a decimal string. Audit pack: ledger
+   (leaf rows with account, category path, flags, venture, link ids), reconciliation periods,
+   `safe_to_spend.json` (the hero's terms with row ids), `forecast.json` (the baseline),
+   `debt_schedule.csv` (avalanche at minimums only, no hypothetical extra), `venture_rollup.csv`
+   and a README stating the sign convention. Nothing is recomputed in the exporter.
+
+**Consequences.** `tests/m9_ofx_profiles.rs` pins both OFX forms against the CSV rows, the
+insert / duplicate-file / update-with-FITID outcomes and a file-sourced reconciliation, and the
+draft → test → create → update → delete path; `tests/m9_backup_export.rs` pins the spec's
+acceptance (restore into a temporary data folder matches every table's row count and the hero
+14,165.22), a backup under a new passphrase opening only with it, daily rotation, rekey, and the
+export file list with the fixture's row counts. The latent `OpenFlags` gap (no `CREATE` on an
+existing database, which made an attached backup uncreatable after a plain unlock) is closed.

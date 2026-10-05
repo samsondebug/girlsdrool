@@ -3,6 +3,56 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M9 — OFX/QFX, institution profiles, backup and restore, exports (unreleased)
+
+### Demo
+
+1. Import an OFX or QFX file: drop `fixtures/riverside/riverside_checking_2026-08.qfx` (SGML form)
+   or `northbank/northbank_savings_2026-09.ofx` (XML form) on the Import screen. The preview names
+   the account in the file, its date range and the ledger balance the bank states; every row gets
+   its `FITID` as external id. Imported after the same month's CSV, each row is matched to the row
+   already there and gains its FITID; nothing is inserted twice (`fixtures/EXPECTED.md` "OFX/QFX,
+   backup and restore, audit pack (M9)"). After the import, Reconcile takes the file's balance as
+   statement source `file` and the period balances.
+2. Settings → Institution profiles: "New from sample file…" reads a CSV's header, guesses the
+   mapping, and opens the editor; correct the columns (or the whole mapping as JSON), test it
+   against the file (first rows, or the exact row and column that fails), save. Built-in
+   profiles stay read-only; a profile an import used cannot be deleted.
+3. Settings → Backups: the day's first unlock writes `backups/kept-YYYY-MM-DD.db` (the newest
+   `backup_keep_daily` kept); Back up now writes a manual copy. Every copy is verified table by
+   table before it is listed. Restore from backup… opens any copy with its own passphrase, stages
+   it beside the live database, migrates it and shows every table's row count and the hero side
+   by side; "Replace live data with this backup" takes a verified pre-restore copy first.
+4. Settings → Passphrase: change it; a verified backup under the previous passphrase is taken
+   first, then the database is rekeyed in place and the remembered credential follows.
+5. Settings → Exports: the full export (one CSV per table plus `kept.json`) and the audit pack
+   (ledger, reconciliation, safe-to-spend terms, forecast, debt schedule, venture rollup, README)
+   go to a stamped folder under `exports/` or a folder of your choice; never over existing files.
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 51 unit, 13 property, 1 logging, 9 M0, 6 M1,
+  3 M2, 3 M3, 3 M4, 5 M5, 5 M6, 3 M7, 4 M8, 3 M9 OFX/profiles (`tests/m9_ofx_profiles.rs`: both
+  OFX forms parse to the CSV rows; insert, duplicate file, update-with-FITID and a file-sourced
+  reconciliation; draft → test → create → update → delete) and 4 M9 backup/export
+  (`tests/m9_backup_export.rs`: the restore roundtrip matches every table's row count and the
+  hero 14,165.22 on a real SQLCipher file, the wrong passphrase fails closed, daily rotation,
+  rekey, the export file list with the fixture's row counts).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check`, `pnpm test` (42), `scripts/gates.sh` — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb: opening the M8 seed folder migrated it v4 → v5 with a verified
+  pre-migration backup and took the day's backup; `docs/screenshots/m9-settings.png` (Backups,
+  profiles, exports), `m9-restore.png` (the pre-migration copy compared with live data: schema
+  v4 → v5, same hero, two bookkeeping tables differ), `m9-import-ofx.png` (the QFX preview; its
+  commit updated the five CSV rows with their FITIDs and offered the ledger balance to
+  Reconcile); an audit pack written from Settings (7 files).
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only); Windows Credential Manager update after a
+  passphrase change (the Linux keyring store path ran); the Windows netstat observation.
+
 ## M8 — Weekly review, snapshots, trends (unreleased)
 
 ### Demo

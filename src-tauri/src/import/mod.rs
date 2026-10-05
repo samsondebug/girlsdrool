@@ -4,6 +4,7 @@
 pub mod csv;
 pub mod dedup;
 pub mod normalize;
+pub mod ofx;
 pub mod profile;
 pub mod report;
 
@@ -19,10 +20,11 @@ use crate::dates::{format_civil, parse_civil, CivilDate};
 use crate::db::audit::{self, Action, Actor};
 use crate::db::repo::{account, batch, link, txn};
 use crate::error::{AppError, AppResult};
-use crate::import::csv::{flag_names, ParsedRow, RowStatus};
+use crate::import::csv::{flag_names, FileClosing, ParsedFile, ParsedRow, RowStatus};
 use crate::import::dedup::{Candidate, Decision};
 use crate::import::normalize::payee_norm;
-use crate::import::profile::Profile;
+use crate::import::ofx::OfxInfo;
+use crate::import::profile::{Profile, ProfileSpec, Spec};
 use crate::import::report::{ImportReport, Quarantined, Skipped, Updated};
 
 #[derive(Debug, Clone)]
@@ -69,6 +71,8 @@ pub struct PreviewRow {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Preview {
     pub file_sha256: String,
+    /// `csv` or `ofx`, from the bytes themselves.
+    pub format: String,
     pub profile: Option<Profile>,
     pub candidates: Vec<ProfileSummary>,
     pub header: Vec<String>,
@@ -78,6 +82,10 @@ pub struct Preview {
     pub problem: Option<Problem>,
     /// Set when this exact file was already imported for this account and profile.
     pub already_imported_batch: Option<i64>,
+    /// The statement closing the file states (CSV running balance or OFX ledger balance).
+    pub closing: Option<FileClosing>,
+    /// What an OFX/QFX file says about itself.
+    pub ofx: Option<OfxInfo>,
 }
 
 pub const PREVIEW_ROWS: usize = 20;
@@ -93,12 +101,43 @@ fn summaries(profiles: &[Profile]) -> Vec<ProfileSummary> {
         .collect()
 }
 
-/// The profile to use: the one asked for, else the single profile whose signature matches.
+/// The format the bytes are in, decided before any profile: `ofx` or `csv`.
+pub fn detect_format(bytes: &[u8]) -> &'static str {
+    if ofx::is_ofx(bytes) {
+        "ofx"
+    } else {
+        "csv"
+    }
+}
+
+/// Parse a file with a profile of its own format: CSV rows through the CSV mapping, OFX rows
+/// through the fixed OFX mapping (with the file's own account and balance information).
+pub fn parse_file(bytes: &[u8], p: &Profile) -> AppResult<(ParsedFile, Option<OfxInfo>)> {
+    match (&p.spec, detect_format(bytes)) {
+        (Spec::Csv(spec), "csv") => Ok((csv::parse(bytes, spec)?, None)),
+        (Spec::Ofx(spec), "ofx") => {
+            let (file, info) = ofx::parse(bytes, spec)?;
+            Ok((file, Some(info)))
+        }
+        (Spec::Csv(_), _) => Err(AppError::validation(
+            "profile_id",
+            format!("{} is a CSV profile but the file is OFX/QFX", p.name),
+        )),
+        (Spec::Ofx(_), _) => Err(AppError::validation(
+            "profile_id",
+            format!("{} is the OFX/QFX profile but the file is not OFX", p.name),
+        )),
+    }
+}
+
+/// The profile to use: the one asked for, else the single profile whose signature matches
+/// (CSV), else the OFX profile when the bytes are OFX.
 fn resolve_profile(
     conn: &Connection,
     input: &ImportInput,
 ) -> AppResult<(Option<Profile>, Vec<Profile>, Vec<String>)> {
     let profiles = profile::list(conn)?;
+    let format = detect_format(&input.bytes);
     if let Some(id) = input.profile_id {
         let p = profiles
             .iter()
@@ -108,12 +147,29 @@ fn resolve_profile(
                 entity: "import_profile",
                 id,
             })?;
-        let header = csv::read_header(&input.bytes, p.spec.skip_rows).unwrap_or_default();
+        let header = match p.csv() {
+            Some(spec) if format == "csv" => {
+                csv::read_header(&input.bytes, spec.skip_rows).unwrap_or_default()
+            }
+            _ => Vec::new(),
+        };
         return Ok((Some(p), Vec::new(), header));
+    }
+    if format == "ofx" {
+        let candidates: Vec<Profile> = profiles.into_iter().filter(|p| p.format == "ofx").collect();
+        let chosen = candidates
+            .iter()
+            .find(|p| p.is_system)
+            .or(candidates.first())
+            .cloned();
+        return Ok((chosen, candidates, Vec::new()));
     }
     let mut candidates = Vec::new();
     for p in &profiles {
-        if let Ok(header) = csv::read_header(&input.bytes, p.spec.skip_rows) {
+        let Some(spec) = p.csv() else {
+            continue;
+        };
+        if let Ok(header) = csv::read_header(&input.bytes, spec.skip_rows) {
             if !profile::matching(std::slice::from_ref(p), &header).is_empty() {
                 candidates.push(p.clone());
             }
@@ -151,6 +207,7 @@ pub fn preview(conn: &Connection, input: &ImportInput) -> AppResult<Preview> {
     let file_sha256 = sha256_hex(&input.bytes);
     let mut preview = Preview {
         file_sha256: file_sha256.clone(),
+        format: detect_format(&input.bytes).to_string(),
         profile: chosen.clone(),
         candidates: summaries(&candidates),
         header,
@@ -159,41 +216,111 @@ pub fn preview(conn: &Connection, input: &ImportInput) -> AppResult<Preview> {
         blank_rows: 0,
         problem: None,
         already_imported_batch: None,
+        closing: None,
+        ofx: None,
     };
     let Some(p) = chosen else {
         return Ok(preview);
     };
     preview.already_imported_batch =
         batch::find_same_file(conn, input.account_id, p.id, &file_sha256)?;
-    match csv::parse(&input.bytes, &p.spec) {
-        Ok(file) => {
-            preview.total_rows = file.rows.len();
-            preview.blank_rows = file.blank_rows;
-            preview.rows = file
-                .rows
-                .iter()
-                .take(PREVIEW_ROWS)
-                .map(preview_row)
-                .collect();
+    match parse_file(&input.bytes, &p) {
+        Ok((file, info)) => {
+            if info.is_some() {
+                preview.header = file.header.clone();
+            }
+            fill_preview(&mut preview, &file);
+            preview.ofx = info;
         }
-        Err(AppError::Parse {
+        Err(e) => preview.problem = Some(problem_of(e)),
+    }
+    Ok(preview)
+}
+
+fn problem_of(e: AppError) -> Problem {
+    match e {
+        AppError::Parse {
             row,
             column,
             message,
-        }) => {
-            preview.problem = Some(Problem {
-                row,
-                column,
-                message,
-            });
-        }
-        Err(other) => {
-            preview.problem = Some(Problem {
-                row: 0,
-                column: String::new(),
-                message: other.to_string(),
-            });
-        }
+        } => Problem {
+            row,
+            column,
+            message,
+        },
+        other => Problem {
+            row: 0,
+            column: String::new(),
+            message: other.to_string(),
+        },
+    }
+}
+
+fn fill_preview(preview: &mut Preview, file: &ParsedFile) {
+    preview.total_rows = file.rows.len();
+    preview.blank_rows = file.blank_rows;
+    preview.closing = file.closing;
+    preview.rows = file
+        .rows
+        .iter()
+        .take(PREVIEW_ROWS)
+        .map(preview_row)
+        .collect();
+}
+
+/// Try a CSV mapping against a file without touching the database: what the profile editor's
+/// "test against a file" shows (ADR-0046). A preview with no profile and no batch lookup.
+pub fn test_spec(bytes: &[u8], spec: &ProfileSpec) -> AppResult<Preview> {
+    profile::validate_spec(spec)?;
+    let mut preview = Preview {
+        file_sha256: sha256_hex(bytes),
+        format: detect_format(bytes).to_string(),
+        profile: None,
+        candidates: Vec::new(),
+        header: csv::read_header(bytes, spec.skip_rows).unwrap_or_default(),
+        rows: Vec::new(),
+        total_rows: 0,
+        blank_rows: 0,
+        problem: None,
+        already_imported_batch: None,
+        closing: None,
+        ofx: None,
+    };
+    if preview.format != "csv" {
+        preview.problem = Some(Problem {
+            row: 0,
+            column: String::new(),
+            message: "the file is OFX/QFX; a CSV mapping does not apply".into(),
+        });
+        return Ok(preview);
+    }
+    if profile::matching(
+        &[Profile {
+            id: 0,
+            name: String::new(),
+            institution: String::new(),
+            format: "csv".into(),
+            is_system: false,
+            spec: Spec::Csv(Box::new(spec.clone())),
+        }],
+        &preview.header,
+    )
+    .is_empty()
+    {
+        preview.problem = Some(Problem {
+            row: 0,
+            column: String::new(),
+            message: format!(
+                "the file's header ({}) does not match the signature ({})",
+                preview.header.join(" | "),
+                spec.header_signature.join(" | ")
+            ),
+        });
+        return Ok(preview);
+    }
+    match csv::parse(bytes, spec) {
+        Ok(file) => fill_preview(&mut preview, &file),
+        Err(e) => preview.problem = Some(problem_of(e)),
     }
     Ok(preview)
 }
@@ -303,7 +430,7 @@ pub fn commit(
         }
     })?;
     let file_sha256 = sha256_hex(&input.bytes);
-    let file = csv::parse(&input.bytes, &p.spec)?;
+    let (file, _) = parse_file(&input.bytes, &p)?;
 
     let opening = parse_civil(&acct.opening_date)?;
     for r in file.rows.iter().filter(|r| r.skipped.is_none()) {
@@ -339,14 +466,9 @@ pub fn commit(
         profile_name: p.name.clone(),
         ..Default::default()
     };
-    if let Some(last) = file
-        .rows
-        .iter()
-        .filter(|r| r.balance_cents.is_some() && r.skipped.is_none())
-        .max_by(|a, b| a.posted_date.cmp(&b.posted_date))
-    {
-        report.file_closing_cents = last.balance_cents;
-        report.file_closing_date = Some(format_civil(last.posted_date));
+    if let Some(closing) = file.closing {
+        report.file_closing_cents = Some(closing.cents);
+        report.file_closing_date = Some(format_civil(closing.date));
     }
 
     if let Some(prev) = batch::find_same_file(&tx, acct.id, p.id, &file_sha256)? {

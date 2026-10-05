@@ -94,16 +94,35 @@ impl Db {
     pub fn paths(&self) -> &DataPaths {
         &self.paths
     }
+
+    /// Change the passphrase in place with `PRAGMA rekey` (ADR-0012). The caller takes the
+    /// fresh backup first; the write-ahead log is checkpointed so every page is rewritten.
+    pub fn rekey(&mut self, new_passphrase: &str) -> AppResult<()> {
+        validate_passphrase(new_passphrase)?;
+        self.conn
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+        self.conn.pragma_update(None, "rekey", new_passphrase)?;
+        self.passphrase = Zeroizing::new(new_passphrase.to_owned());
+        Ok(())
+    }
 }
 
 /// Open a SQLCipher file with the given passphrase and prove the key by reading the schema.
 /// Any other key leaves the file unreadable (`SQLITE_NOTADB`) and is reported as
 /// `WrongPassphrase`.
 pub fn open_keyed(path: &Path, passphrase: &str, create: bool) -> AppResult<Connection> {
-    let mut flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    if create {
-        flags |= OpenFlags::SQLITE_OPEN_CREATE;
+    if !create && !path.is_file() {
+        return Err(AppError::validation(
+            "database",
+            format!("no database at {}", path.display()),
+        ));
     }
+    // CREATE stays on even for an existing file: an ATTACHed database (a backup, the restore
+    // staging copy) inherits the connection's flags and must be creatable. Existence of the
+    // main file is decided above, not by SQLite.
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
+        | OpenFlags::SQLITE_OPEN_CREATE
+        | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let conn = Connection::open_with_flags(path, flags)?;
     conn.pragma_update(None, "key", passphrase)?;
     probe_key(&conn)?;

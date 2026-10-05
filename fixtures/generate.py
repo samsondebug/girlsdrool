@@ -681,6 +681,88 @@ def monthly_equivalent(ob: dict) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------------------------
+# M9: the same rows as OFX/QFX exports (one SGML, one XML), the backup/restore roundtrip and the
+# audit pack, hand-stated here.
+# ---------------------------------------------------------------------------------------------
+
+OFX_FILES = [
+    # (file, account, month, form, bank id, account id)
+    ("riverside/riverside_checking_2026-08.qfx", "rvc", "2026-08", "sgml", "071000000", "2222333344"),
+    ("northbank/northbank_savings_2026-09.ofx", "nbs", "2026-09", "xml", "071000013", "0000005678"),
+]
+SCHEMA_TABLES = 35          # user tables in migrations 0001..0004 (txn_leaf is a view)
+
+
+def fitid(account: str, row: Row, seq: int) -> str:
+    return f"{account.upper()}-{row.posted.replace('-', '')}-{seq:04d}"
+
+
+def ofx_amount(cents: int) -> str:
+    return plain(cents)
+
+
+def ofx_date(iso: str) -> str:
+    return iso.replace("-", "")
+
+
+def ofx_trntype(cents: int) -> str:
+    return "CREDIT" if cents > 0 else "DEBIT"
+
+
+def ofx_text(account: str, month: str, form: str, bank_id: str, acct_id: str) -> str:
+    rows = rows_for(account, month)
+    closing_cents = closing(account, month)
+    end = month_end(month)
+    kind = {"checking": "CHECKING", "savings": "SAVINGS"}[ACCOUNTS[account].kind]
+    trns = []
+    for i, r in enumerate(rows, 1):
+        fields = [("TRNTYPE", ofx_trntype(r.amount)), ("DTPOSTED", ofx_date(r.posted))]
+        if r.effective and r.effective != r.posted:
+            fields.append(("DTUSER", ofx_date(r.effective)))
+        fields += [("TRNAMT", ofx_amount(r.amount)), ("FITID", fitid(account, r, i)), ("NAME", r.description)]
+        if r.note:
+            fields.append(("MEMO", r.note))
+        trns.append(fields)
+    if form == "sgml":
+        out = ["OFXHEADER:100", "DATA:OFXSGML", "VERSION:102", "SECURITY:NONE", "ENCODING:USASCII", "CHARSET:1252",
+               "COMPRESSION:NONE", "OLDFILEUID:NONE", "NEWFILEUID:NONE", "", "<OFX>",
+               f"<SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS><DTSERVER>{ofx_date(end)}120000<LANGUAGE>ENG"
+               f"<FI><ORG>{ACCOUNTS[account].institution}<FID>{bank_id[-4:]}</FI></SONRS></SIGNONMSGSRSV1>",
+               "<BANKMSGSRSV1><STMTTRNRS><TRNUID>1<STATUS><CODE>0<SEVERITY>INFO</STATUS>",
+               f"<STMTRS><CURDEF>USD<BANKACCTFROM><BANKID>{bank_id}<ACCTID>{acct_id}<ACCTTYPE>{kind}</BANKACCTFROM>",
+               f"<BANKTRANLIST><DTSTART>{ofx_date(month + '-01')}<DTEND>{ofx_date(end)}"]
+        for fields in trns:
+            out.append("<STMTTRN>" + "".join(f"<{k}>{v}" for k, v in fields) + "</STMTTRN>")
+        out += ["</BANKTRANLIST>", f"<LEDGERBAL><BALAMT>{ofx_amount(closing_cents)}<DTASOF>{ofx_date(end)}</LEDGERBAL>",
+                "</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>", ""]
+        return "\n".join(out)
+    out = ['<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
+           '<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE" OLDFILEUID="NONE" NEWFILEUID="NONE"?>',
+           "<OFX>", "<SIGNONMSGSRSV1><SONRS><STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>",
+           f"<DTSERVER>{ofx_date(end)}120000</DTSERVER><LANGUAGE>ENG</LANGUAGE><FI><ORG>{ACCOUNTS[account].institution}</ORG><FID>{bank_id[-4:]}</FID></FI></SONRS></SIGNONMSGSRSV1>",
+           "<BANKMSGSRSV1><STMTTRNRS><TRNUID>1</TRNUID><STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>",
+           f"<STMTRS><CURDEF>USD</CURDEF><BANKACCTFROM><BANKID>{bank_id}</BANKID><ACCTID>{acct_id}</ACCTID><ACCTTYPE>{kind}</ACCTTYPE></BANKACCTFROM>",
+           f"<BANKTRANLIST><DTSTART>{ofx_date(month + '-01')}</DTSTART><DTEND>{ofx_date(end)}</DTEND>"]
+    for fields in trns:
+        out.append("<STMTTRN>" + "".join(f"<{k}>{v}</{k}>" for k, v in fields) + "</STMTTRN>")
+    out += ["</BANKTRANLIST>", f"<LEDGERBAL><BALAMT>{ofx_amount(closing_cents)}</BALAMT><DTASOF>{ofx_date(end)}</DTASOF></LEDGERBAL>",
+            "</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>", ""]
+    return "\n".join(out)
+
+
+def ofx_answers() -> list[dict]:
+    out = []
+    for (file, account, month, form, bank_id, acct_id) in OFX_FILES:
+        rows = rows_for(account, month)
+        out.append({"file": file, "account": account, "month": month, "form": form, "bank_id": bank_id, "acct_id": acct_id,
+                    "rows": len(rows), "sum_cents": sum(r.amount for r in rows),
+                    "fitids": [fitid(account, r, i) for i, r in enumerate(rows, 1)],
+                    "ledger_balance_cents": closing(account, month), "ledger_balance_date": month_end(month),
+                    "csv_file": {"rvc": f"riverside/riverside_checking_{month}.csv", "nbs": f"northbank/northbank_savings_{month}.csv"}[account]})
+    return out
+
+
 def business_day_before(x: date) -> date:
     while x.weekday() >= 5:
         x -= timedelta(days=1)
@@ -995,6 +1077,14 @@ def venmo(rows: list[Row]) -> str:
 # ---------------------------------------------------------------------------------------------
 # Emit files
 # ---------------------------------------------------------------------------------------------
+
+def emit_ofx() -> list[str]:
+    names = []
+    for (file, account, month, form, bank_id, acct_id) in OFX_FILES:
+        write(file, ofx_text(account, month, form, bank_id, acct_id))
+        names.append(file)
+    return names
+
 
 def emit_csvs() -> dict[str, str]:
     files: dict[str, str] = {}
@@ -1849,6 +1939,52 @@ def expected_md(files: dict[str, str]) -> str:
                                        "firewall_unacknowledged": [{"account": r.account, "posted": r.posted, "description": r.description, "amount_cents": r.amount} for r in touches]}},
                    "actions": REVIEW_ACTIONS, "snapshot": snapshot}
 
+    # OFX/QFX, backup/restore, audit pack (M9)
+    p("## OFX/QFX, backup and restore, audit pack (M9)")
+    p("")
+    answers = ofx_answers()
+    p("### OFX/QFX")
+    p("")
+    p("Two exports of rows the CSVs already carry: one in the SGML form (`OFXHEADER:100`, unclosed tags) and one in the")
+    p("XML form (OFX 2.2, closed tags). `FITID` → `external_id`; `NAME` → payee, `MEMO` → memo; `DTUSER` → effective date;")
+    p("`TRNAMT` is signed from the account's view; `<LEDGERBAL>` → the import report's file closing, offered to Reconcile")
+    p("as statement source `file`. `CURDEF` other than USD is refused.")
+    p("")
+    p("| file | form | account | rows | Σ amount | ledger balance | as of |")
+    p("|---|---|---|---:|---:|---:|---|")
+    for a in answers:
+        p(f"| `{a['file']}` | {a['form']} | {a['account']} | {a['rows']} | {money(a['sum_cents'])} | {money(a['ledger_balance_cents'])} | {a['ledger_balance_date']} |")
+    p("")
+    for a in answers:
+        p(f"- `{a['file']}`: FITIDs " + ", ".join(f"`{f}`" for f in a["fitids"]) + ".")
+    p("")
+    p("- Into an empty account each file inserts every row with its FITID; the same file again inserts nothing (file-level")
+    p("  idempotency). After the same month's CSV, every OFX row is a better observation of the row already there (same")
+    p("  account, amount, date window and payee, and it carries a FITID the CSV row lacks): the ledger row gains the FITID")
+    p("  as `external_id` (ADR-0017 update rule), nothing is inserted or quarantined, and a user-edited field is never overwritten.")
+    p("- The ledger balance equals the CSV closing for the month, so a `file`-sourced reconciliation of that period balances.")
+    p("")
+    p("### Backup and restore")
+    p("")
+    p(f"Over the whole fixture state: a backup re-encrypted under a new passphrase opens only with the new one; restored into a")
+    p(f"temporary data folder and migrated, all {SCHEMA_TABLES} user tables have the same row counts as the source and the hero")
+    p(f"as of {AS_OF} is the same {money(safe)}. The pre-restore backup is logged; the swap happens only on confirmation.")
+    p("")
+    p("### Audit pack and full export")
+    p("")
+    av = run_strategy("avalanche", as_of_d, 0)
+    sched_rows = sum(len(d["periods"]) for d in av["debts"])
+    p(f"- `ledger.csv`: {len(ROWS)} rows (every leaf row, decimal strings, sign from the account's view).")
+    p(f"- `reconciliation.csv`: {len(recon_periods)} periods with opening, computed, statement and difference.")
+    p(f"- `safe_to_spend.json`: the hero's terms with row ids as of the export day; `forecast.json`: the baseline's 91 days.")
+    p(f"- `debt_schedule.csv`: the avalanche schedule with no extra (minimums only), {sched_rows} period rows across the {len(av['debts'])} debts that owe something.")
+    p("- `venture_rollup.csv`: one row per venture (1) with the five buckets, cap used and utilization.")
+    p("- `README.md`: what each file holds and the sign convention. The full export is one CSV per table plus `kept.json`.")
+    p("")
+    global M9_JSON
+    M9_JSON = {"as_of": AS_OF, "ofx": answers, "schema_tables": SCHEMA_TABLES, "hero_safe_cents": safe,
+               "audit_pack": {"ledger_rows": len(ROWS), "reconciliation_rows": len(recon_periods), "debt_schedule_rows": sched_rows, "venture_rows": 1}}
+
     global FORECAST_JSON
     FORECAST_JSON = {"as_of": AS_OF, "horizon_days": HORIZON_DAYS, "bucket_days": BUCKET_DAYS, "pay_shift_days": PAY_SHIFT_DAYS,
                      "timing_buffer_cents": TIMING_BUFFER_CENTS, "model": model, "model_total_cents": model_total, "scenarios": runs}
@@ -1874,6 +2010,7 @@ FORECAST_JSON: dict = {}
 DEBTS_JSON: dict = {}
 VENTURES_JSON: dict = {}
 REVIEW_JSON: dict = {}
+M9_JSON: dict = {}
 
 
 def emit_plan_json() -> None:
@@ -1894,6 +2031,10 @@ def emit_ventures_json() -> None:
 
 def emit_review_json() -> None:
     write("review.json", json.dumps(REVIEW_JSON, indent=1) + "\n")
+
+
+def emit_m9_json() -> None:
+    write("m9.json", json.dumps(M9_JSON, indent=1) + "\n")
 
 
 def emit_recon_json() -> None:
@@ -1929,6 +2070,7 @@ def emit_automation_json() -> None:
 
 def main() -> None:
     files = emit_csvs()
+    ofx_names = emit_ofx()
     emit_rules_json()
     emit_automation_json()
     write("EXPECTED.md", expected_md(files))
@@ -1938,7 +2080,8 @@ def main() -> None:
     emit_debts_json()
     emit_ventures_json()
     emit_review_json()
-    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json, debts.json, ventures.json, review.json and EXPECTED.md ({len(ROWS)} ledger rows)")
+    emit_m9_json()
+    print(f"wrote {len(files)} csv files, {len(ofx_names)} ofx files, rules.json, automation.json, recon.json, plan.json, forecast.json, debts.json, ventures.json, review.json, m9.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

@@ -225,3 +225,22 @@ pub fn reconcile_fixture_periods(conn: &Connection, accounts: &[(&str, Account)]
         .expect("reconcile");
     }
 }
+
+/// Everything the milestones install, in order, on any connection: accounts, rules, every
+/// fixture import, the plan, every balanced period, the debts, the venture and the completed
+/// fixture review. The state the backup/restore roundtrip and the exports are measured against.
+pub fn install_everything(conn: &mut Connection) -> Vec<(&'static str, Account)> {
+    let accounts = fixture_accounts(conn);
+    install_rules(conn);
+    let plan_file: plan::PlanFile = load_json("plan.json");
+    plan::import_everything(conn, &accounts, &plan_file.as_of);
+    plan::install_plan(conn, &accounts, &plan_file);
+    reconcile_fixture_periods(conn, &accounts);
+    let debts_file: debts::DebtsFile = load_json("debts.json");
+    debts::install_debts(conn, &accounts, &debts_file, date(&debts_file.as_of));
+    let ventures_file: ventures::VenturesFile = load_json("ventures.json");
+    ventures::install_venture(conn, &accounts, &ventures_file);
+    let review_file: review::ReviewFile = load_json("review.json");
+    review::complete_fixture_review(conn, &review_file);
+    accounts
+}

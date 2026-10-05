@@ -86,12 +86,21 @@ pub struct ParsedRow {
     pub skipped: Option<String>,
 }
 
+/// The statement closing a file states: the last running balance a CSV carries, or an OFX
+/// `<LEDGERBAL>`. Offered to Reconcile as statement source `file`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct FileClosing {
+    pub date: CivilDate,
+    pub cents: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedFile {
     pub header: Vec<String>,
     pub rows: Vec<ParsedRow>,
     /// Rows with no date and no amount (statement footers, blank lines), counted and reported.
     pub blank_rows: usize,
+    pub closing: Option<FileClosing>,
 }
 
 /// Read the header row of a CSV (after the profile's preamble rows) for profile detection.
@@ -119,6 +128,22 @@ pub fn detect_skip_rows(
         }
     }
     Ok(out)
+}
+
+/// The first non-blank row after the header (for guessing formats from a sample file).
+pub fn first_data_row(bytes: &[u8], skip_rows: usize) -> AppResult<Vec<String>> {
+    let mut reader = reader(bytes);
+    for (i, record) in reader.records().enumerate() {
+        let record = record.map_err(|e| parse_error(i + 1, "", e.to_string()))?;
+        if i <= skip_rows {
+            continue;
+        }
+        if record.iter().all(|c| c.trim().is_empty()) {
+            continue;
+        }
+        return Ok(record.iter().map(str::to_string).collect());
+    }
+    Ok(Vec::new())
 }
 
 fn reader(bytes: &[u8]) -> csv::Reader<&[u8]> {
@@ -445,10 +470,21 @@ pub fn parse(bytes: &[u8], spec: &ProfileSpec) -> AppResult<ParsedFile> {
         });
     }
 
+    let closing = rows
+        .iter()
+        .filter(|r| r.balance_cents.is_some() && r.skipped.is_none())
+        .max_by(|a, b| a.posted_date.cmp(&b.posted_date))
+        .and_then(|r| {
+            r.balance_cents.map(|cents| FileClosing {
+                date: r.posted_date,
+                cents,
+            })
+        });
     Ok(ParsedFile {
         header,
         rows,
         blank_rows,
+        closing,
     })
 }
 
@@ -534,6 +570,11 @@ mod tests {
         assert_eq!(file.rows[0].amount_cents, -16_342);
         assert_eq!(file.rows[0].balance_cents, Some(149_271));
         assert_eq!(file.rows[1].amount_cents, 30_000);
+        let closing = file.closing.unwrap();
+        assert_eq!(
+            (date_text(closing.date), closing.cents),
+            ("2026-08-15".to_string(), 149_271)
+        );
         let err = parse(
             b"Transaction Date,Posted Date,Description,Debit,Credit,Balance,Currency\n2026-08-14,2026-08-15,ATM,163.42,,1492.71,EUR\n",
             &spec,

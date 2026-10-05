@@ -850,3 +850,41 @@ means the whole ledger.
   venture cap used 544.18, and every account's balance. A `daily` snapshot is taken once per civil day on unlock (unique per day); trends read snapshots only.
 - History persists: the completed review, its surplus and its three actions are there after the database is closed and reopened.
 
+## OFX/QFX, backup and restore, audit pack (M9)
+
+### OFX/QFX
+
+Two exports of rows the CSVs already carry: one in the SGML form (`OFXHEADER:100`, unclosed tags) and one in the
+XML form (OFX 2.2, closed tags). `FITID` → `external_id`; `NAME` → payee, `MEMO` → memo; `DTUSER` → effective date;
+`TRNAMT` is signed from the account's view; `<LEDGERBAL>` → the import report's file closing, offered to Reconcile
+as statement source `file`. `CURDEF` other than USD is refused.
+
+| file | form | account | rows | Σ amount | ledger balance | as of |
+|---|---|---|---:|---:|---:|---|
+| `riverside/riverside_checking_2026-08.qfx` | sgml | rvc | 5 | 66.53 | 1,422.66 | 2026-08-31 |
+| `northbank/northbank_savings_2026-09.ofx` | xml | nbs | 2 | 511.09 | 13,531.99 | 2026-09-30 |
+
+- `riverside/riverside_checking_2026-08.qfx`: FITIDs `RVC-20260812-0001`, `RVC-20260815-0002`, `RVC-20260815-0003`, `RVC-20260815-0004`, `RVC-20260817-0005`.
+- `northbank/northbank_savings_2026-09.ofx`: FITIDs `NBS-20260903-0001`, `NBS-20260930-0002`.
+
+- Into an empty account each file inserts every row with its FITID; the same file again inserts nothing (file-level
+  idempotency). After the same month's CSV, every OFX row is a better observation of the row already there (same
+  account, amount, date window and payee, and it carries a FITID the CSV row lacks): the ledger row gains the FITID
+  as `external_id` (ADR-0017 update rule), nothing is inserted or quarantined, and a user-edited field is never overwritten.
+- The ledger balance equals the CSV closing for the month, so a `file`-sourced reconciliation of that period balances.
+
+### Backup and restore
+
+Over the whole fixture state: a backup re-encrypted under a new passphrase opens only with the new one; restored into a
+temporary data folder and migrated, all 35 user tables have the same row counts as the source and the hero
+as of 2026-09-30 is the same 14,165.22. The pre-restore backup is logged; the swap happens only on confirmation.
+
+### Audit pack and full export
+
+- `ledger.csv`: 104 rows (every leaf row, decimal strings, sign from the account's view).
+- `reconciliation.csv`: 21 periods with opening, computed, statement and difference.
+- `safe_to_spend.json`: the hero's terms with row ids as of the export day; `forecast.json`: the baseline's 91 days.
+- `debt_schedule.csv`: the avalanche schedule with no extra (minimums only), 101 period rows across the 4 debts that owe something.
+- `venture_rollup.csv`: one row per venture (1) with the five buckets, cap used and utilization.
+- `README.md`: what each file holds and the sign convention. The full export is one CSV per table plus `kept.json`.
+

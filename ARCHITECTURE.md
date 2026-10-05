@@ -33,7 +33,7 @@ Kept/
 │   ├── src/
 │   │   ├── main.rs  lib.rs  error.rs  money.rs  dates.rs  config.rs
 │   │   ├── db/        # open/unlock/lock (SQLCipher), pragmas, migrate.rs, audit.rs, repo/*.rs (plain SQL per entity)
-│   │   ├── import/    # pipeline: detect → parse → normalize → hash → dedup → link → commit → report; csv.rs, ofx.rs (M9), profile.rs
+│   │   ├── import/    # pipeline: detect → parse → normalize → hash → dedup → link → commit → report; csv.rs, ofx.rs, profile.rs
 │   │   ├── recon/     # reconciliation identity, roll-forward, trust status, difference explorer
 │   │   ├── rules/     # ordered rules, heuristics, review-queue ordering, "why"; link.rs (transfer / card payment / refund)
 │   │   ├── cash/      # balances, available, earmarks, obligations, income occurrences, safe-to-spend terms
@@ -41,7 +41,7 @@ Kept/
 │   │   ├── debt/      # interest math, amortization, avalanche/snowball/custom, informal loans
 │   │   ├── venture/   # rollup buckets, cap utilization, stop condition
 │   │   ├── review/    # guided review, dependable surplus, three actions, snapshots, trends
-│   │   ├── export/    # CSV/JSON full export, audit pack, backup/restore (sqlcipher_export)
+│   │   ├── export/    # backup.rs (daily/manual, verified), restore.rs (stage, compare, swap), full.rs (full export, audit pack)
 │   │   └── cmd/       # #[tauri::command] functions, grouped per screen; thin: validate → engine → map error
 │   └── tests/         # integration tests against fixtures/ and a temp SQLCipher database; proptest invariants
 ├── fixtures/                     # synthetic statements + EXPECTED.md (hand-computed answers written FIRST)
@@ -828,6 +828,10 @@ Per category that is a child of the variable root (`forecast::variable::model`):
 
 Payment-app profiles (Venmo) set `payment_app_unknown | needs_review` on every row; the note is kept in `memo` and is never used by heuristics (ADR-0032).
 
+**OFX/QFX (ADR-0046).** Detected from the bytes (`OFXHEADER`, `<?OFX`, `<OFX>`), parsed by one tokenizer for the SGML form (leaf tags left open) and the XML form (every tag closed). One system profile (`ofx_qfx`, format `ofx`) maps the file: `FITID` → `external_id` (required), `DTPOSTED` → posted date, `DTUSER` → effective date, `TRNAMT` → amount as the bank signs it, `NAME` (or `CHECKNUM`) → payee, `MEMO` → memo, `TRNTYPE` → flags through the profile's `flags_by_trntype`; rows are posted; `CURDEF` other than USD and files holding more than one account are refused. `<LEDGERBAL>` is the file's closing, carried as `ParsedFile.closing` (a CSV with a balance column carries its last running balance the same way) and offered to Reconcile as statement source `file`. Dedup is the same as for CSV rows: an OFX row observing a CSV-imported row updates it with the FITID.
+
+**The profile editor (Settings).** A CSV profile is drafted from a sample file (`profile::draft_from_sample`: header after up to ten preamble rows, columns by name, the date format from the first data row), edited as a form or as JSON, tested against a file (`import::test_spec`, nothing written) and stored after `profile::validate_spec`. Built-in profiles are read-only; a profile an import batch used stays.
+
 ### 6.2 Identity and dedup (ADR-0017)
 
 - `source_row_hash = sha256(account_id ‖ posted_date ‖ amount_cents ‖ trim(payee_raw) ‖ trim(memo) ‖ external_id?)`, hex.
@@ -855,7 +859,8 @@ Order per row: (1) rules by `position`, first match wins, `classification = rule
 
 - Full export: one CSV per table + one JSON document, decimal strings produced by `money::to_decimal_string`, written to a user-chosen folder.
 - Audit pack: `ledger.csv`, `reconciliation.csv`, `safe_to_spend.json` (terms with row ids), `forecast.json`, `debt_schedule.csv`, `venture_rollup.csv`, `README.md` explaining each file and the sign convention — enough for an advisor or an LLM session.
-- Backup: `ATTACH DATABASE ? AS b KEY ?; SELECT sqlcipher_export('b'); DETACH DATABASE b;` under the current or a new passphrase. Daily rotating on launch (`backups/kept-YYYY-MM-DD.db`, keep `backup_keep_daily`); `pre_migration` before any migration; `pre_restore` before a restore swap. Restore: open the backup with its passphrase → export into a temp data dir → migrate → compare row counts per table and the hero number against the live DB → show the comparison → the user confirms the swap.
+- Backup: `ATTACH DATABASE ? AS b KEY ?; SELECT sqlcipher_export('b'); PRAGMA b.user_version = N; DETACH DATABASE b;` under the current or a new passphrase (`sqlcipher_export` does not copy `user_version`; the runner also restores a missing one from `schema_migration`). Every copy is verified (row counts per table against the live database at export time) before it is logged in `backup_log`. Daily on the day's first unlock (`backups/kept-YYYY-MM-DD.db`, the newest `backup_keep_daily` kept, rotated by file name only); `manual` from Settings and before a passphrase change (`kept-manual-<stamp>.db`); `pre_migration` before any migration; `pre_restore` before a restore swap. Restore (ADR-0046): open the backup with its passphrase → export into `<data>/restore-staging/` under the live passphrase → migrate there → compare every table's row count and the hero as of today with the live database → show the comparison → on confirmation take the verified pre-restore copy, close the live database, swap the files, reopen under the live passphrase, log the copy, remove the staging folder.
+- Exports never overwrite a file and go to a stamped folder under `exports/` unless another folder is chosen. Money columns (`*_cents`) are exported without the suffix as decimal strings.
 
 ---
 

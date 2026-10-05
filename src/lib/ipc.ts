@@ -178,13 +178,90 @@ export interface NewCategory {
 
 // ---- import -----------------------------------------------------------------------------------
 
+export interface DateSpec {
+  column: string;
+  format: string;
+}
+
+export type AmountSpec =
+  | { kind: "single_signed"; column: string }
+  | { kind: "debit_credit"; debit: string; credit: string }
+  | { kind: "amount_with_type"; column: string; type_column: string; debit_values: string[] };
+
+export type PayeeSpec =
+  | { column: string }
+  | { columns: string[] }
+  | { inflow_column: string; outflow_column: string; fallback_column?: string | null };
+
+export type TextSpec = { column: string } | { columns: string[] };
+
+export type SignConvention = "account_pov" | "card_statement";
+
+/** A CSV mapping exactly as `import_profile.spec_json` stores it (ARCHITECTURE §6.1). */
+export interface ProfileSpec {
+  header_signature: string[];
+  skip_rows: number;
+  date: DateSpec;
+  effective_date: DateSpec | null;
+  amount: AmountSpec;
+  payee: PayeeSpec;
+  memo: TextSpec | null;
+  status: { column: string; pending_values: string[] } | null;
+  external_id: { column: string } | null;
+  balance: { column: string } | null;
+  currency: { column: string } | null;
+  sign_convention: SignConvention;
+  flags_by_type: { column: string; map: Record<string, string[]> } | null;
+  row_flags: string[];
+  skip_when: { column: string; not_in: string[]; reason: string } | null;
+}
+
+/** The OFX/QFX mapping: the standard fixes the fields; only TRNTYPE → flags is a choice. */
+export interface OfxSpec {
+  flags_by_trntype: Record<string, string[]>;
+}
+
 export interface Profile {
   id: number;
   name: string;
   institution: string;
   format: "csv" | "ofx";
   is_system: boolean;
-  spec: unknown;
+  spec: ProfileSpec | OfxSpec;
+}
+
+export function isCsvSpec(spec: ProfileSpec | OfxSpec): spec is ProfileSpec {
+  return "header_signature" in spec;
+}
+
+export interface ProfileInput {
+  name: string;
+  institution: string;
+  spec: ProfileSpec;
+}
+
+/** A mapping guessed from a sample file, for the editor to correct (nothing stored). */
+export interface ProfileDraft {
+  skip_rows: number;
+  header: string[];
+  spec: ProfileSpec;
+}
+
+/** The statement closing a file states: a CSV running balance or an OFX ledger balance. */
+export interface FileClosing {
+  date: string;
+  cents: number;
+}
+
+export interface OfxInfo {
+  form: "sgml" | "xml";
+  bank_id: string;
+  acct_id: string;
+  acct_type: string;
+  currency: string;
+  start: string | null;
+  end: string | null;
+  rows: number;
 }
 
 export type ImportSource =
@@ -208,6 +285,7 @@ export interface PreviewRow {
 
 export interface Preview {
   file_sha256: string;
+  format: "csv" | "ofx";
   profile: Profile | null;
   candidates: { id: number; name: string; institution: string }[];
   header: string[];
@@ -216,6 +294,49 @@ export interface Preview {
   blank_rows: number;
   problem: { row: number; column: string; message: string } | null;
   already_imported_batch: number | null;
+  closing: FileClosing | null;
+  ofx: OfxInfo | null;
+}
+
+// ---- backups, restore, exports (M9) ----------------------------------------------------------
+
+export type BackupKind = "daily" | "manual" | "pre_migration" | "pre_restore";
+
+export interface BackupEntry {
+  id: number;
+  path: string;
+  kind: BackupKind;
+  bytes: number;
+  verified: boolean;
+  created_at: string;
+  /** Whether the file is still where the log says. */
+  exists: boolean;
+}
+
+export interface TableDiff {
+  table: string;
+  live_rows: number;
+  backup_rows: number;
+}
+
+export interface RestoreComparison {
+  backup_path: string;
+  staged_dir: string;
+  as_of: string;
+  tables: TableDiff[];
+  tables_differ: number;
+  hero_live_cents: number;
+  hero_backup_cents: number;
+  hero_same: boolean;
+  schema_before: number;
+  schema_after: number;
+}
+
+export interface ExportReport {
+  dir: string;
+  kind: "full" | "audit_pack";
+  files: { name: string; rows: number }[];
+  created_at: string;
 }
 
 export interface ImportReport {
@@ -1374,6 +1495,24 @@ export const api = {
     call<Category>("archive_category", { id, archived }),
 
   listImportProfiles: () => call<Profile[]>("list_import_profiles"),
+  createImportProfile: (input: ProfileInput) => call<Profile>("create_import_profile", { input }),
+  updateImportProfile: (id: number, input: ProfileInput) =>
+    call<Profile>("update_import_profile", { id, input }),
+  deleteImportProfile: (id: number) => call<null>("delete_import_profile", { id }),
+  draftImportProfile: (source: ImportSource) =>
+    call<ProfileDraft>("draft_import_profile", { source }),
+  testImportProfile: (spec: ProfileSpec, source: ImportSource) =>
+    call<Preview>("test_import_profile", { spec, source }),
+  listBackups: () => call<BackupEntry[]>("list_backups"),
+  backupNow: () => call<BackupEntry>("backup_now"),
+  restoreStage: (path: string, passphrase: string) =>
+    call<RestoreComparison>("restore_stage", { path, passphrase }),
+  restoreDiscard: () => call<null>("restore_discard"),
+  restoreConfirm: () => call<AppStatus>("restore_confirm"),
+  changePassphrase: (passphrase: string, confirm: string) =>
+    call<AppStatus>("change_passphrase", { passphrase, confirm }),
+  exportFull: (dir: string | null) => call<ExportReport>("export_full", { dir }),
+  exportAuditPack: (dir: string | null) => call<ExportReport>("export_audit_pack", { dir }),
   importPreview: (accountId: number, profileId: number | null, source: ImportSource) =>
     call<Preview>("import_preview", { accountId, profileId, source }),
   importCommit: (accountId: number, profileId: number | null, source: ImportSource) =>

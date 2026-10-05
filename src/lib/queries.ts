@@ -38,6 +38,8 @@ import {
   type DebtInput,
   type DebtPaymentInput,
   type InformalInput,
+  type ProfileInput,
+  type ProfileSpec,
 } from "./ipc";
 import type { LedgerFilter } from "./query-chips";
 import { reportError } from "./report";
@@ -107,6 +109,7 @@ export const keys = {
   reviewAll: ["review"] as const,
   snapshots: ["snapshots"] as const,
   trends: ["trends"] as const,
+  backups: ["backups"] as const,
 };
 
 /** The hero and the upcoming panel read the plan and the ledger; anything there moves them. */
@@ -173,7 +176,12 @@ const invalidationMap: Record<string, readonly QueryKey[]> = {
   informal_loan: [keys.informalLoans, keys.debts, keys.debtComparisonAll, ...heroDependent],
   review: [keys.reviewAll],
   snapshot: [keys.forecastAll, keys.snapshots, keys.trends, keys.reviewAll],
+  import_profile: [keys.profiles],
+  backup: [keys.backups],
 };
+
+/** A restore replaces the whole database: every cached read is stale. */
+const EVERYTHING = "restore";
 
 const LEDGER_PAGE = 200;
 
@@ -463,6 +471,10 @@ export function useChangeSubscription(): void {
     let unlisten: (() => void) | null = null;
     let disposed = false;
     onChanged((entities) => {
+      if (entities.includes(EVERYTHING)) {
+        void queryClient.invalidateQueries();
+        return;
+      }
       for (const entity of entities) {
         for (const key of invalidationMap[entity] ?? []) {
           void queryClient.invalidateQueries({ queryKey: key });
@@ -853,4 +865,59 @@ export function useAddEarmarkEntry() {
 
 export function useDeleteEarmarkEntry() {
   return useMutation({ mutationFn: (id: number) => api.deleteEarmarkEntry(id) });
+}
+
+// ---- institution profiles, backups, restore, exports (M9) -------------------------------------
+
+export function useCreateProfile() {
+  return useMutation({ mutationFn: (input: ProfileInput) => api.createImportProfile(input) });
+}
+
+export function useUpdateProfile() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: ProfileInput }) =>
+      api.updateImportProfile(id, input),
+  });
+}
+
+export function useDeleteProfile() {
+  return useMutation({ mutationFn: (id: number) => api.deleteImportProfile(id) });
+}
+
+export function useDraftProfile() {
+  return useMutation({ mutationFn: (source: ImportSource) => api.draftImportProfile(source) });
+}
+
+export function useTestProfile() {
+  return useMutation({
+    mutationFn: ({ spec, source }: { spec: ProfileSpec; source: ImportSource }) =>
+      api.testImportProfile(spec, source),
+  });
+}
+
+export function useBackups() {
+  return useQuery({ queryKey: keys.backups, queryFn: () => api.listBackups() });
+}
+
+export function useBackupNow() {
+  return useMutation({ mutationFn: () => api.backupNow() });
+}
+
+export function useRestoreStage() {
+  return useMutation({
+    mutationFn: ({ path, passphrase }: { path: string; passphrase: string }) =>
+      api.restoreStage(path, passphrase),
+  });
+}
+
+export function useRestoreDiscard() {
+  return useMutation({ mutationFn: () => api.restoreDiscard() });
+}
+
+export function useExportFull() {
+  return useMutation({ mutationFn: (dir: string | null) => api.exportFull(dir) });
+}
+
+export function useExportAuditPack() {
+  return useMutation({ mutationFn: (dir: string | null) => api.exportAuditPack(dir) });
 }

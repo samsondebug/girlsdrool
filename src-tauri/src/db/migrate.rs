@@ -40,6 +40,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "debt_payment_account",
         sql: include_str!("../../migrations/0004_debt_payment_account.sql"),
     },
+    Migration {
+        version: 5,
+        name: "ofx_profile",
+        sql: include_str!("../../migrations/0005_ofx_profile.sql"),
+    },
 ];
 
 pub fn latest_version() -> i64 {
@@ -64,6 +69,24 @@ pub fn current_version(conn: &Connection) -> AppResult<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
 }
 
+/// The newest migration `schema_migration` records, when the table exists: the version a copy
+/// made without `user_version` (a backup taken by an earlier build) really is.
+fn recorded_version(conn: &Connection) -> AppResult<Option<i64>> {
+    let has_table: i64 = conn.query_row(
+        "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_migration'",
+        [],
+        |r| r.get(0),
+    )?;
+    if has_table == 0 {
+        return Ok(None);
+    }
+    Ok(
+        conn.query_row("SELECT MAX(version) FROM schema_migration", [], |r| {
+            r.get::<_, Option<i64>>(0)
+        })?,
+    )
+}
+
 /// Verify checksums of applied migrations, back up before changing anything, apply pending
 /// migrations in order, and check foreign keys afterwards.
 pub fn run(
@@ -71,7 +94,17 @@ pub fn run(
     paths: &DataPaths,
     passphrase: &str,
 ) -> AppResult<MigrationReport> {
-    let current = current_version(conn)?;
+    let mut current = current_version(conn)?;
+    if current == 0 {
+        if let Some(recorded) = recorded_version(conn)? {
+            conn.pragma_update(None, "user_version", recorded)?;
+            current = recorded;
+            tracing::info!(
+                version = recorded,
+                "user_version restored from schema_migration"
+            );
+        }
+    }
     let latest = latest_version();
     if current > latest {
         return Err(AppError::Migration(format!(
@@ -82,17 +115,19 @@ pub fn run(
 
     let pending: Vec<&Migration> = MIGRATIONS.iter().filter(|m| m.version > current).collect();
     let mut backup_path = None;
+    let mut verified = false;
     if !pending.is_empty() && current > 0 {
         let stamp = now_rfc3339().replace([':', '-'], "");
         let dest = paths.backups.join(format!("kept-pre-v{latest}-{stamp}.db"));
         backup::export_encrypted(conn, &dest, passphrase)?;
+        verified = backup::verify(&dest, passphrase, &backup::table_counts(conn)?)?;
         backup_path = Some(dest);
     }
 
     let applied = apply_pending(conn)?;
 
     if let Some(dest) = &backup_path {
-        backup::log_backup(conn, dest, backup::BackupKind::PreMigration, false)?;
+        backup::log_backup(conn, dest, backup::BackupKind::PreMigration, verified)?;
     }
 
     foreign_key_check(conn)?;
