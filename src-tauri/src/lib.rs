@@ -16,6 +16,7 @@ pub mod money;
 pub mod plan;
 pub mod rules;
 pub mod secret;
+pub mod venture;
 
 #[cfg(feature = "app")]
 pub mod cmd;
@@ -187,6 +188,7 @@ pub fn run() {
             cmd::delete_informal_schedule_row,
             cmd::debt_comparison,
             cmd::debt_totals,
+            cmd::venture_summary,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

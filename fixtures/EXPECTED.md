@@ -783,3 +783,31 @@ None falls due before the next confirmed income (2026-10-02), so the M4 hero is 
 | Auto loan minimum | 15 | 95.00 | nbc | `lakeside auto finance` |
 | Balance transfer card minimum | 5 | 96.00 | nbc | `meridian bank card` |
 
+## Ventures (M7)
+
+As of **2026-09-30**. Venture `Ledgerline`: status fund, cash cap 5,000.00, time budget 120 h,
+milestone "First paying customer" by 2026-12-31, stop condition "Kill if no paying customer by the milestone date or the cap is used up". The person marks the Summit Amex
+(`sa`) as owned by the venture: it carries only Ledgerline charges and is paid from personal checking, so each card payment is
+an owner contribution (personal cash into the venture) whatever the link's stored kind, and the SaaS charges are operating
+expenses paid from the venture's own account. Rows are bucketed by their venture category code; the window is the trailing
+12 months (2025-09-30 < posted ≤ 2026-09-30), which here covers every row.
+
+| bucket | rows | cents |
+|---|---:|---:|
+| customer_revenue | 0 | 0.00 |
+| operating_expense | 6 | 348.00 |
+| owner_contribution | 3 | 544.18 |
+| financing | 0 | 0.00 |
+| withdrawal | 0 | 0.00 |
+
+- operating_cash_flow = revenue − operating expense = **-348.00**
+- cap_used = owner contribution 544.18 + operating expense paid from personal accounts
+  0.00 − withdrawals 0.00 = **544.18**; cap remaining 4,455.82;
+  utilization **1088 bps** (10.88% of 5,000.00) — the dashboard gauge
+- milestone countdown **92 days**; stop-condition alert: none (fires when cap used ≥ cap or the milestone date has passed)
+- venture spend share of take-home = operating expense 348.00 / confirmed base-pay receipts 20,476.62 = **170 bps**
+- venture-owned account balance: sa -116.00 (what the card owes, not personal cash; never in the hero)
+- The freelance invoices on Riverside stay personal income (`income.other` by rule); nothing is customer revenue until the person says so.
+- Verdict is the person's (`fund|freeze|kill`); sunk cost is not an input. Lowering the cap below what is used, or letting the
+  milestone date pass, raises the alert; the test checks both.
+

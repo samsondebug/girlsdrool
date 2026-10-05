@@ -13,6 +13,7 @@ import { Reconcile } from "./Reconcile";
 import { Review } from "./Review";
 import { Rules } from "./Rules";
 import { Settings } from "./Settings";
+import { Ventures } from "./Ventures";
 
 interface ShellProps {
   status: AppStatus;
@@ -27,6 +28,7 @@ const navItems: { screen: Screen; label: string }[] = [
   { screen: "plan", label: "Plan" },
   { screen: "forecast", label: "Forecast" },
   { screen: "debts", label: "Debts" },
+  { screen: "ventures", label: "Ventures" },
   { screen: "import", label: "Import" },
   { screen: "accounts", label: "Accounts" },
   { screen: "settings", label: "Settings" },
@@ -50,6 +52,8 @@ function ActiveScreen({ screen, status }: { screen: Screen; status: AppStatus })
       return <Forecast />;
     case "debts":
       return <Debts />;
+    case "ventures":
+      return <Ventures />;
     case "import":
       return <Import />;
     case "accounts":

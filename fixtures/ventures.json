@@ -1,0 +1,56 @@
+{
+ "as_of": "2026-09-30",
+ "trailing_months": 12,
+ "venture": {
+  "name": "Ledgerline",
+  "status": "fund",
+  "cash_cap_cents": 500000,
+  "time_budget_hours": 120,
+  "milestone": "First paying customer",
+  "milestone_date": "2026-12-31",
+  "stop_condition": "Kill if no paying customer by the milestone date or the cap is used up"
+ },
+ "venture_account": "sa",
+ "rollup": {
+  "name": "Ledgerline",
+  "window_start": "2025-09-30",
+  "buckets": {
+   "customer_revenue": {
+    "cents": 0,
+    "rows": 0
+   },
+   "operating_expense": {
+    "cents": 34800,
+    "rows": 6
+   },
+   "owner_contribution": {
+    "cents": 54418,
+    "rows": 3
+   },
+   "financing": {
+    "cents": 0,
+    "rows": 0
+   },
+   "withdrawal": {
+    "cents": 0,
+    "rows": 0
+   }
+  },
+  "operating_expense_from_personal_cents": 0,
+  "operating_cash_flow_cents": -34800,
+  "cap_cents": 500000,
+  "cap_used_cents": 54418,
+  "cap_remaining_cents": 445582,
+  "cap_utilization_bps": 1088,
+  "milestone_days": 92,
+  "alerts": [],
+  "take_home_cents": 2047662,
+  "spend_share_bps": 170,
+  "accounts": [
+   {
+    "account": "sa",
+    "balance_cents": -11600
+   }
+  ]
+ }
+}

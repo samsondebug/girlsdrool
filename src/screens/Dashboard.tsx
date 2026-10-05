@@ -7,7 +7,8 @@ import { ForecastChart } from "../components/ForecastChart";
 import { Money } from "../components/Money";
 import { Panel } from "../components/Panel";
 import { MarkedMoney } from "../components/Untrusted";
-import type { Forecast, SafeToSpend, UpcomingObligation } from "../lib/ipc";
+import type { Forecast, SafeToSpend, UpcomingObligation, VentureRollup } from "../lib/ipc";
+import { formatBps, formatCents } from "../lib/money";
 import {
   useAccounts,
   useDebtTotals,
@@ -15,6 +16,7 @@ import {
   useSafeToSpend,
   useTrust,
   useUpcoming,
+  useVentureSummary,
 } from "../lib/queries";
 import { BASELINE, useUiStore } from "../lib/store";
 import { TRUST_LABEL, TRUST_TONE } from "../lib/trust";
@@ -30,6 +32,7 @@ export function Dashboard() {
   const accounts = useAccounts();
   const forecast = useForecast(BASELINE);
   const totals = useDebtTotals();
+  const ventures = useVentureSummary();
   const firewalled = (accounts.data ?? []).filter((a) => a.firewalled && !a.archived);
   const setScreen = useUiStore((s) => s.setScreen);
   const nextIncome = safe.data?.terms.obligations.next_income ?? null;
@@ -205,8 +208,35 @@ export function Dashboard() {
           />
         )}
       </Panel>
-      <Panel title="Venture cap" className="col-span-3">
-        <EmptyState missing="No ventures recorded." fix="Ventures (M7)." />
+      <Panel
+        title="Venture cap"
+        className="col-span-3"
+        aside={
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setScreen("ventures");
+            }}
+          >
+            Ventures…
+          </Button>
+        }
+      >
+        {ventures.data && ventures.data.ventures.length > 0 ? (
+          <div className="flex flex-col gap-2 text-14">
+            {ventures.data.ventures.map((v) => (
+              <CapGauge key={v.id} venture={v} />
+            ))}
+            <p className="text-12 text-text-dim">
+              Venture spend {formatBps(ventures.data.spend_share_bps)} of trailing take-home.
+            </p>
+          </div>
+        ) : (
+          <EmptyState
+            missing="No venture recorded."
+            fix="Ventures: name it, set its cash cap, milestone and stop condition; tag its rows and accounts."
+          />
+        )}
       </Panel>
       <Panel title="Firewall" className="col-span-3">
         {firewalled.length > 0 ? (
@@ -545,6 +575,46 @@ function ForecastSummary({ data }: { data: Forecast }) {
           No shortfall and no buffer breach in the next {String(data.horizon_days)} days.
         </p>
       )}
+    </div>
+  );
+}
+
+/** Cap used against the cap, as a bar whose width is the core's utilization. */
+function CapGauge({ venture: v }: { venture: VentureRollup }) {
+  const pct = Math.min(100, Math.max(0, v.cap_utilization_bps / 100));
+  const tone = v.alerts.length > 0 ? "bg-negative" : pct >= 80 ? "bg-warning" : "bg-accent";
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="flex items-center gap-2">
+        <span className="truncate font-medium">{v.name}</span>
+        <Chip
+          tone={v.status === "fund" ? "positive" : v.status === "freeze" ? "warning" : "negative"}
+        >
+          {v.status}
+        </Chip>
+        {v.alerts.map((a) => (
+          <Chip key={a} tone="negative">
+            {a}
+          </Chip>
+        ))}
+        <span className="money ml-auto text-12">
+          {formatCents(v.cap_used_cents)} / {formatCents(v.cash_cap_cents)}
+        </span>
+      </p>
+      <div
+        className="h-2 w-full rounded-1 bg-bg-inset"
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-label={`${v.name} cap used ${formatBps(v.cap_utilization_bps)}`}
+      >
+        <div className={`h-2 rounded-1 ${tone}`} style={{ width: `${String(pct)}%` }} />
+      </div>
+      <p className="text-12 text-text-dim">
+        {formatBps(v.cap_utilization_bps)} used
+        {v.milestone_days !== null ? ` · milestone in ${String(v.milestone_days)} days` : ""}
+      </p>
     </div>
   );
 }

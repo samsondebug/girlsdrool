@@ -15,6 +15,7 @@ export type Screen =
   | "plan"
   | "forecast"
   | "debts"
+  | "ventures"
   | "import"
   | "accounts"
   | "settings";

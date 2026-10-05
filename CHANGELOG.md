@@ -3,6 +3,42 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M7 — Ventures (unreleased)
+
+### Demo
+
+1. Ventures: one card per venture with its verdict (`fund | freeze | kill`, the person's field),
+   the cash cap gauge, the five buckets over the trailing twelve months, operating cash flow,
+   the milestone countdown, the stop condition written down, and the venture-owned accounts.
+   Accounts gain an Owner column: marking the Summit Amex as Ledgerline's makes each card payment
+   from personal checking an owner contribution, whatever the link's stored kind.
+2. The fixture (`fixtures/EXPECTED.md` "Ventures (M7)"): six SaaS charges → operating expense
+   348.00; three card payments → owner contribution 544.18; cap used 544.18 of 5,000.00 =
+   1088 bps on the gauge; operating cash flow −348.00; milestone "First paying customer" in 92
+   days; no alert; venture spend 170 bps of the 20,476.62 of confirmed base pay received.
+3. Alerts are named: lowering the cap under what is used raises `cap used`; a milestone date in
+   the past raises `milestone date passed`. Tagging a personal-card row as a venture expense adds
+   it to operating expense and to the cap (ADR-0025's default, still batched for Dave).
+4. Dashboard: the Venture cap panel is a gauge per venture with its verdict and alerts, and the
+   spend share of take-home.
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 42 unit, 13 property, 1 logging, 9 M0, 6 M1,
+  3 M2, 3 M3, 3 M4, 5 M5, 5 M6 and 3 M7 acceptance (`tests/m7_ventures.rs`: buckets, cap and
+  gauge, countdown, spend share and the hero's account set; both alerts and the verdict; a
+  personal-account expense in the cap).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check`, `pnpm test` (42) — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against the seeded folder (`seed_fixture_data_folder` now installs the
+  venture and marks the Amex as its own): `docs/screenshots/m7-ventures.png` and
+  `m7-dashboard.png`.
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only); the Windows netstat observation.
+
 ## M6 — Debts, informal loans, avalanche vs snowball in interest cents (unreleased)
 
 ### Demo

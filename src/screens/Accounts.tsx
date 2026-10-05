@@ -9,7 +9,7 @@ import { Select } from "../components/Select";
 import { TextField } from "../components/TextField";
 import { ACCOUNT_KINDS, type Account, type AccountKind } from "../lib/ipc";
 import { parseCentsInput } from "../lib/money";
-import { useAccounts, useCreateAccount, useUpdateAccount } from "../lib/queries";
+import { useAccounts, useCreateAccount, useUpdateAccount, useVentures } from "../lib/queries";
 import { useUiStore } from "../lib/store";
 
 /** Accounts are created here and archived here; they are never deleted. */
@@ -66,6 +66,7 @@ export function Accounts() {
                 <th className="py-1 pr-3 font-medium">Kind</th>
                 <th className="py-1 pr-3 text-right font-medium">Opening</th>
                 <th className="py-1 pr-3 font-medium">Opening date</th>
+                <th className="py-1 pr-3 font-medium">Owner</th>
                 <th className="py-1 pr-3 font-medium">Firewalled</th>
                 <th className="py-1 pr-3 font-medium">Archived</th>
               </tr>
@@ -83,6 +84,9 @@ export function Accounts() {
                     <Money cents={a.opening_balance_cents} />
                   </td>
                   <td className="money py-1 pr-3">{a.opening_date}</td>
+                  <td className="py-1 pr-3">
+                    <OwnerSelect account={a} />
+                  </td>
                   <td className="py-1 pr-3">
                     <Checkbox
                       label={a.firewalled ? "yes" : "no"}
@@ -111,6 +115,38 @@ export function Accounts() {
         <NewAccountForm />
       </Panel>
     </div>
+  );
+}
+
+/** Personal, or owned by a venture: a venture-owned account never counts as personal cash. */
+function OwnerSelect({ account }: { account: Account }) {
+  const ventures = useVentures();
+  const update = useUpdateAccount();
+  const pushNotice = useUiStore((s) => s.pushNotice);
+  return (
+    <Select
+      label="Owner"
+      compact
+      value={account.venture_id === null ? "" : String(account.venture_id)}
+      onChange={(e) => {
+        const venture_id = e.target.value === "" ? null : Number(e.target.value);
+        update.mutate(
+          { id: account.id, patch: { venture_id } },
+          {
+            onError: (error) => {
+              pushNotice({ tone: "negative", text: error.message });
+            },
+          },
+        );
+      }}
+    >
+      <option value="">personal</option>
+      {(ventures.data ?? []).map((v) => (
+        <option key={v.id} value={v.id}>
+          venture: {v.name}
+        </option>
+      ))}
+    </Select>
   );
 }
 

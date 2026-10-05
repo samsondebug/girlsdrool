@@ -766,3 +766,36 @@ snowball by 336.38 of interest on the fixture; the Visa's credit balance owes no
 loan's two Zelle repayments are found and the Mom loan's gap and date are stated. No M6 question
 is batched: the fixture exposed no interest-convention ambiguity (monthly nominal stays the
 default; the auto loan exercises actual/365).
+
+## ADR-0044 — Venture rollup mechanics: ownership decides contributions, accounts change owner
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** ADR-0025 fixed the buckets, the cap and the verdict. Building M7 left open how a
+transfer becomes a contribution or a withdrawal when the link was made before the account was
+marked venture-owned, how the window is cut, and how an existing account becomes a venture's.
+
+**Decision.**
+
+1. **Ownership at rollup time decides.** A transfer whose legs sit on a personal account and on
+   an account owned by venture V is an owner contribution (the venture-side leg is an inflow) or
+   a withdrawal (an outflow) whatever kind the link stored when it was made: the Summit Amex is
+   paid from personal checking, so each card payment is a contribution once the card is marked
+   as Ledgerline's. Non-transfer rows tagged to V are bucketed by their venture category code;
+   an operating expense on a personal account also counts toward the cap (ADR-0025's default).
+2. **The window is the trailing twelve months**, `(same day a year ago, today]`, clamped to the
+   month; operating cash flow, cap used and the spend share are all read over it.
+3. **An account changes owner through its patch** (`venture_id`: a venture makes it venture-owned,
+   null makes it personal again); a venture-owned account never enters the hero's set (ADR-0022
+   §1) and its balance is shown on the venture as what it holds or owes, not as personal cash.
+4. **Take-home is confirmed base pay received**: Σ `income_receipt` rows of active confirmed
+   base streams in the window; `spend_share_bps = Σ operating expense (all ventures) /
+take-home`.
+5. **Alerts are two, named:** `cap used` when cap used ≥ the cap, `milestone date passed` when
+   the milestone date is before today. The verdict (`fund | freeze | kill`) is the person's
+   field; the engine never sets it.
+
+**Consequences.** `tests/m7_ventures.rs` pins the fixture's buckets (348.00 of SaaS, 544.18 of
+contributions), cap used, the 1088 bps gauge, the 92-day countdown, the 170 bps spend share, the
+two alerts and the personal-account expense rule. The batched M7 question (ADR-0025: personal-
+account venture expenses count toward the cap) stays open with its default in force.

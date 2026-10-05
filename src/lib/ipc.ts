@@ -152,6 +152,8 @@ export interface AccountPatch {
   firewalled?: boolean;
   archived?: boolean;
   recon_stale_after_days?: number | null;
+  /** A venture makes the account venture-owned; null hands it back to the person. */
+  venture_id?: number | null;
 }
 
 export type RootKind =
@@ -1165,6 +1167,47 @@ export interface DebtComparison {
   scenario: InformalScenario;
 }
 
+export interface VentureBucket {
+  cents: number;
+  rows: number;
+}
+
+export interface VentureAccount {
+  account_id: number;
+  name: string;
+  kind: AccountKind;
+  balance_cents: number;
+}
+
+export interface VentureRollup extends Venture {
+  as_of: string;
+  window_start: string;
+  customer_revenue: VentureBucket;
+  operating_expense: VentureBucket;
+  owner_contribution: VentureBucket;
+  financing: VentureBucket;
+  withdrawal: VentureBucket;
+  operating_expense_from_personal_cents: number;
+  operating_cash_flow_cents: number;
+  cap_used_cents: number;
+  cap_remaining_cents: number;
+  cap_utilization_bps: number;
+  milestone_days: number | null;
+  alerts: string[];
+  accounts: VentureAccount[];
+}
+
+export interface VentureSummary {
+  as_of: string;
+  window_start: string;
+  ventures: VentureRollup[];
+  total_cap_cents: number;
+  total_cap_used_cents: number;
+  total_operating_expense_cents: number;
+  take_home_cents: number;
+  spend_share_bps: number;
+}
+
 export const api = {
   appStatus: () => call<AppStatus>("app_status"),
   chooseDataDir: (path: string) => call<AppStatus>("choose_data_dir", { path }),
@@ -1316,6 +1359,7 @@ export const api = {
   debtComparison: (extraCents: number | null) =>
     call<DebtComparison>("debt_comparison", { extraCents }),
   debtTotals: () => call<DebtTotals>("debt_totals"),
+  ventureSummary: () => call<VentureSummary>("venture_summary"),
 };
 
 export const CHANGED_EVENT = "kept://changed";

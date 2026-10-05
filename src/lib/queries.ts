@@ -101,6 +101,7 @@ export const keys = {
   debtComparisonAll: ["debt_comparison"] as const,
   debtComparison: (extra: number | null) => ["debt_comparison", extra] as const,
   debtTotals: ["debt_totals"] as const,
+  ventureSummary: ["venture_summary"] as const,
 };
 
 /** The hero and the upcoming panel read the plan and the ledger; anything there moves them. */
@@ -113,6 +114,7 @@ const heroDependent: readonly QueryKey[] = [
   ["informal_loans"],
   ["debt_comparison"],
   ["debt_totals"],
+  ["venture_summary"],
 ];
 
 /** Reconciliation periods, the explorer and trust move whenever a ledger row does. */
@@ -124,6 +126,7 @@ const reconDependent: readonly QueryKey[] = [
 
 /** Everything a changed ledger row can move: rows, totals, the queue, links and both views. */
 const rowDependent: readonly QueryKey[] = [
+  ["venture_summary"],
   keys.ledgerAll,
   ["txn_children"],
   keys.reviewQueue,
@@ -152,7 +155,7 @@ const invalidationMap: Record<string, readonly QueryKey[]> = {
   import_quarantine: [keys.quarantine, keys.explorerAll],
   saved_view: [keys.savedViews],
   rule: [keys.rules],
-  venture: [keys.ventures, keys.accounts],
+  venture: [keys.ventures, keys.accounts, keys.ventureSummary],
   variable_spend_override: [keys.variableModel, keys.forecastAll],
   snapshot: [keys.forecastAll],
   debt: [
@@ -597,6 +600,14 @@ export function useSetVariableOverride() {
 
 export function useSaveForecastPlan() {
   return useMutation({ mutationFn: () => api.saveForecastPlan() });
+}
+
+export function useVentureSummary() {
+  return useQuery({
+    queryKey: keys.ventureSummary,
+    queryFn: api.ventureSummary,
+    staleTime: Infinity,
+  });
 }
 
 export function useDebtTotals() {

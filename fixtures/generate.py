@@ -596,6 +596,64 @@ def informal_scenario(as_of: date, extra: int) -> dict:
             "gap_cents": gap, "payoff_date": payoff}
 
 
+# ---------------------------------------------------------------------------------------------
+# M7: the venture — Ledgerline's details, the account the person marks as venture-owned, and the
+# rollup hand-computed from ROWS: buckets, operating cash flow, cap used and utilization, the
+# milestone countdown, the stop-condition alert, and venture spend as a share of take-home.
+# ---------------------------------------------------------------------------------------------
+
+VENTURE_DETAILS = dict(status="fund", cash_cap_cents=500_000, time_budget_hours=120, milestone="First paying customer",
+                       milestone_date="2026-12-31", stop_condition="Kill if no paying customer by the milestone date or the cap is used up")
+VENTURE_ACCOUNT = "sa"            # the Summit Amex carries only Ledgerline charges and is paid from personal checking
+TRAILING_MONTHS = 12
+VENTURE_BUCKETS = ["customer_revenue", "operating_expense", "owner_contribution", "financing", "withdrawal"]
+
+
+def venture_rollup(as_of: date) -> dict:
+    """ARCHITECTURE §5.9. Rows tagged to the venture bucket by category code; a transfer between a
+    personal account and a venture-owned one is an owner contribution (into the venture) or a
+    withdrawal (out of it) whatever its stored kind."""
+    window_start = date(as_of.year - 1, as_of.month, as_of.day)
+    in_window = lambda r: window_start < date.fromisoformat(r.posted) <= as_of
+    buckets = {b: {"cents": 0, "rows": 0} for b in VENTURE_BUCKETS}
+    from_personal = 0
+    for r in ROWS:
+        if not in_window(r):
+            continue
+        cat, _, _ = automation(r)
+        if cat and cat.startswith("venture.") and r.pair is None:
+            b = cat.split(".", 1)[1]
+            buckets[b]["cents"] += abs(r.amount)
+            buckets[b]["rows"] += 1
+            if b == "operating_expense" and r.account != VENTURE_ACCOUNT:
+                from_personal += abs(r.amount)
+        elif r.pair is not None and r.account == VENTURE_ACCOUNT:
+            legs = pair_legs(r.pair)
+            other = next(l for l in legs if l.account != VENTURE_ACCOUNT)
+            if other.account != VENTURE_ACCOUNT:
+                b = "owner_contribution" if r.amount > 0 else "withdrawal"
+                buckets[b]["cents"] += abs(r.amount)
+                buckets[b]["rows"] += 1
+    ocf = buckets["customer_revenue"]["cents"] - buckets["operating_expense"]["cents"]
+    cap_used = buckets["owner_contribution"]["cents"] + from_personal - buckets["withdrawal"]["cents"]
+    cap = VENTURE_DETAILS["cash_cap_cents"]
+    utilization_bps = mul_div_round(cap_used, 10_000, cap) if cap else 0
+    milestone = date.fromisoformat(VENTURE_DETAILS["milestone_date"])
+    alerts = []
+    if cap_used >= cap:
+        alerts.append("cap used")
+    if milestone < as_of:
+        alerts.append("milestone date passed")
+    take_home = sum(r.amount for r in ROWS if in_window(r) and automation(r)[0] == "income.salary")
+    share_bps = mul_div_round(buckets["operating_expense"]["cents"], 10_000, take_home) if take_home else 0
+    venture_balances = [{"account": VENTURE_ACCOUNT, "balance_cents": balance_as_of(VENTURE_ACCOUNT, as_of)}]
+    return {"name": VENTURE["name"], "window_start": window_start.isoformat(), "buckets": buckets,
+            "operating_expense_from_personal_cents": from_personal, "operating_cash_flow_cents": ocf,
+            "cap_cents": cap, "cap_used_cents": cap_used, "cap_remaining_cents": cap - cap_used, "cap_utilization_bps": utilization_bps,
+            "milestone_days": (milestone - as_of).days, "alerts": alerts, "take_home_cents": take_home,
+            "spend_share_bps": share_bps, "accounts": venture_balances}
+
+
 def business_day_before(x: date) -> date:
     while x.weekday() >= 5:
         x -= timedelta(days=1)
@@ -1628,6 +1686,38 @@ def expected_md(files: dict[str, str]) -> str:
                   "total_debt_cents": sum(d["owed_cents"] for d in states if not d["informal"]), "informal_remaining_cents": informal_total,
                   "strategies": strategy_runs, "informal_scenarios": scen, "minimum_obligations": min_obls}
 
+    # Ventures (M7)
+    p("## Ventures (M7)")
+    p("")
+    roll = venture_rollup(as_of_d)
+    vd = VENTURE_DETAILS
+    p(f"As of **{AS_OF}**. Venture `{VENTURE['name']}`: status {vd['status']}, cash cap {money(vd['cash_cap_cents'])}, time budget {vd['time_budget_hours']} h,")
+    p(f"milestone \"{vd['milestone']}\" by {vd['milestone_date']}, stop condition \"{vd['stop_condition']}\". The person marks the Summit Amex")
+    p("(`sa`) as owned by the venture: it carries only Ledgerline charges and is paid from personal checking, so each card payment is")
+    p("an owner contribution (personal cash into the venture) whatever the link's stored kind, and the SaaS charges are operating")
+    p("expenses paid from the venture's own account. Rows are bucketed by their venture category code; the window is the trailing")
+    p(f"{TRAILING_MONTHS} months ({roll['window_start']} < posted ≤ {AS_OF}), which here covers every row.")
+    p("")
+    p("| bucket | rows | cents |")
+    p("|---|---:|---:|")
+    for b in VENTURE_BUCKETS:
+        p(f"| {b} | {roll['buckets'][b]['rows']} | {money(roll['buckets'][b]['cents'])} |")
+    p("")
+    p(f"- operating_cash_flow = revenue − operating expense = **{money(roll['operating_cash_flow_cents'])}**")
+    p(f"- cap_used = owner contribution {money(roll['buckets']['owner_contribution']['cents'])} + operating expense paid from personal accounts")
+    p(f"  {money(roll['operating_expense_from_personal_cents'])} − withdrawals {money(roll['buckets']['withdrawal']['cents'])} = **{money(roll['cap_used_cents'])}**; cap remaining {money(roll['cap_remaining_cents'])};")
+    p(f"  utilization **{roll['cap_utilization_bps']} bps** ({roll['cap_utilization_bps'] / 100:.2f}% of {money(roll['cap_cents'])}) — the dashboard gauge")
+    p(f"- milestone countdown **{roll['milestone_days']} days**; stop-condition alert: {', '.join(roll['alerts']) or 'none'} (fires when cap used ≥ cap or the milestone date has passed)")
+    p(f"- venture spend share of take-home = operating expense {money(roll['buckets']['operating_expense']['cents'])} / confirmed base-pay receipts {money(roll['take_home_cents'])} = **{roll['spend_share_bps']} bps**")
+    p(f"- venture-owned account balance: sa {money(roll['accounts'][0]['balance_cents'])} (what the card owes, not personal cash; never in the hero)")
+    p("- The freelance invoices on Riverside stay personal income (`income.other` by rule); nothing is customer revenue until the person says so.")
+    p("- Verdict is the person's (`fund|freeze|kill`); sunk cost is not an input. Lowering the cap below what is used, or letting the")
+    p("  milestone date pass, raises the alert; the test checks both.")
+    p("")
+    global VENTURES_JSON
+    VENTURES_JSON = {"as_of": AS_OF, "trailing_months": TRAILING_MONTHS, "venture": dict(VENTURE, **vd), "venture_account": VENTURE_ACCOUNT,
+                     "rollup": roll}
+
     global FORECAST_JSON
     FORECAST_JSON = {"as_of": AS_OF, "horizon_days": HORIZON_DAYS, "bucket_days": BUCKET_DAYS, "pay_shift_days": PAY_SHIFT_DAYS,
                      "timing_buffer_cents": TIMING_BUFFER_CENTS, "model": model, "model_total_cents": model_total, "scenarios": runs}
@@ -1651,6 +1741,7 @@ RECON_JSON: dict = {}
 PLAN_JSON: dict = {}
 FORECAST_JSON: dict = {}
 DEBTS_JSON: dict = {}
+VENTURES_JSON: dict = {}
 
 
 def emit_plan_json() -> None:
@@ -1663,6 +1754,10 @@ def emit_forecast_json() -> None:
 
 def emit_debts_json() -> None:
     write("debts.json", json.dumps(DEBTS_JSON, indent=1) + "\n")
+
+
+def emit_ventures_json() -> None:
+    write("ventures.json", json.dumps(VENTURES_JSON, indent=1) + "\n")
 
 
 def emit_recon_json() -> None:
@@ -1705,7 +1800,8 @@ def main() -> None:
     emit_plan_json()
     emit_forecast_json()
     emit_debts_json()
-    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json, debts.json and EXPECTED.md ({len(ROWS)} ledger rows)")
+    emit_ventures_json()
+    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json, plan.json, forecast.json, debts.json, ventures.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

@@ -72,6 +72,9 @@ pub struct AccountPatch {
     pub archived: Option<bool>,
     #[serde(default, deserialize_with = "crate::db::repo::double_option")]
     pub recon_stale_after_days: Option<Option<i64>>,
+    /// A venture makes the account venture-owned; `null` hands it back to the person (ADR-0044).
+    #[serde(default, deserialize_with = "crate::db::repo::double_option")]
+    pub venture_id: Option<Option<i64>>,
 }
 
 const COLS: &str = "id, name, institution, kind, currency, opening_balance_cents, opening_date, owner, venture_id, firewalled, archived, recon_stale_after_days, created_at";
@@ -249,12 +252,29 @@ pub fn update(
         }
         after.recon_stale_after_days = days;
     }
+    if let Some(venture_id) = patch.venture_id {
+        if let Some(v) = venture_id {
+            crate::db::repo::venture::get(conn, v)?;
+        }
+        if after.kind == "venture" && venture_id.is_none() {
+            return Err(AppError::validation(
+                "venture_id",
+                "a venture account belongs to a venture",
+            ));
+        }
+        after.venture_id = venture_id;
+        after.owner = if venture_id.is_some() {
+            "venture".to_string()
+        } else {
+            "personal".to_string()
+        };
+    }
     if after == before {
         return Ok(before);
     }
     conn.execute(
         "UPDATE account SET name = ?1, institution = ?2, kind = ?3, opening_balance_cents = ?4, opening_date = ?5,
-         firewalled = ?6, archived = ?7, recon_stale_after_days = ?8 WHERE id = ?9",
+         firewalled = ?6, archived = ?7, recon_stale_after_days = ?8, owner = ?10, venture_id = ?11 WHERE id = ?9",
         params![
             after.name,
             after.institution,
@@ -264,7 +284,9 @@ pub fn update(
             i64::from(after.firewalled),
             i64::from(after.archived),
             after.recon_stale_after_days,
-            id
+            id,
+            after.owner,
+            after.venture_id
         ],
     )
     .map_err(|e| match e {

@@ -178,17 +178,17 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] fixture SaaS and owner contribution land in the right buckets
-- [ ] cap gauge matches
+- [x] fixture SaaS and owner contribution land in the right buckets
+- [x] cap gauge matches
 
 **Engineering checklist**
 
-- [ ] Venture CRUD (status/verdict, cap, time budget, milestone, stop condition)
-- [ ] Rollup buckets, operating cash flow, cap used, utilization, milestone countdown, stop-condition alert, venture spend share of take-home (ADR-0025)
-- [ ] Ventures screen: cards, cap gauges, rollup, verdict, stop condition
-- [ ] Integration test: fixture SaaS charge → `operating_expense` and cap used; owner contribution → bucket and cap; gauge value equals `EXPECTED.md`
+- [x] Venture CRUD (status/verdict, cap, time budget, milestone, stop condition)
+- [x] Rollup buckets, operating cash flow, cap used, utilization, milestone countdown, stop-condition alert, venture spend share of take-home (ADR-0025)
+- [x] Ventures screen: cards, cap gauges, rollup, verdict, stop condition
+- [x] Integration test: fixture SaaS charge → `operating_expense` and cap used; owner contribution → bucket and cap; gauge value equals `EXPECTED.md`
 
-**Questions to batch (ADR-0025):** personal-account venture expenses count toward the cap.
+**Questions to batch (ADR-0025, default in force; see ADR-0044):** personal-account venture expenses count toward the cap.
 
 ---
 

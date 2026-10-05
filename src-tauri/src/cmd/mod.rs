@@ -1489,6 +1489,17 @@ pub async fn debt_comparison(
     })
 }
 
+// ---- ventures (M7) ----------------------------------------------------------------------------
+
+/// Every venture's rollup, cap gauge, countdown and alert, plus the spend share of take-home.
+#[tauri::command]
+pub async fn venture_summary(state: State<'_, AppState>) -> AppResult<crate::venture::Summary> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        crate::venture::summary(db.conn(), today)
+    })
+}
+
 /// Store today's baseline as the plan later forecasts are drawn against.
 #[tauri::command]
 pub async fn save_forecast_plan(

@@ -6,6 +6,7 @@
 pub mod debts;
 pub mod forecast;
 pub mod plan;
+pub mod ventures;
 
 use std::path::{Path, PathBuf};
 
