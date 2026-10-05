@@ -131,7 +131,7 @@ export function Import() {
                   onSuccess: (u) => {
                     pushNotice({
                       tone: "info",
-                      text: `Undid batch ${u.batch_id}: ${u.deleted} rows removed, ${u.restored} restored.`,
+                      text: `Undid batch ${u.batch_id}: ${u.deleted} rows removed, ${u.restored} restored${u.unlinked > 0 ? `, ${u.unlinked} links removed` : ""}.`,
                     });
                     setReport(null);
                   },
@@ -389,7 +389,7 @@ export function Import() {
                           onSuccess: (u) => {
                             pushNotice({
                               tone: "info",
-                              text: `Undid batch ${u.batch_id}: ${u.deleted} rows removed, ${u.restored} restored.`,
+                              text: `Undid batch ${u.batch_id}: ${u.deleted} rows removed, ${u.restored} restored${u.unlinked > 0 ? `, ${u.unlinked} links removed` : ""}.`,
                             });
                           },
                           onError: (error) => {

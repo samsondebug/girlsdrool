@@ -6,7 +6,8 @@ import { create } from "zustand";
 
 import type { Theme } from "./ipc";
 
-export type Screen = "dashboard" | "ledger" | "import" | "accounts" | "settings";
+export type Screen =
+  "dashboard" | "ledger" | "review" | "rules" | "import" | "accounts" | "settings";
 
 export interface Notice {
   id: number;
@@ -14,6 +15,8 @@ export interface Notice {
   text: string;
   /** An undo the toast names (spec: toasts that name the undo). */
   undo?: { label: string; run: () => void };
+  /** A follow-up the toast offers, such as creating the rule a correction proposed. */
+  action?: { label: string; run: () => void };
 }
 
 interface UiState {

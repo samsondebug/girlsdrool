@@ -305,3 +305,20 @@ pub fn posted_sum(conn: &Connection, account_id: i64) -> AppResult<i64> {
         |r| r.get(0),
     )?)
 }
+
+/// The review queue: rows flagged for review or still unclassified, largest first.
+pub fn review_queue(conn: &Connection, limit: usize) -> AppResult<Vec<LedgerRow>> {
+    let limit = i64::try_from(limit.clamp(1, 5000)).map_err(|_| AppError::Overflow)?;
+    let sql = format!(
+        "{ROW_SELECT} WHERE ((t.flags & 1) <> 0 OR t.classification = 'unclassified')
+         ORDER BY abs(t.amount_cents) DESC, t.posted_date, t.id LIMIT ?1"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt
+        .query_map([limit], row_from)?
+        .collect::<Result<Vec<_>, _>>()?;
+    for row in &mut rows {
+        row.tags = crate::db::repo::txn::tags_of(conn, row.id)?;
+    }
+    Ok(rows)
+}

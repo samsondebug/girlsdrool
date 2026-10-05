@@ -77,20 +77,20 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] fixture transfer pairs link
-- [ ] spending view and cash view differ by the known amount in EXPECTED.md
+- [x] fixture transfer pairs link (`tests/m2_rules_links.rs`: the 11 pairs of `fixtures/automation.json` with their kinds, plus the Target refund)
+- [x] spending view and cash view differ by the known amount in EXPECTED.md (gross spending 11,846.20 − cash outflows 15,799.94 = −3,953.74)
 
 **Engineering checklist**
 
-- [ ] Rule engine (ordered, first match, `rule_id` stored), rule editor UI, reorder
-- [ ] Heuristics with `heuristic_code` (ARCHITECTURE §6.4); cash withdrawals and payment-app rows never categorized
-- [ ] Review queue ordered by `|amount|`; corrections propose a rule, never create one
-- [ ] Transfer/card-payment/refund detection and link editor (ADR-0019); unlinked refunds in the queue
-- [ ] Spending view and cash view queries (ADR-0020) exposed as commands with row ids
-- [ ] Property test: `transfer_not_spending`
-- [ ] Integration test: fixture pairs link; spending − cash difference equals `EXPECTED.md`
+- [x] Rule engine (ordered, first match, `rule_id` stored), rule editor UI, reorder (`rules/mod.rs`; Rules screen with Apply rules now)
+- [x] Heuristics with `heuristic_code` (ARCHITECTURE §6.4); cash withdrawals and payment-app rows never categorized
+- [x] Review queue ordered by `|amount|`; corrections propose a rule, never create one (`propose_rule`; the toast's "Create rule" is the only way a proposal becomes a rule)
+- [x] Transfer/card-payment/refund detection and link editor (ADR-0019); unlinked refunds in the queue (`refund_candidate`; Link… dialog on Ledger and Review)
+- [x] Spending view and cash view queries (ADR-0020) exposed as commands with row ids (`spending_view` per category, `cash_view` per account; the strip above the review queue)
+- [x] Property test: `transfer_not_spending`
+- [x] Integration test: fixture pairs link; spending − cash difference equals `EXPECTED.md`
 
-**Questions to batch:** none.
+**Questions to batch:** none. One fixture correction is recorded instead (ADR-0039 §5): the generator counted loan repayments as spending; ARCHITECTURE §5.2 and the engine do not.
 
 ---
 

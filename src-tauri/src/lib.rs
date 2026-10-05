@@ -2,6 +2,7 @@
 //! integers this crate returns. Built without the `app` feature, the crate contains the engines
 //! and database layer only, so they can be tested on a host without a webview.
 
+pub mod cash;
 pub mod config;
 pub mod dates;
 pub mod db;
@@ -10,6 +11,7 @@ pub mod export;
 pub mod import;
 pub mod logging;
 pub mod money;
+pub mod rules;
 pub mod secret;
 
 #[cfg(feature = "app")]
@@ -113,6 +115,26 @@ pub fn run() {
             cmd::list_saved_views,
             cmd::save_view,
             cmd::delete_saved_view,
+            cmd::list_rules,
+            cmd::create_rule,
+            cmd::update_rule,
+            cmd::delete_rule,
+            cmd::reorder_rules,
+            cmd::apply_rules,
+            cmd::propose_rule,
+            cmd::link_candidates,
+            cmd::link_details,
+            cmd::link_transfer,
+            cmd::unlink_transfer,
+            cmd::link_refund,
+            cmd::unlink_refund,
+            cmd::acknowledge_firewall,
+            cmd::review_queue,
+            cmd::spending_view,
+            cmd::cash_view,
+            cmd::list_ventures,
+            cmd::create_venture,
+            cmd::update_venture,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

@@ -6,6 +6,8 @@ import { Accounts } from "./Accounts";
 import { Dashboard } from "./Dashboard";
 import { Import } from "./Import";
 import { Ledger } from "./Ledger";
+import { Review } from "./Review";
+import { Rules } from "./Rules";
 import { Settings } from "./Settings";
 
 interface ShellProps {
@@ -15,6 +17,8 @@ interface ShellProps {
 const navItems: { screen: Screen; label: string }[] = [
   { screen: "dashboard", label: "Dashboard" },
   { screen: "ledger", label: "Ledger" },
+  { screen: "review", label: "Review" },
+  { screen: "rules", label: "Rules" },
   { screen: "import", label: "Import" },
   { screen: "accounts", label: "Accounts" },
   { screen: "settings", label: "Settings" },
@@ -26,6 +30,10 @@ function ActiveScreen({ screen, status }: { screen: Screen; status: AppStatus })
       return <Dashboard />;
     case "ledger":
       return <Ledger />;
+    case "review":
+      return <Review />;
+    case "rules":
+      return <Rules />;
     case "import":
       return <Import />;
     case "accounts":

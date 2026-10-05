@@ -22,9 +22,12 @@ import {
   type NewAccount,
   type NewCategory,
   type QuarantineAction,
+  type RuleInput,
   type SettingUpdate,
   type SplitPart,
+  type TransferKind,
   type TxnPatch,
+  type VentureInput,
 } from "./ipc";
 import type { LedgerFilter } from "./query-chips";
 import { reportError } from "./report";
@@ -47,17 +50,44 @@ export const keys = {
   ledger: (filter: LedgerFilter) => ["ledger", filter] as const,
   ledgerAll: ["ledger"] as const,
   children: (parentId: number) => ["txn_children", parentId] as const,
+  rules: ["rules"] as const,
+  ventures: ["ventures"] as const,
+  reviewQueue: ["review_queue"] as const,
+  spending: (from: string, to: string) => ["spending_view", from, to] as const,
+  spendingAll: ["spending_view"] as const,
+  cash: (from: string, to: string) => ["cash_view", from, to] as const,
+  cashAll: ["cash_view"] as const,
+  linkDetails: (txnId: number) => ["link_details", txnId] as const,
+  linkDetailsAll: ["link_details"] as const,
+  linkCandidates: (txnId: number) => ["link_candidates", txnId] as const,
+  linkCandidatesAll: ["link_candidates"] as const,
 };
+
+/** Everything a changed ledger row can move: rows, totals, the queue, links and both views. */
+const rowDependent: readonly QueryKey[] = [
+  keys.ledgerAll,
+  ["txn_children"],
+  keys.reviewQueue,
+  keys.spendingAll,
+  keys.cashAll,
+  keys.linkDetailsAll,
+  keys.linkCandidatesAll,
+];
 
 /** Which query keys an entity change invalidates. */
 const invalidationMap: Record<string, readonly QueryKey[]> = {
   setting: [keys.settings],
-  account: [keys.accounts, keys.ledgerAll],
-  category: [keys.categories, keys.ledgerAll],
-  txn: [keys.ledgerAll, ["txn_children"]],
+  account: [keys.accounts, keys.ledgerAll, keys.cashAll],
+  category: [keys.categories, keys.ledgerAll, keys.spendingAll],
+  txn: rowDependent,
+  transfer_link: rowDependent,
+  refund_link: rowDependent,
+  firewall_ack: rowDependent,
   import_batch: [keys.batches],
   import_quarantine: [keys.quarantine],
   saved_view: [keys.savedViews],
+  rule: [keys.rules],
+  venture: [keys.ventures, keys.accounts],
 };
 
 const LEDGER_PAGE = 200;
@@ -225,6 +255,120 @@ export function useSaveView() {
 
 export function useDeleteView() {
   return useMutation({ mutationFn: (id: number) => api.deleteSavedView(id) });
+}
+
+// ---- rules, links, review, views (M2) -----------------------------------------------------------
+
+export function useRules() {
+  return useQuery({ queryKey: keys.rules, queryFn: api.listRules, staleTime: Infinity });
+}
+
+export function useVentures() {
+  return useQuery({ queryKey: keys.ventures, queryFn: api.listVentures, staleTime: Infinity });
+}
+
+export function useReviewQueue() {
+  return useQuery({
+    queryKey: keys.reviewQueue,
+    queryFn: () => api.reviewQueue(500),
+    staleTime: Infinity,
+  });
+}
+
+export function useSpendingView(from: string, to: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.spending(from, to),
+    queryFn: () => api.spendingView(from, to),
+    enabled,
+    staleTime: Infinity,
+  });
+}
+
+export function useCashView(from: string, to: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.cash(from, to),
+    queryFn: () => api.cashView(from, to),
+    enabled,
+    staleTime: Infinity,
+  });
+}
+
+export function useLinkDetails(txnId: number) {
+  return useQuery({
+    queryKey: keys.linkDetails(txnId),
+    queryFn: () => api.linkDetails(txnId),
+    staleTime: Infinity,
+  });
+}
+
+export function useLinkCandidates(txnId: number) {
+  return useQuery({
+    queryKey: keys.linkCandidates(txnId),
+    queryFn: () => api.linkCandidates(txnId),
+    staleTime: Infinity,
+  });
+}
+
+export function useCreateRule() {
+  return useMutation({ mutationFn: (input: RuleInput) => api.createRule(input) });
+}
+
+export function useUpdateRule() {
+  return useMutation({
+    mutationFn: (input: { id: number; input: RuleInput }) => api.updateRule(input.id, input.input),
+  });
+}
+
+export function useDeleteRule() {
+  return useMutation({ mutationFn: (id: number) => api.deleteRule(id) });
+}
+
+export function useReorderRules() {
+  return useMutation({ mutationFn: (ids: number[]) => api.reorderRules(ids) });
+}
+
+export function useApplyRules() {
+  return useMutation({ mutationFn: () => api.applyRules() });
+}
+
+export function useLinkTransfer() {
+  return useMutation({
+    mutationFn: (input: { outTxnId: number; inTxnId: number; kind: TransferKind | null }) =>
+      api.linkTransfer(input.outTxnId, input.inTxnId, input.kind),
+  });
+}
+
+export function useUnlinkTransfer() {
+  return useMutation({ mutationFn: (linkId: number) => api.unlinkTransfer(linkId) });
+}
+
+export function useLinkRefund() {
+  return useMutation({
+    mutationFn: (input: { originalTxnId: number; refundTxnId: number }) =>
+      api.linkRefund(input.originalTxnId, input.refundTxnId),
+  });
+}
+
+export function useUnlinkRefund() {
+  return useMutation({ mutationFn: (linkId: number) => api.unlinkRefund(linkId) });
+}
+
+export function useAcknowledgeFirewall() {
+  return useMutation({
+    mutationFn: (input: { txnId: number; note: string }) =>
+      api.acknowledgeFirewall(input.txnId, input.note),
+  });
+}
+
+export function useCreateVenture() {
+  return useMutation({ mutationFn: (input: VentureInput) => api.createVenture(input) });
+}
+
+export function useUpdateVenture() {
+  return useMutation({
+    mutationFn: (input: { id: number; input: VentureInput }) =>
+      api.updateVenture(input.id, input.input),
+  });
 }
 
 /** Mount once: route `kept://changed` events into query invalidation. */

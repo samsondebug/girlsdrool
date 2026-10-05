@@ -520,3 +520,46 @@ model, row selection) are well served by.
 **Decision.** `@tanstack/react-table` `^8.21` with `@tanstack/react-virtual` `^3.14`. Moving to
 v9 is a deliberate upgrade with its own ADR, not a routine bump. `@radix-ui/react-dialog` `^1.1`
 is the first Radix primitive in use (split editor, save-view dialog).
+
+## ADR-0039 — M2 engine decisions: what automation may touch, and what a link changes
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** Writing the M2 fixtures and tests before the engines surfaced five choices the
+architecture left implicit: whether a refund link overrides a rule, which rows "apply rules" may
+revisit, how undo treats the edits automation makes inside an import, what a user correction does
+to the review flags, and whether a transfer-root row that is not one leg of a linked pair is
+spending.
+
+**Decision.**
+
+1. **A link never overrides a prior categorisation.** A refund that nothing categorised takes the
+   original's category and `refund_match`; a refund a rule or the user already placed keeps that
+   category and its reason (the Target return reads `rule:Target`, as `fixtures/EXPECTED.md` wrote
+   down). Transfer links do set both legs to the kind's category: a transfer leg is never spending
+   or income, whatever a payee rule said.
+2. **Automation owns every row the user has not categorised by hand.** `apply_rules` re-evaluates
+   all unlinked leaf rows with `classification ≠ manual`: a new or reordered rule can take a row
+   from an older rule or from a heuristic (rules outrank heuristics); a deleted rule's rows fall
+   through to heuristics or review. The run is idempotent; the report counts outcomes
+   (`rule_hits + heuristic_hits + unclassified = considered`) and, separately, `changed`. A rule's
+   `hit_count` counts a row once.
+3. **Undo works per row, not per audit event.** Automation inside an import touches a freshly
+   inserted row again in the same command group. Undo therefore compares a row with the last state
+   the command left and restores the first state it found; links the command created come off
+   first (the other leg returns to review); links that predate the command stay. A refund linked
+   later to a row the batch inserted is a conflict, like any later change.
+4. **A correction leaves the queue.** A user-set category clears `needs_review` and
+   `payment_app_unknown`; an outflow from a firewalled account keeps `needs_review` until its
+   acknowledgment exists (policy 1), whoever categorised it.
+5. **Spending excludes transfer-root rows even without a link** (ARCHITECTURE §5.2 as written).
+   The fixture generator had implemented "non-transfer" as "not one leg of a pair" and counted the
+   two loan repayments to Chris as spending; the engine followed §5.2 and the arithmetic in
+   `fixtures/generate.py` was corrected (gross 11,846.20, net 8,162.03, spending − cash
+   −3,953.74). This is the first case where the fixture, not the engine, was wrong; the written
+   definition decided it, and the correction is recorded in the CHANGELOG.
+
+**Consequences.** `tests/m2_rules_links.rs` and the `transfer_not_spending` property pin all five.
+The heuristic code list in ARCHITECTURE §6.4 is the implemented one; the earlier draft's
+`internal_transfer_pair` and `firewall_touch` names did not survive (the firewall state is a flag
+plus the absence of an acknowledgment, not a classification).

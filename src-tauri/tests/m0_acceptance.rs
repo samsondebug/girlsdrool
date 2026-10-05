@@ -120,9 +120,10 @@ fn empty_database_migrates_to_latest_with_seeds() {
         ),
         7
     );
+    // 27 system categories from v1 plus the 20 fixed/variable/irregular children v3 adds
     assert_eq!(
         count(conn, "SELECT count(*) FROM category WHERE is_system = 1"),
-        27
+        47
     );
     assert_eq!(count(conn, "SELECT count(*) FROM category WHERE system_code = 'transfer.borrowing_proceeds' AND root_kind = 'transfer'"), 1);
     assert_eq!(

@@ -298,10 +298,10 @@ Refund link (M2): Visa `TARGET 00012345` 2026-08-20 +84.17 ↔ Visa `TARGET 0001
 Spending view = every non-transfer, non-income, non-proceeds leaf row, by category; linked refunds and
 same-category reimbursements net against their category; rows still in review are listed separately.
 
-- Gross outflows: **12,446.20**
+- Gross outflows: **11,846.20**
 - Linked refunds: 84.17 (Target return)
 - Same-category reimbursements: 3,600.00 (roommate rent split, 3 × 1,200.00)
-- Net spending: **8,762.03**
+- Net spending: **8,162.03**
 - Positive rows awaiting review (not spending, not income until classified): 642.00
 
 Cash view = rows on cash accounts (nbc, nbs, rvc, vm) by date; transfers between two cash accounts net
@@ -310,8 +310,106 @@ to zero and are excluded; card payments and the brokerage deposit count on their
 - Cash outflows: **15,799.94**
 - Cash inflows: **28,600.61**
 - Net change in cash accounts (Σ closing − opening): **12,800.67** = inflows − outflows (12,800.67)
-- Spending-view gross outflows minus cash-view outflows: **-3,353.74**
+- Spending-view gross outflows minus cash-view outflows: **-3,953.74**
   (card purchases counted on the cards vs card payments counted on the bank, plus brokerage-side rows).
+
+## Rules (M2) — ordered, first match wins, applied before heuristics
+
+`fixtures/rules.json` is the machine-readable copy. Venture `Ledgerline` (fund, cap 5,000.00) must exist.
+
+| # | name | payee_norm contains | category | venture |
+|---|---|---|---|---|
+| 1 | Rent | `lakeshore properties` | `fixed.rent` |  |
+| 2 | Rent share from Morgan | `zelle payment from morgan avery` | `fixed.rent` |  |
+| 3 | ComEd | `comed` | `fixed.utilities` |  |
+| 4 | Peoples Gas | `peoples gas` | `fixed.utilities` |  |
+| 5 | Payroll | `meridian cap` | `income.salary` |  |
+| 6 | Xfinity | `xfinity` | `fixed.internet` |  |
+| 7 | T-Mobile | `t mobile` | `fixed.phone` |  |
+| 8 | Jewel-Osco | `jewel osco` | `variable.groceries` |  |
+| 9 | Trader Joe's | `trader joe` | `variable.groceries` |  |
+| 10 | Costco | `costco` | `variable.groceries` |  |
+| 11 | Shell | `shell oil` | `variable.fuel` |  |
+| 12 | Chipotle | `chipotle` | `variable.dining` |  |
+| 13 | Restaurants abroad | `restaurante` | `variable.dining` |  |
+| 14 | Amazon | `amazon` | `variable.shopping` |  |
+| 15 | Target | `target` | `variable.shopping` |  |
+| 16 | Uber | `uber` | `variable.transport` |  |
+| 17 | Walgreens | `walgreens` | `variable.health` |  |
+| 18 | Netflix | `netflix` | `fixed.subscriptions` |  |
+| 19 | GEICO annual | `geico` | `irregular.insurance` |  |
+| 20 | Freelance | `freelance invoice` | `income.other` |  |
+| 21 | Savings interest | `interest payment` | `income.interest` |  |
+| 22 | Dividends | `dividend` | `income.interest` |  |
+| 23 | Linear (Ledgerline) | `linear app` | `venture.operating_expense` | Ledgerline |
+| 24 | Vercel (Ledgerline) | `vercel` | `venture.operating_expense` | Ledgerline |
+| 25 | Repayment to Chris | `zelle payment to chris park` | `transfer.loan_repayment` |  |
+
+Heuristics, in order, for rows no rule matched: `securities_sale` flag → `transfer.securities_sale_proceeds`;
+payee contains `fee` → `debt.fees` + fee flag; `interest` on an outflow → `debt.interest` + interest flag;
+`interest` on an inflow → `income.interest` + interest flag; `atm` → cash_withdrawal + needs_review, no category;
+payment-app rows (Venmo export, or a bank row naming venmo/zelle/cash app/paypal) → payment_app_unknown +
+needs_review, no category. Anything else stays unclassified with needs_review. Transfer and refund links run
+after heuristics; a linked leg takes the transfer category and drops needs_review / payment_app_unknown.
+An outflow on a firewalled account keeps needs_review until it is acknowledged (policy `firewall_exclusion`).
+
+### Automation outcome per row (category, why, flags) — rows that differ from their final category
+
+| account | posted | description | amount | category after M2 | why | flags |
+|---|---|---|---:|---|---|---|
+| nbc | 2026-07-25 | ATM WITHDRAWAL 1120 N STATE | -100.00 | — | heuristic:atm_withdrawal | cash_withdrawal, needs_review |
+| nbc | 2026-09-14 | VENMO *MORGAN AVERY | -85.00 | — | heuristic:payment_app_row | needs_review, payment_app_unknown |
+| rvc | 2026-08-15 | ATM WITHDRAWAL BANCO AZTECA CDMX | -163.42 | — | heuristic:atm_withdrawal | cash_withdrawal, needs_review |
+| rvc | 2026-08-15 | NON-NETWORK ATM FEE | -3.00 | debt.fees | heuristic:fee_charge | fee |
+| rvc | 2026-08-15 | INTL TRANSACTION FEE | -4.90 | debt.fees | heuristic:fee_charge | fee |
+| sv | 2026-07-31 | INTEREST CHARGE ON PURCHASES | -22.87 | debt.interest | heuristic:interest_charge | interest |
+| sv | 2026-08-31 | INTEREST CHARGE ON PURCHASES | -19.44 | debt.interest | heuristic:interest_charge | interest |
+| sv | 2026-09-30 | INTEREST CHARGE ON PURCHASES | -18.72 | debt.interest | heuristic:interest_charge | interest |
+| hb | 2026-09-12 | SELL | 2,500.00 | transfer.securities_sale_proceeds | heuristic:securities_sale | securities_sale |
+| hb | 2026-09-15 | ACH TRANSFER TO NORTHBANK ...1234 | -2,500.00 | transfer.internal | heuristic:internal_pair | needs_review |
+| vm | 2026-08-05 | Chris Park | 600.00 | — | heuristic:payment_app_row | needs_review, payment_app_unknown |
+| vm | 2026-09-20 | Morgan Avery | 42.00 | — | heuristic:payment_app_row | needs_review, payment_app_unknown |
+
+### Review queue after M2: 6 rows, ordered by |amount| descending
+
+| # | account | posted | description | amount | why |
+|---|---|---|---|---:|---|
+| 1 | hb | 2026-09-15 | ACH TRANSFER TO NORTHBANK ...1234 | -2,500.00 | heuristic:internal_pair |
+| 2 | vm | 2026-08-05 | Chris Park | 600.00 | heuristic:payment_app_row |
+| 3 | rvc | 2026-08-15 | ATM WITHDRAWAL BANCO AZTECA CDMX | -163.42 | heuristic:atm_withdrawal |
+| 4 | nbc | 2026-07-25 | ATM WITHDRAWAL 1120 N STATE | -100.00 | heuristic:atm_withdrawal |
+| 5 | nbc | 2026-09-14 | VENMO *MORGAN AVERY | -85.00 | heuristic:payment_app_row |
+| 6 | vm | 2026-09-20 | Morgan Avery | 42.00 | heuristic:payment_app_row |
+
+Rows without a category after M2: **5** (the firewall-touch transfer leg has its category but still needs its acknowledgment).
+
+### Rows per category after M2
+
+| category | rows |
+|---|---:|
+| debt.fees | 2 |
+| debt.interest | 3 |
+| fixed.internet | 3 |
+| fixed.phone | 3 |
+| fixed.rent | 6 |
+| fixed.subscriptions | 3 |
+| fixed.utilities | 6 |
+| income.interest | 4 |
+| income.other | 3 |
+| income.salary | 6 |
+| irregular.insurance | 1 |
+| transfer.card_payment | 12 |
+| transfer.internal | 10 |
+| transfer.loan_repayment | 2 |
+| transfer.securities_sale_proceeds | 1 |
+| variable.dining | 5 |
+| variable.fuel | 3 |
+| variable.groceries | 11 |
+| variable.health | 2 |
+| variable.shopping | 4 |
+| variable.transport | 3 |
+| venture.operating_expense | 6 |
+| — | 5 |
 
 ## Plan inputs (defined now for M4/M5; their answers are appended at those milestones)
 

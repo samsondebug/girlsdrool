@@ -12,9 +12,11 @@ import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
+import { LinkDialog } from "../components/LinkDialog";
 import { Money } from "../components/Money";
 import { Select } from "../components/Select";
 import { TextField } from "../components/TextField";
+import { useCorrectionProposal } from "../lib/corrections";
 import type { Category, LedgerRow, SplitPart } from "../lib/ipc";
 import { formatCents, parseCentsInput } from "../lib/money";
 import {
@@ -62,7 +64,9 @@ export function Ledger() {
   const [draft, setDraft] = useState(queryText);
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [splitting, setSplitting] = useState<LedgerRow | null>(null);
+  const [linking, setLinking] = useState<LedgerRow | null>(null);
   const [savingView, setSavingView] = useState(false);
+  const propose = useCorrectionProposal();
 
   const lookups = useMemo(
     () => ({
@@ -184,10 +188,21 @@ export function Ledger() {
             className="w-full"
             onChange={(e) => {
               const value = e.target.value;
-              updateTxn.mutate({
-                id: row.original.id,
-                patch: { category_id: value === "" ? null : Number(value) },
-              });
+              const categoryId = value === "" ? null : Number(value);
+              updateTxn.mutate(
+                { id: row.original.id, patch: { category_id: categoryId } },
+                {
+                  onSuccess: () => {
+                    const path = categoryOptions.find((c) => c.id === categoryId)?.path;
+                    if (categoryId !== null && path !== undefined) {
+                      propose(row.original.id, path);
+                    }
+                  },
+                  onError: (error) => {
+                    pushNotice({ tone: "negative", text: error.message });
+                  },
+                },
+              );
             }}
           >
             <option value="">— unclassified —</option>
@@ -239,14 +254,24 @@ export function Ledger() {
         header: "",
         cell: ({ row }) =>
           row.original.parent_id === null ? (
-            <Button
-              variant="quiet"
-              onClick={() => {
-                setSplitting(row.original);
-              }}
-            >
-              Split
-            </Button>
+            <span className="flex gap-1">
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setLinking(row.original);
+                }}
+              >
+                Link
+              </Button>
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setSplitting(row.original);
+                }}
+              >
+                Split
+              </Button>
+            </span>
           ) : (
             <Button
               variant="quiet"
@@ -268,10 +293,10 @@ export function Ledger() {
               Unsplit
             </Button>
           ),
-        size: 80,
+        size: 130,
       },
     ],
-    [categoryOptions, pushNotice, unsplit, updateTxn],
+    [categoryOptions, propose, pushNotice, unsplit, updateTxn],
   );
 
   const table = useReactTable({
@@ -477,6 +502,14 @@ export function Ledger() {
           categories={categoryOptions}
           onClose={() => {
             setSplitting(null);
+          }}
+        />
+      ) : null}
+      {linking ? (
+        <LinkDialog
+          row={linking}
+          onClose={() => {
+            setLinking(null);
           }}
         />
       ) : null}

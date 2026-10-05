@@ -216,6 +216,82 @@ VENMO_BANK_FUNDED = R("vm", "2026-09-13", "Morgan Avery", -8_500, "review", kind
 # The Northbank Aug+Sep overlap export repeats every row and writes one descriptor differently.
 OVERLAP_VARIANT = ("2026-08-13", "JEWEL-OSCO #3421", "JEWEL-OSCO #3421 CHICAGO")
 
+# ---------------------------------------------------------------------------------------------
+# M2: the ordered rule set (payee_norm contains → category, optional venture) and the heuristics
+# that run after it. Written down here, emitted to rules.json for the tests and to EXPECTED.md.
+# ---------------------------------------------------------------------------------------------
+
+VENTURE = {"name": "Ledgerline", "status": "fund", "cash_cap_cents": 500_000}
+
+RULES: list[tuple[str, str, str, str | None]] = [
+    # (name, payee_norm contains, category code, venture)
+    ("Rent", "lakeshore properties", "fixed.rent", None),
+    ("Rent share from Morgan", "zelle payment from morgan avery", "fixed.rent", None),
+    ("ComEd", "comed", "fixed.utilities", None),
+    ("Peoples Gas", "peoples gas", "fixed.utilities", None),
+    ("Payroll", "meridian cap", "income.salary", None),
+    ("Xfinity", "xfinity", "fixed.internet", None),
+    ("T-Mobile", "t mobile", "fixed.phone", None),
+    ("Jewel-Osco", "jewel osco", "variable.groceries", None),
+    ("Trader Joe's", "trader joe", "variable.groceries", None),
+    ("Costco", "costco", "variable.groceries", None),
+    ("Shell", "shell oil", "variable.fuel", None),
+    ("Chipotle", "chipotle", "variable.dining", None),
+    ("Restaurants abroad", "restaurante", "variable.dining", None),
+    ("Amazon", "amazon", "variable.shopping", None),
+    ("Target", "target", "variable.shopping", None),
+    ("Uber", "uber", "variable.transport", None),
+    ("Walgreens", "walgreens", "variable.health", None),
+    ("Netflix", "netflix", "fixed.subscriptions", None),
+    ("GEICO annual", "geico", "irregular.insurance", None),
+    ("Freelance", "freelance invoice", "income.other", None),
+    ("Savings interest", "interest payment", "income.interest", None),
+    ("Dividends", "dividend", "income.interest", None),
+    ("Linear (Ledgerline)", "linear app", "venture.operating_expense", "Ledgerline"),
+    ("Vercel (Ledgerline)", "vercel", "venture.operating_expense", "Ledgerline"),
+    ("Repayment to Chris", "zelle payment to chris park", "transfer.loan_repayment", None),
+]
+
+PAYMENT_APP_WORDS = ("venmo", "zelle", "cash app", "paypal")
+
+
+def rule_for(norm: str) -> tuple[str, str, str, str | None] | None:
+    for rule in RULES:
+        if rule[1] in norm:
+            return rule
+    return None
+
+
+def automation(row: Row) -> tuple[str | None, str, set[str]]:
+    """What rules → heuristics → linking leave on a row: (category code, why, flags)."""
+    norm = normalize(row.description)
+    if row.pair:
+        kind = "card_payment" if ACCOUNTS[[l.account for l in pair_legs(row.pair) if l.amount > 0][0]].kind == "credit" else "internal"
+        flags = set()
+        if ACCOUNTS[row.account].firewalled and row.amount < 0:
+            flags.add("needs_review")  # firewall touch awaiting acknowledgment
+        return f"transfer.{kind}", f"heuristic:{kind}_pair", flags
+    rule = rule_for(norm)
+    if rule:
+        return rule[2], f"rule:{rule[0]}", set()
+    if row.kind == "Sell":
+        return "transfer.securities_sale_proceeds", "heuristic:securities_sale", {"securities_sale"}
+    if "fee" in norm:
+        return "debt.fees", "heuristic:fee_charge", {"fee"}
+    if "interest" in norm and row.amount < 0:
+        return "debt.interest", "heuristic:interest_charge", {"interest"}
+    if "interest" in norm and row.amount > 0:
+        return "income.interest", "heuristic:interest_income", {"interest"}
+    if "atm" in norm:
+        return None, "heuristic:atm_withdrawal", {"cash_withdrawal", "needs_review"}
+    if row.account == "vm" or any(w in norm for w in PAYMENT_APP_WORDS):
+        return None, "heuristic:payment_app_row", {"payment_app_unknown", "needs_review"}
+    return None, "unclassified", {"needs_review"}
+
+
+def pair_legs(pair_id: str) -> list[Row]:
+    return [r for r in ROWS if r.pair == pair_id]
+
 
 # ---------------------------------------------------------------------------------------------
 # Helpers
@@ -561,12 +637,16 @@ def expected_md(files: dict[str, str]) -> str:
     # Spending vs cash (M2)
     p("## Spending view vs cash view, 2026-07-01..2026-09-30 (M2)")
     p("")
-    spend_rows = [r for r in ROWS if r.pair is None and not r.category.startswith("income.")
-                  and r.category != "transfer.securities_sale_proceeds"]
+    def auto_cat(r: Row) -> str | None:
+        return automation(r)[0]
+    # ARCHITECTURE §5.2: a row whose category root is income or transfer is not spending, whether
+    # or not it is one leg of a linked pair (the loan repayments to Chris are transfer-root rows).
+    spend_rows = [r for r in ROWS if r.pair is None
+                  and not (auto_cat(r) or "").startswith(("income.", "transfer."))]
     spending_out = -sum(r.amount for r in spend_rows if r.amount < 0)
     refunds = sum(r.amount for r in spend_rows if r.amount > 0 and r.refund_of)
-    reimburse = sum(r.amount for r in spend_rows if r.amount > 0 and not r.refund_of and r.category != "review")
-    review_in = sum(r.amount for r in spend_rows if r.amount > 0 and r.category == "review")
+    reimburse = sum(r.amount for r in spend_rows if r.amount > 0 and not r.refund_of and auto_cat(r) is not None)
+    review_in = sum(r.amount for r in spend_rows if r.amount > 0 and auto_cat(r) is None)
     p("Spending view = every non-transfer, non-income, non-proceeds leaf row, by category; linked refunds and")
     p("same-category reimbursements net against their category; rows still in review are listed separately.")
     p("")
@@ -596,6 +676,59 @@ def expected_md(files: dict[str, str]) -> str:
     p("  (card purchases counted on the cards vs card payments counted on the bank, plus brokerage-side rows).")
     p("")
 
+    # Rules, heuristics, links and the review queue (M2)
+    p("## Rules (M2) — ordered, first match wins, applied before heuristics")
+    p("")
+    p("`fixtures/rules.json` is the machine-readable copy. Venture `Ledgerline` (fund, cap 5,000.00) must exist.")
+    p("")
+    p("| # | name | payee_norm contains | category | venture |")
+    p("|---|---|---|---|---|")
+    for i, (n, m, c, v) in enumerate(RULES, 1):
+        p(f"| {i} | {n} | `{m}` | `{c}` | {v or ''} |")
+    p("")
+    p("Heuristics, in order, for rows no rule matched: `securities_sale` flag → `transfer.securities_sale_proceeds`;")
+    p("payee contains `fee` → `debt.fees` + fee flag; `interest` on an outflow → `debt.interest` + interest flag;")
+    p("`interest` on an inflow → `income.interest` + interest flag; `atm` → cash_withdrawal + needs_review, no category;")
+    p("payment-app rows (Venmo export, or a bank row naming venmo/zelle/cash app/paypal) → payment_app_unknown +")
+    p("needs_review, no category. Anything else stays unclassified with needs_review. Transfer and refund links run")
+    p("after heuristics; a linked leg takes the transfer category and drops needs_review / payment_app_unknown.")
+    p("An outflow on a firewalled account keeps needs_review until it is acknowledged (policy `firewall_exclusion`).")
+    p("")
+    p("### Automation outcome per row (category, why, flags) — rows that differ from their final category")
+    p("")
+    p("| account | posted | description | amount | category after M2 | why | flags |")
+    p("|---|---|---|---:|---|---|---|")
+    for r in ROWS:
+        cat, why, flags = automation(r)
+        final = None if r.category == "review" else r.category
+        if cat != final or flags:
+            p(f"| {r.account} | {r.posted} | {r.description} | {money(r.amount)} | {cat or '—'} | {why} | {', '.join(sorted(flags)) or ''} |")
+    p("")
+    queue = [(r, automation(r)) for r in ROWS]
+    queue = [(r, a) for (r, a) in queue if "needs_review" in a[2] or a[0] is None]
+    queue.sort(key=lambda t: (-abs(t[0].amount), t[0].posted))
+    p(f"### Review queue after M2: {len(queue)} rows, ordered by |amount| descending")
+    p("")
+    p("| # | account | posted | description | amount | why |")
+    p("|---|---|---|---|---:|---|")
+    for i, (r, a) in enumerate(queue, 1):
+        p(f"| {i} | {r.account} | {r.posted} | {r.description} | {money(r.amount)} | {a[1]} |")
+    p("")
+    unclassified = [r for (r, a) in queue if a[0] is None]
+    p(f"Rows without a category after M2: **{len(unclassified)}** (the firewall-touch transfer leg has its category but still needs its acknowledgment).")
+    p("")
+    cats = {}
+    for r in ROWS:
+        cat, why, flags = automation(r)
+        cats[cat or "—"] = cats.get(cat or "—", 0) + 1
+    p("### Rows per category after M2")
+    p("")
+    p("| category | rows |")
+    p("|---|---:|")
+    for k in sorted(cats):
+        p(f"| {k} | {cats[k]} |")
+    p("")
+
     # Plan inputs for M4 (defined now, numbers derived later from these definitions)
     p("## Plan inputs (defined now for M4/M5; their answers are appended at those milestones)")
     p("")
@@ -610,10 +743,51 @@ def expected_md(files: dict[str, str]) -> str:
     return "\n".join(out) + "\n"
 
 
+def emit_rules_json() -> None:
+    import json
+    payload = {
+        "venture": VENTURE,
+        "rules": [
+            {"name": n, "match_payee_contains": m, "category_code": c, "venture": v}
+            for (n, m, c, v) in RULES
+        ],
+    }
+    write("rules.json", json.dumps(payload, indent=2) + "\n")
+
+
+def emit_automation_json() -> None:
+    """Per-row expected automation outcome, the machine-readable twin of the EXPECTED.md tables."""
+    import json
+    rows = []
+    for r in ROWS:
+        cat, why, flags = automation(r)
+        rows.append({
+            "account": r.account,
+            "posted": r.posted,
+            "description": r.description,
+            "amount_cents": r.amount,
+            "category": cat,
+            "why": why,
+            "flags": sorted(flags),
+            "pair": r.pair,
+            "refund_of": r.refund_of,
+        })
+    pairs = {}
+    for r in ROWS:
+        if r.pair:
+            pairs.setdefault(r.pair, {})
+            legs = pair_legs(r.pair)
+            in_leg = next(l for l in legs if l.amount > 0)
+            pairs[r.pair] = {"kind": "card_payment" if ACCOUNTS[in_leg.account].kind == "credit" else "internal"}
+    write("automation.json", json.dumps({"rows": rows, "pairs": pairs}, indent=2) + "\n")
+
+
 def main() -> None:
     files = emit_csvs()
+    emit_rules_json()
+    emit_automation_json()
     write("EXPECTED.md", expected_md(files))
-    print(f"wrote {len(files)} csv files and EXPECTED.md ({len(ROWS)} ledger rows)")
+    print(f"wrote {len(files)} csv files, rules.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

@@ -276,6 +276,7 @@ export interface UndoReport {
   batch_id: number;
   deleted: number;
   restored: number;
+  unlinked: number;
   quarantine_discarded: number;
 }
 
@@ -372,6 +373,179 @@ export interface SavedView {
   created_at: string;
 }
 
+// ---- rules, links, review, views (M2) -----------------------------------------------------------
+
+export interface Rule {
+  id: number;
+  position: number;
+  name: string;
+  enabled: boolean;
+  match_payee_contains: string | null;
+  match_payee_regex: string | null;
+  match_memo_contains: string | null;
+  match_amount_min_cents: number | null;
+  match_amount_max_cents: number | null;
+  match_account_id: number | null;
+  action_category_id: number | null;
+  action_venture_id: number | null;
+  action_flags_set: number;
+  action_tag_ids: number[];
+  hit_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A rule as entered; the core requires at least one match and one action. */
+export interface RuleInput {
+  name: string;
+  enabled?: boolean;
+  match_payee_contains?: string | null;
+  match_payee_regex?: string | null;
+  match_memo_contains?: string | null;
+  match_amount_min_cents?: number | null;
+  match_amount_max_cents?: number | null;
+  match_account_id?: number | null;
+  action_category_id?: number | null;
+  action_venture_id?: number | null;
+  action_flags?: string[];
+  action_tag_ids?: number[];
+}
+
+export interface RuleProposal {
+  name: string;
+  match_payee_contains: string;
+  action_category_id: number | null;
+  action_venture_id: number | null;
+  would_match: number;
+}
+
+export interface AutomationReport {
+  considered: number;
+  rule_hits: number;
+  heuristic_hits: number;
+  unclassified: number;
+  changed: number;
+  transfers_linked: number;
+  refunds_linked: number;
+  refund_candidates: number;
+}
+
+export type TransferKind =
+  "internal" | "card_payment" | "loan_repayment" | "venture_contribution" | "venture_withdrawal";
+
+export const TRANSFER_KINDS: TransferKind[] = [
+  "internal",
+  "card_payment",
+  "loan_repayment",
+  "venture_contribution",
+  "venture_withdrawal",
+];
+
+export type LinkConfidence = "user" | "heuristic";
+
+export interface TransferLink {
+  id: number;
+  out_txn_id: number;
+  in_txn_id: number;
+  kind: TransferKind;
+  confidence: LinkConfidence;
+  created_at: string;
+}
+
+export interface RefundLink {
+  id: number;
+  original_txn_id: number;
+  refund_txn_id: number;
+  confidence: LinkConfidence;
+  created_at: string;
+}
+
+export interface LinkCandidate {
+  txn_id: number;
+  account_id: number;
+  account_name: string;
+  posted_date: string;
+  amount_cents: number;
+  payee_norm: string;
+  days_apart: number;
+}
+
+export interface LinkCandidates {
+  transfers: LinkCandidate[];
+  refunds: { candidate: LinkCandidate; similarity_bps: number }[];
+}
+
+export interface LinkDetails {
+  transfer: TransferLink | null;
+  transfer_other: TxnRecord | null;
+  refund: RefundLink | null;
+  refund_other: TxnRecord | null;
+}
+
+export interface CategoryLine {
+  category_id: number | null;
+  path: string | null;
+  root_kind: RootKind | null;
+  outflows_cents: number;
+  inflows_cents: number;
+  net_cents: number;
+  rows: number;
+}
+
+export interface SpendingView {
+  from: string;
+  to: string;
+  gross_outflows_cents: number;
+  linked_refunds_cents: number;
+  reimbursements_cents: number;
+  net_spending_cents: number;
+  positive_review_cents: number;
+  unclassified_outflows_cents: number;
+  by_category: CategoryLine[];
+}
+
+export interface AccountLine {
+  account_id: number;
+  account_name: string;
+  outflows_cents: number;
+  inflows_cents: number;
+  net_cents: number;
+}
+
+export interface CashView {
+  from: string;
+  to: string;
+  outflows_cents: number;
+  inflows_cents: number;
+  net_cents: number;
+  by_account: AccountLine[];
+}
+
+export type VentureStatus = "fund" | "freeze" | "kill";
+
+export interface Venture {
+  id: number;
+  name: string;
+  status: VentureStatus;
+  cash_cap_cents: number;
+  time_budget_hours: number | null;
+  milestone: string;
+  milestone_date: string | null;
+  stop_condition: string;
+  archived: boolean;
+  created_at: string;
+}
+
+export interface VentureInput {
+  name: string;
+  status: VentureStatus;
+  cash_cap_cents: number;
+  time_budget_hours?: number | null;
+  milestone?: string;
+  milestone_date?: string | null;
+  stop_condition?: string;
+}
+
 export const api = {
   appStatus: () => call<AppStatus>("app_status"),
   chooseDataDir: (path: string) => call<AppStatus>("choose_data_dir", { path }),
@@ -422,6 +596,34 @@ export const api = {
   listSavedViews: () => call<SavedView[]>("list_saved_views"),
   saveView: (name: string, queryText: string) => call<SavedView>("save_view", { name, queryText }),
   deleteSavedView: (id: number) => call<null>("delete_saved_view", { id }),
+
+  listRules: () => call<Rule[]>("list_rules"),
+  createRule: (input: RuleInput) => call<Rule>("create_rule", { input }),
+  updateRule: (id: number, input: RuleInput) => call<Rule>("update_rule", { id, input }),
+  deleteRule: (id: number) => call<null>("delete_rule", { id }),
+  reorderRules: (ids: number[]) => call<Rule[]>("reorder_rules", { ids }),
+  applyRules: () => call<AutomationReport>("apply_rules"),
+  proposeRule: (txnId: number) => call<RuleProposal>("propose_rule", { txnId }),
+
+  linkCandidates: (txnId: number) => call<LinkCandidates>("link_candidates", { txnId }),
+  linkDetails: (txnId: number) => call<LinkDetails>("link_details", { txnId }),
+  linkTransfer: (outTxnId: number, inTxnId: number, kind: TransferKind | null) =>
+    call<TransferLink>("link_transfer", { outTxnId, inTxnId, kind }),
+  unlinkTransfer: (linkId: number) => call<null>("unlink_transfer", { linkId }),
+  linkRefund: (originalTxnId: number, refundTxnId: number) =>
+    call<RefundLink>("link_refund", { originalTxnId, refundTxnId }),
+  unlinkRefund: (linkId: number) => call<null>("unlink_refund", { linkId }),
+  acknowledgeFirewall: (txnId: number, note: string) =>
+    call<TxnRecord>("acknowledge_firewall", { txnId, note }),
+
+  reviewQueue: (limit?: number) => call<LedgerRow[]>("review_queue", { limit: limit ?? null }),
+  spendingView: (from: string, to: string) => call<SpendingView>("spending_view", { from, to }),
+  cashView: (from: string, to: string) => call<CashView>("cash_view", { from, to }),
+
+  listVentures: () => call<Venture[]>("list_ventures"),
+  createVenture: (input: VentureInput) => call<Venture>("create_venture", { input }),
+  updateVenture: (id: number, input: VentureInput) =>
+    call<Venture>("update_venture", { id, input }),
 };
 
 export const CHANGED_EVENT = "kept://changed";

@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use kept::db::audit::{self, Actor};
 use kept::db::migrate;
 use kept::db::repo::account::{self, Account, NewAccount};
+use kept::db::repo::rule::{self, RuleInput};
+use kept::db::repo::venture::{self, VentureInput};
 use rusqlite::Connection;
 
 pub fn memory_db() -> Connection {
@@ -129,4 +131,72 @@ pub fn closing(conn: &Connection, acct: &Account, through: &str) -> i64 {
 
 pub fn count(conn: &Connection, sql: &str) -> i64 {
     conn.query_row(sql, [], |r| r.get(0)).expect(sql)
+}
+
+pub fn load_json<T: serde::de::DeserializeOwned>(rel: &str) -> T {
+    serde_json::from_slice(&fixture_bytes(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"))
+}
+
+pub fn category_id(conn: &Connection, code: &str) -> i64 {
+    conn.query_row(
+        "SELECT id FROM category WHERE system_code = ?1",
+        [code],
+        |r| r.get(0),
+    )
+    .unwrap_or_else(|e| panic!("category {code}: {e}"))
+}
+
+#[derive(serde::Deserialize)]
+pub struct RulesFile {
+    pub venture: VentureSpec,
+    pub rules: Vec<RuleSpec>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct VentureSpec {
+    pub name: String,
+    pub status: String,
+    pub cash_cap_cents: i64,
+}
+
+#[derive(serde::Deserialize)]
+pub struct RuleSpec {
+    pub name: String,
+    pub match_payee_contains: String,
+    pub category_code: String,
+    pub venture: Option<String>,
+}
+
+/// The venture and the ordered rules of fixtures/rules.json, installed before any import.
+pub fn install_rules(conn: &Connection) {
+    let file: RulesFile = load_json("rules.json");
+    let cmd = audit::begin(conn, "test.rules", Actor::User).expect("command");
+    let v = venture::create(
+        conn,
+        &cmd,
+        &VentureInput {
+            name: file.venture.name.clone(),
+            status: file.venture.status.clone(),
+            cash_cap_cents: file.venture.cash_cap_cents,
+            time_budget_hours: None,
+            milestone: String::new(),
+            milestone_date: None,
+            stop_condition: String::new(),
+        },
+    )
+    .expect("create venture");
+    for spec in &file.rules {
+        rule::create(
+            conn,
+            &cmd,
+            &RuleInput {
+                name: spec.name.clone(),
+                match_payee_contains: Some(spec.match_payee_contains.clone()),
+                action_category_id: Some(category_id(conn, &spec.category_code)),
+                action_venture_id: spec.venture.as_ref().map(|_| v.id),
+                ..Default::default()
+            },
+        )
+        .unwrap_or_else(|e| panic!("rule {}: {e:?}", spec.name));
+    }
 }

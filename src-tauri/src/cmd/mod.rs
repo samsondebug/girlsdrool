@@ -8,21 +8,27 @@ use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
+use crate::cash::views::{self, CashView, SpendingView};
 use crate::config::{self, DataPaths};
-use crate::dates::{parse_zone, today_in, CivilDate};
+use crate::dates::{parse_civil, parse_zone, today_in, CivilDate};
 use crate::db::audit::{self, Actor, CommandRecord};
 use crate::db::repo::account::{self, Account, AccountPatch, NewAccount};
 use crate::db::repo::batch::{self, ImportBatch, QuarantineRow};
 use crate::db::repo::category::{self, Category, NewCategory};
-use crate::db::repo::ledger::{self, Cursor, LedgerFilter, LedgerPage};
+use crate::db::repo::ledger::{self, Cursor, LedgerFilter, LedgerPage, LedgerRow};
+use crate::db::repo::link::{self, Confidence, RefundLink, TransferKind, TransferLink};
+use crate::db::repo::rule::{self, Rule, RuleInput};
 use crate::db::repo::saved_view::{self, SavedView};
 use crate::db::repo::txn::{self, SplitPart, TxnPatch, TxnRecord};
+use crate::db::repo::venture::{self, Venture, VentureInput};
 use crate::db::settings::{self, Settings};
 use crate::db::{Db, OpenMode};
 use crate::error::{AppError, AppResult};
 use crate::import::profile::{self, Profile};
 use crate::import::report::ImportReport;
 use crate::import::{self, ImportInput, Preview, QuarantineAction, UndoReport};
+use crate::rules::link::{self as detect, Candidate};
+use crate::rules::{self, AutomationReport, RuleProposal};
 use crate::{poisoned, secret, AppState};
 
 pub const CHANGED_EVENT: &str = "kept://changed";
@@ -567,4 +573,316 @@ pub async fn delete_saved_view(
     })?;
     emit_changed(&app, &["saved_view"]);
     Ok(())
+}
+
+// ---- rules --------------------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_rules(state: State<'_, AppState>) -> AppResult<Vec<Rule>> {
+    with_db(&state, |db| rule::list(db.conn()))
+}
+
+#[tauri::command]
+pub async fn create_rule(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: RuleInput,
+) -> AppResult<Rule> {
+    let created = write(&state, "rule.create", |tx, cmd| {
+        rule::create(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["rule"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn update_rule(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    input: RuleInput,
+) -> AppResult<Rule> {
+    let updated = write(&state, "rule.update", |tx, cmd| {
+        rule::update(tx, cmd, id, &input)
+    })?;
+    emit_changed(&app, &["rule"]);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn delete_rule(app: AppHandle, state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    write(&state, "rule.delete", |tx, cmd| rule::delete(tx, cmd, id))?;
+    emit_changed(&app, &["rule"]);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reorder_rules(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<i64>,
+) -> AppResult<Vec<Rule>> {
+    let rules = write(&state, "rule.reorder", |tx, cmd| {
+        rule::reorder(tx, cmd, &ids)
+    })?;
+    emit_changed(&app, &["rule"]);
+    Ok(rules)
+}
+
+/// Run rules, heuristics and link detection over every row automation may still touch.
+#[tauri::command]
+pub async fn apply_rules(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<AutomationReport> {
+    let report = write(&state, "rules.apply", |tx, cmd| {
+        rules::automate(tx, cmd, None)
+    })?;
+    emit_changed(&app, &["txn", "rule", "transfer_link", "refund_link"]);
+    Ok(report)
+}
+
+/// The rule a correction suggests. Nothing is created until `create_rule` is called.
+#[tauri::command]
+pub async fn propose_rule(state: State<'_, AppState>, txn_id: i64) -> AppResult<RuleProposal> {
+    with_db(&state, |db| rules::propose_rule(db.conn(), txn_id))
+}
+
+// ---- links --------------------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RefundCandidate {
+    pub candidate: Candidate,
+    pub similarity_bps: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkCandidates {
+    pub transfers: Vec<Candidate>,
+    pub refunds: Vec<RefundCandidate>,
+}
+
+/// Rows `txn_id` could be linked to: the opposite leg of a transfer on another account, or
+/// (for an inflow) an earlier purchase of the same size on the same account, any payee.
+#[tauri::command]
+pub async fn link_candidates(state: State<'_, AppState>, txn_id: i64) -> AppResult<LinkCandidates> {
+    with_db(&state, |db| {
+        let row = txn::get(db.conn(), txn_id)?;
+        let transfers = detect::transfer_candidates(db.conn(), &row)?;
+        let refunds = if row.amount_cents > 0 {
+            detect::refund_candidates(db.conn(), &row, 0)?
+                .into_iter()
+                .map(|(candidate, similarity_bps)| RefundCandidate {
+                    candidate,
+                    similarity_bps,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Ok(LinkCandidates { transfers, refunds })
+    })
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkDetails {
+    pub transfer: Option<TransferLink>,
+    pub transfer_other: Option<TxnRecord>,
+    pub refund: Option<RefundLink>,
+    pub refund_other: Option<TxnRecord>,
+}
+
+/// The links a row is part of, with the row on the other side of each.
+#[tauri::command]
+pub async fn link_details(state: State<'_, AppState>, txn_id: i64) -> AppResult<LinkDetails> {
+    with_db(&state, |db| {
+        let conn = db.conn();
+        let row = txn::get(conn, txn_id)?;
+        let (transfer, transfer_other) = match row.transfer_link_id {
+            Some(id) => {
+                let l = link::get_transfer(conn, id)?;
+                let other = if l.out_txn_id == txn_id {
+                    l.in_txn_id
+                } else {
+                    l.out_txn_id
+                };
+                (Some(l), Some(txn::get(conn, other)?))
+            }
+            None => (None, None),
+        };
+        let (refund, refund_other) = match row.refund_link_id {
+            Some(id) => {
+                let l = link::get_refund(conn, id)?;
+                let other = txn::get(conn, l.original_txn_id)?;
+                (Some(l), Some(other))
+            }
+            None => (None, None),
+        };
+        Ok(LinkDetails {
+            transfer,
+            transfer_other,
+            refund,
+            refund_other,
+        })
+    })
+}
+
+/// Link two rows as a transfer by hand. Without a kind, the accounts decide it.
+#[tauri::command]
+pub async fn link_transfer(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    out_txn_id: i64,
+    in_txn_id: i64,
+    kind: Option<String>,
+) -> AppResult<TransferLink> {
+    let created = write(&state, "link.transfer", |tx, cmd| {
+        let kind = match kind {
+            Some(k) => TransferKind::parse(&k)?,
+            None => {
+                let out = txn::get(tx, out_txn_id)?;
+                let into = txn::get(tx, in_txn_id)?;
+                TransferKind::infer(
+                    &account::get(tx, out.account_id)?,
+                    &account::get(tx, into.account_id)?,
+                )
+            }
+        };
+        link::create_transfer(tx, cmd, out_txn_id, in_txn_id, kind, Confidence::User)
+    })?;
+    emit_changed(&app, &["txn", "transfer_link"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn unlink_transfer(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    link_id: i64,
+) -> AppResult<()> {
+    write(&state, "link.unlink_transfer", |tx, cmd| {
+        link::remove_transfer(tx, cmd, link_id)
+    })?;
+    emit_changed(&app, &["txn", "transfer_link"]);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn link_refund(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    original_txn_id: i64,
+    refund_txn_id: i64,
+) -> AppResult<RefundLink> {
+    let created = write(&state, "link.refund", |tx, cmd| {
+        link::create_refund(tx, cmd, original_txn_id, refund_txn_id, Confidence::User)
+    })?;
+    emit_changed(&app, &["txn", "refund_link"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn unlink_refund(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    link_id: i64,
+) -> AppResult<()> {
+    write(&state, "link.unlink_refund", |tx, cmd| {
+        link::remove_refund(tx, cmd, link_id)
+    })?;
+    emit_changed(&app, &["txn", "refund_link"]);
+    Ok(())
+}
+
+/// Record the in-app acknowledgment of an outflow from a firewalled account (policy 1).
+#[tauri::command]
+pub async fn acknowledge_firewall(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    txn_id: i64,
+    note: String,
+) -> AppResult<TxnRecord> {
+    let row = write(&state, "firewall.acknowledge", |tx, cmd| {
+        link::acknowledge_firewall(tx, cmd, txn_id, &note)
+    })?;
+    emit_changed(&app, &["txn", "firewall_ack"]);
+    Ok(row)
+}
+
+// ---- review queue and views ---------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn review_queue(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> AppResult<Vec<LedgerRow>> {
+    with_db(&state, |db| {
+        ledger::review_queue(db.conn(), limit.unwrap_or(500))
+    })
+}
+
+fn date_range(from: &str, to: &str) -> AppResult<()> {
+    let f = parse_civil(from)?;
+    let t = parse_civil(to)?;
+    if f > t {
+        return Err(AppError::validation(
+            "to",
+            "the range ends before it starts",
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn spending_view(
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> AppResult<SpendingView> {
+    date_range(&from, &to)?;
+    with_db(&state, |db| views::spending_view(db.conn(), &from, &to))
+}
+
+#[tauri::command]
+pub async fn cash_view(
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> AppResult<CashView> {
+    date_range(&from, &to)?;
+    with_db(&state, |db| views::cash_view(db.conn(), &from, &to))
+}
+
+// ---- ventures -----------------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_ventures(state: State<'_, AppState>) -> AppResult<Vec<Venture>> {
+    with_db(&state, |db| venture::list(db.conn()))
+}
+
+#[tauri::command]
+pub async fn create_venture(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: VentureInput,
+) -> AppResult<Venture> {
+    let created = write(&state, "venture.create", |tx, cmd| {
+        venture::create(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["venture"]);
+    Ok(created)
+}
+
+#[tauri::command]
+pub async fn update_venture(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    input: VentureInput,
+) -> AppResult<Venture> {
+    let updated = write(&state, "venture.update", |tx, cmd| {
+        venture::update(tx, cmd, id, &input)
+    })?;
+    emit_changed(&app, &["venture", "account"]);
+    Ok(updated)
 }

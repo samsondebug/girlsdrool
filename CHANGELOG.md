@@ -3,6 +3,58 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M2 — Rules, review queue, transfer and refund linking (unreleased)
+
+### Demo
+
+1. Import now runs automation in the same transaction: the 25 fixture rules (`fixtures/rules.json`)
+   first, heuristics next (securities sale, fees, interest, ATM, payment-app rows), then link
+   detection. Every row keeps why: `rule:Target`, `heuristic:atm_withdrawal`,
+   `heuristic:card_payment_pair`. The import report ends with the automation summary.
+2. Review: the queue is the six rows `fixtures/EXPECTED.md` lists, largest first — the firewalled
+   brokerage transfer (Acknowledge, with a note that lands in the audit log), a Venmo inflow and
+   two ATM withdrawals (say what they were), a Venmo payment and a small Venmo inflow. Choosing a
+   category proposes a rule on the toast with how many other rows it would match today; Create
+   rule makes it, Rules › Apply rules now runs it over the ledger.
+3. Links: 11 transfer pairs (6 card payments, 5 internal) and the Target return are linked on
+   import. Link… on any row (Ledger or Review) shows its links and the candidates: opposite
+   amounts on other accounts within 3 days, and for an inflow the same-size purchases on the same
+   account within 90 days with payee similarity. Unlink sends both rows back to the queue; a link
+   made by hand is `user` and detection leaves it alone.
+4. Spending view vs cash view for a date range at the top of Review: gross 11,846.20, linked
+   refunds 84.17, same-category reimbursements 3,600.00, net 8,162.03, against cash outflows
+   15,799.94 and inflows 28,600.61 — the difference (−3,953.74) is card purchases counted on the
+   cards when bought versus card payments counted on the bank when paid.
+5. Rules screen: ordered list (first match wins), enable, reorder, edit — payee contains / regex,
+   memo, amount band, account → category, venture, flags — delete with confirmation, hit counts,
+   Apply rules now with its report.
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 38 unit (incl. the heuristic table mirrored from
+  `EXPECTED.md`), 8 property (new `transfer_not_spending`), 1 logging, 9 M0, 6 M1 and 3 M2
+  acceptance (`tests/m2_rules_links.rs`: every row's category, reason and flags equal
+  `fixtures/automation.json`; 11 pairs + 1 refund with the stated kinds; the queue in order; both
+  views' totals and per-category lines; corrections propose a rule; unlink, relink by hand,
+  firewall acknowledgment, idempotent re-run).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`, `pnpm test`
+  (42), `scripts/gates.sh` — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against a data folder seeded by `seed_fixture_data_folder` (now with the
+  fixture rules and venture installed before the imports): `docs/screenshots/m2-review.png`,
+  `m2-rules.png`, `m2-links.png`.
+
+### Fixture correction (ADR-0039 §5)
+
+- `fixtures/generate.py` counted the two loan repayments to Chris (`transfer.loan_repayment`) as
+  spending; ARCHITECTURE §5.2 excludes transfer-root rows whether or not they are linked. The
+  generator now follows the definition; `EXPECTED.md`'s spending totals moved from 12,446.20 /
+  8,762.03 to 11,846.20 / 8,162.03. No other number changed.
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only) and the Windows netstat observation.
+
 ## M1 — Accounts, CSV import with dedup, ledger (unreleased)
 
 ### Demo

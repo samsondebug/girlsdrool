@@ -44,6 +44,9 @@ pub struct ImportReport {
     /// Prose rendering of the counts, filled in when the batch finishes (`summary_text`).
     #[serde(default)]
     pub summary: String,
+    /// What rules, heuristics and link detection did to the inserted rows.
+    #[serde(default)]
+    pub automation: Option<crate::rules::AutomationReport>,
 }
 
 impl ImportReport {
@@ -132,6 +135,12 @@ impl ImportReport {
                 self.blank_rows,
                 if self.blank_rows == 1 { "" } else { "s" }
             ));
+        }
+        if let Some(a) = &self.automation {
+            let text = a.summary_text();
+            if !text.is_empty() {
+                parts.push(text);
+            }
         }
         parts.join(" ")
     }

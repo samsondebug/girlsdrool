@@ -274,3 +274,70 @@ proptest! {
         prop_assert_eq!(after.user_edited, txn::UE_PAYEE_NORM | txn::UE_MEMO | txn::UE_CATEGORY | txn::UE_TAGS);
     }
 }
+
+/// Build a generic 4-column CSV with the given rows plus one transfer leg.
+fn csv_with_leg(rows: &[GenRow], leg_day: u32, leg_cents: i64, leg_payee: &str) -> String {
+    let mut text = csv_text(rows);
+    text.push_str(&format!(
+        "2026-07-{:02},{},{},\n",
+        leg_day,
+        leg_payee,
+        to_decimal_string(leg_cents)
+    ));
+    text
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    /// A linked transfer pair nets to zero in the spending view and lands with the right cash
+    /// timing in the cash view: between two cash accounts it vanishes; between a cash account and
+    /// a card, the cash leg counts on its own date.
+    #[test]
+    fn transfer_not_spending(
+        rows in prop::collection::vec(gen_row(), 0..=8),
+        amount in 1i64..=500_000,
+        out_day in 1u32..=28,
+        lag in 0i64..=3,
+        to_card in any::<bool>(),
+    ) {
+        let mut conn = memory_db();
+        let accounts = fixture_accounts(&conn);
+        let nbc = account_id(&accounts, "nbc");
+        let other = account_id(&accounts, if to_card { "sv" } else { "nbs" });
+        let profile = generic_with_memo(&conn);
+        // the filler rows never collide with the pair: amounts in gen_row are never ±amount here
+        let filler: Vec<GenRow> = rows.into_iter().filter(|r| r.cents.abs() != amount).collect();
+        let in_day = u32::try_from(i64::from(out_day) + lag).unwrap();
+        let out_text = csv_with_leg(&filler, out_day, -amount, "TRANSFER OUT TO OTHER");
+        let in_text = format!("Date,Description,Amount,Memo\n2026-07-{:02},TRANSFER IN FROM NBC,{},\n", in_day, to_decimal_string(amount));
+        import_text(&mut conn, nbc, profile, "out.csv", &out_text);
+        import_text(&mut conn, other, profile, "in.csv", &in_text);
+
+        let out_id: i64 = conn.query_row("SELECT id FROM txn WHERE account_id = ?1 AND payee_raw = 'TRANSFER OUT TO OTHER'", [nbc], |r| r.get(0)).unwrap();
+        let in_id: i64 = conn.query_row("SELECT id FROM txn WHERE account_id = ?1 AND payee_raw = 'TRANSFER IN FROM NBC'", [other], |r| r.get(0)).unwrap();
+        let out_row = txn::get(&conn, out_id).unwrap();
+        let in_row = txn::get(&conn, in_id).unwrap();
+        prop_assert!(out_row.transfer_link_id.is_some(), "out leg not linked");
+        prop_assert_eq!(out_row.transfer_link_id, in_row.transfer_link_id);
+
+        // spending view: the pair contributes nothing; every filler outflow counts because no rule
+        // is installed here and no heuristic gives these payees an income or transfer category
+        let s = kept::cash::views::spending_view(&conn, "2026-07-01", "2026-07-31").unwrap();
+        let filler_out: i64 = filler.iter().filter(|r| r.cents < 0).map(|r| -r.cents).sum();
+        prop_assert_eq!(s.gross_outflows_cents, filler_out);
+
+        // cash view: cash↔cash vanishes, cash↔card counts the cash leg on its date
+        let c = kept::cash::views::cash_view(&conn, "2026-07-01", "2026-07-31").unwrap();
+        let filler_cash_out: i64 = filler.iter().filter(|r| r.cents < 0).map(|r| -r.cents).sum();
+        let filler_cash_in: i64 = filler.iter().filter(|r| r.cents > 0).map(|r| r.cents).sum();
+        if to_card {
+            prop_assert_eq!(c.outflows_cents, filler_cash_out + amount);
+            prop_assert_eq!(c.inflows_cents, filler_cash_in);
+        } else {
+            prop_assert_eq!(c.outflows_cents, filler_cash_out);
+            prop_assert_eq!(c.inflows_cents, filler_cash_in);
+        }
+        prop_assert_eq!(c.net_cents, c.inflows_cents - c.outflows_cents);
+    }
+}

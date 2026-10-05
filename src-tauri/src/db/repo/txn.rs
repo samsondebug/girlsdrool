@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::dates::{now_rfc3339, parse_civil};
 use crate::db::audit::{self, Action, CommandRecord};
 use crate::error::{AppError, AppResult};
-use crate::import::csv::{flag_bit, RowStatus};
+use crate::import::csv::{flag_bit, RowStatus, FLAG_NEEDS_REVIEW, FLAG_PAYMENT_APP_UNKNOWN};
 use crate::import::normalize::payee_norm;
 use crate::money;
 
@@ -352,6 +352,10 @@ pub fn apply_user_patch(
         after.rule_id = None;
         after.heuristic_code = None;
         after.user_edited |= UE_CATEGORY;
+        // a categorised row leaves the review queue, unless a firewall acknowledgment is pending
+        if c.is_some() && !super::link::awaits_firewall_ack(conn, &after)? {
+            after.flags &= !(i64::from(FLAG_NEEDS_REVIEW) | i64::from(FLAG_PAYMENT_APP_UNKNOWN));
+        }
     }
     if let Some(tags) = &patch.tags {
         let mut cleaned: Vec<String> = tags

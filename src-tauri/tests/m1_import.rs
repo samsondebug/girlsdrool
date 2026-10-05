@@ -137,11 +137,13 @@ fn fixture_files_import_and_closings_match_expected() {
         0
     );
 
-    // Card interest rows carry the interest flag from the profile's type map.
+    // Card interest rows carry the interest flag from the profile's type map (the savings
+    // interest rows get theirs from the M2 heuristic, which m2_rules_links checks row by row).
+    let sv = account_id(&accounts, "sv");
     assert_eq!(
         count(
             &conn,
-            &format!("SELECT count(*) FROM txn WHERE (flags & {FLAG_INTEREST}) <> 0")
+            &format!("SELECT count(*) FROM txn WHERE account_id = {sv} AND (flags & {FLAG_INTEREST}) <> 0")
         ),
         3
     );
@@ -155,7 +157,8 @@ fn fixture_files_import_and_closings_match_expected() {
         1
     );
 
-    // Venmo: 4 data rows, 1 skipped by the funding-source rule, 3 inserted and flagged.
+    // Venmo: 4 data rows, 1 skipped by the funding-source rule, 3 inserted and flagged. The
+    // transfer to the bank is linked by automation and loses its review flags, leaving 2.
     let venmo = &reports
         .iter()
         .find(|(f, _)| f.ends_with("venmo_2026-Q3.csv"))
@@ -175,7 +178,7 @@ fn fixture_files_import_and_closings_match_expected() {
                 FLAG_PAYMENT_APP_UNKNOWN | FLAG_NEEDS_REVIEW
             )
         ),
-        3
+        2
     );
     assert_eq!(
         count(
@@ -192,7 +195,8 @@ fn fixture_files_import_and_closings_match_expected() {
     let rvc = account_id(&accounts, "rvc");
     assert_eq!(count(&conn, &format!("SELECT count(*) FROM txn WHERE account_id = {rvc} AND posted_date = '2026-08-15' AND effective_date = '2026-08-14'")), 3);
 
-    // Every inserted row has an audit row under an import command.
+    // Every inserted row has an insert audit row under an import command; the pending→posted
+    // observation is the one update whose before-image is a pending row.
     assert_eq!(
         count(
             &conn,
@@ -201,10 +205,7 @@ fn fixture_files_import_and_closings_match_expected() {
         104
     );
     assert_eq!(
-        count(
-            &conn,
-            "SELECT count(*) FROM audit_event WHERE entity = 'txn' AND action = 'update'"
-        ),
+        count(&conn, "SELECT count(*) FROM audit_event WHERE entity = 'txn' AND action = 'update' AND before_json LIKE '%\"status\":\"pending\"%' AND after_json LIKE '%\"status\":\"posted\"%'"),
         1
     );
     assert_eq!(
@@ -577,10 +578,11 @@ fn rows_outside_the_account_window_are_rejected_before_any_write() {
     assert_eq!(count(&conn, "SELECT count(*) FROM import_batch"), 0);
 }
 
-/// Development aid, never run by `just check`: build a real encrypted data folder with every
-/// fixture imported (plus the overlap file so one quarantine row exists), for screenshots and
-/// manual exploration. `KEPT_SEED_DIR=/path cargo test --no-default-features --test m1_import
-/// seed_fixture_data_folder -- --ignored`. Passphrase: `correct horse battery staple`.
+/// Development aid, never run by `just check`: build a real encrypted data folder with the
+/// fixture rules installed and every fixture imported (plus the overlap file so one quarantine
+/// row exists), for screenshots and manual exploration. `KEPT_SEED_DIR=/path cargo test
+/// --no-default-features --test m1_import seed_fixture_data_folder -- --ignored`. Passphrase:
+/// `correct horse battery staple`.
 #[test]
 #[ignore]
 fn seed_fixture_data_folder() {
@@ -595,6 +597,7 @@ fn seed_fixture_data_folder() {
     )
     .expect("create seed database");
     let accounts = fixture_accounts(db.conn());
+    install_rules(db.conn());
     import_all(db.conn_mut(), &accounts);
     import(
         db.conn_mut(),

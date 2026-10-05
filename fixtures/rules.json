@@ -1,0 +1,159 @@
+{
+  "venture": {
+    "name": "Ledgerline",
+    "status": "fund",
+    "cash_cap_cents": 500000
+  },
+  "rules": [
+    {
+      "name": "Rent",
+      "match_payee_contains": "lakeshore properties",
+      "category_code": "fixed.rent",
+      "venture": null
+    },
+    {
+      "name": "Rent share from Morgan",
+      "match_payee_contains": "zelle payment from morgan avery",
+      "category_code": "fixed.rent",
+      "venture": null
+    },
+    {
+      "name": "ComEd",
+      "match_payee_contains": "comed",
+      "category_code": "fixed.utilities",
+      "venture": null
+    },
+    {
+      "name": "Peoples Gas",
+      "match_payee_contains": "peoples gas",
+      "category_code": "fixed.utilities",
+      "venture": null
+    },
+    {
+      "name": "Payroll",
+      "match_payee_contains": "meridian cap",
+      "category_code": "income.salary",
+      "venture": null
+    },
+    {
+      "name": "Xfinity",
+      "match_payee_contains": "xfinity",
+      "category_code": "fixed.internet",
+      "venture": null
+    },
+    {
+      "name": "T-Mobile",
+      "match_payee_contains": "t mobile",
+      "category_code": "fixed.phone",
+      "venture": null
+    },
+    {
+      "name": "Jewel-Osco",
+      "match_payee_contains": "jewel osco",
+      "category_code": "variable.groceries",
+      "venture": null
+    },
+    {
+      "name": "Trader Joe's",
+      "match_payee_contains": "trader joe",
+      "category_code": "variable.groceries",
+      "venture": null
+    },
+    {
+      "name": "Costco",
+      "match_payee_contains": "costco",
+      "category_code": "variable.groceries",
+      "venture": null
+    },
+    {
+      "name": "Shell",
+      "match_payee_contains": "shell oil",
+      "category_code": "variable.fuel",
+      "venture": null
+    },
+    {
+      "name": "Chipotle",
+      "match_payee_contains": "chipotle",
+      "category_code": "variable.dining",
+      "venture": null
+    },
+    {
+      "name": "Restaurants abroad",
+      "match_payee_contains": "restaurante",
+      "category_code": "variable.dining",
+      "venture": null
+    },
+    {
+      "name": "Amazon",
+      "match_payee_contains": "amazon",
+      "category_code": "variable.shopping",
+      "venture": null
+    },
+    {
+      "name": "Target",
+      "match_payee_contains": "target",
+      "category_code": "variable.shopping",
+      "venture": null
+    },
+    {
+      "name": "Uber",
+      "match_payee_contains": "uber",
+      "category_code": "variable.transport",
+      "venture": null
+    },
+    {
+      "name": "Walgreens",
+      "match_payee_contains": "walgreens",
+      "category_code": "variable.health",
+      "venture": null
+    },
+    {
+      "name": "Netflix",
+      "match_payee_contains": "netflix",
+      "category_code": "fixed.subscriptions",
+      "venture": null
+    },
+    {
+      "name": "GEICO annual",
+      "match_payee_contains": "geico",
+      "category_code": "irregular.insurance",
+      "venture": null
+    },
+    {
+      "name": "Freelance",
+      "match_payee_contains": "freelance invoice",
+      "category_code": "income.other",
+      "venture": null
+    },
+    {
+      "name": "Savings interest",
+      "match_payee_contains": "interest payment",
+      "category_code": "income.interest",
+      "venture": null
+    },
+    {
+      "name": "Dividends",
+      "match_payee_contains": "dividend",
+      "category_code": "income.interest",
+      "venture": null
+    },
+    {
+      "name": "Linear (Ledgerline)",
+      "match_payee_contains": "linear app",
+      "category_code": "venture.operating_expense",
+      "venture": "Ledgerline"
+    },
+    {
+      "name": "Vercel (Ledgerline)",
+      "match_payee_contains": "vercel",
+      "category_code": "venture.operating_expense",
+      "venture": "Ledgerline"
+    },
+    {
+      "name": "Repayment to Chris",
+      "match_payee_contains": "zelle payment to chris park",
+      "category_code": "transfer.loan_repayment",
+      "venture": null
+    }
+  ]
+}

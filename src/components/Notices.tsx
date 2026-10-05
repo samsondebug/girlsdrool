@@ -36,6 +36,17 @@ export function Notices() {
               {n.undo.label}
             </Button>
           ) : null}
+          {n.action ? (
+            <Button
+              variant="primary"
+              onClick={() => {
+                n.action?.run();
+                dismiss(n.id);
+              }}
+            >
+              {n.action.label}
+            </Button>
+          ) : null}
           <Button
             variant="quiet"
             aria-label="Dismiss notice"

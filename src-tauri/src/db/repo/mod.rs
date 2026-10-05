@@ -5,8 +5,11 @@ pub mod account;
 pub mod batch;
 pub mod category;
 pub mod ledger;
+pub mod link;
+pub mod rule;
 pub mod saved_view;
 pub mod txn;
+pub mod venture;
 
 use rusqlite::types::Value;
 

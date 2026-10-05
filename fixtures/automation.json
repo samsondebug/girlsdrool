@@ -1,0 +1,1212 @@
+{
+  "rows": [
+    {
+      "account": "nbc",
+      "posted": "2026-07-01",
+      "description": "LAKESHORE PROPERTIES RENT",
+      "amount_cents": -240000,
+      "category": "fixed.rent",
+      "why": "rule:Rent",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-02",
+      "description": "ONLINE TRANSFER TO SAV ...5678",
+      "amount_cents": -50000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "sav-07",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-03",
+      "description": "ZELLE PAYMENT FROM MORGAN AVERY",
+      "amount_cents": 120000,
+      "category": "fixed.rent",
+      "why": "rule:Rent share from Morgan",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-06",
+      "description": "COMED ELECTRIC",
+      "amount_cents": -11240,
+      "category": "fixed.utilities",
+      "why": "rule:ComEd",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-10",
+      "description": "MERIDIAN CAP ACH PAYROLL",
+      "amount_cents": 341277,
+      "category": "income.salary",
+      "why": "rule:Payroll",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-12",
+      "description": "XFINITY",
+      "amount_cents": -8999,
+      "category": "fixed.internet",
+      "why": "rule:Xfinity",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-14",
+      "description": "JEWEL-OSCO #3421",
+      "amount_cents": -8734,
+      "category": "variable.groceries",
+      "why": "rule:Jewel-Osco",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-18",
+      "description": "T-MOBILE",
+      "amount_cents": -7500,
+      "category": "fixed.phone",
+      "why": "rule:T-Mobile",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-20",
+      "description": "SUMMIT CARD SERVICES PAYMENT",
+      "amount_cents": -182040,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "visa-07",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-21",
+      "description": "PEOPLES GAS",
+      "amount_cents": -4312,
+      "category": "fixed.utilities",
+      "why": "rule:Peoples Gas",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-22",
+      "description": "SUMMIT CARD SVCS AMEX PYMT",
+      "amount_cents": -31218,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "amex-07",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-24",
+      "description": "MERIDIAN CAP ACH PAYROLL",
+      "amount_cents": 341277,
+      "category": "income.salary",
+      "why": "rule:Payroll",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-25",
+      "description": "ATM WITHDRAWAL 1120 N STATE",
+      "amount_cents": -10000,
+      "category": null,
+      "why": "heuristic:atm_withdrawal",
+      "flags": [
+        "cash_withdrawal",
+        "needs_review"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-07-28",
+      "description": "SHELL OIL 57442",
+      "amount_cents": -5218,
+      "category": "variable.fuel",
+      "why": "rule:Shell",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-01",
+      "description": "LAKESHORE PROPERTIES RENT",
+      "amount_cents": -240000,
+      "category": "fixed.rent",
+      "why": "rule:Rent",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-03",
+      "description": "ZELLE PAYMENT FROM MORGAN AVERY",
+      "amount_cents": 120000,
+      "category": "fixed.rent",
+      "why": "rule:Rent share from Morgan",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-04",
+      "description": "ONLINE TRANSFER TO SAV ...5678",
+      "amount_cents": -50000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "sav-08",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-06",
+      "description": "COMED ELECTRIC",
+      "amount_cents": -13875,
+      "category": "fixed.utilities",
+      "why": "rule:ComEd",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-07",
+      "description": "MERIDIAN CAP ACH PAYROLL",
+      "amount_cents": 341277,
+      "category": "income.salary",
+      "why": "rule:Payroll",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-07",
+      "description": "VENMO CASHOUT",
+      "amount_cents": 60000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "venmo-08",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-12",
+      "description": "XFINITY",
+      "amount_cents": -8999,
+      "category": "fixed.internet",
+      "why": "rule:Xfinity",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-13",
+      "description": "JEWEL-OSCO #3421",
+      "amount_cents": -11206,
+      "category": "variable.groceries",
+      "why": "rule:Jewel-Osco",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-18",
+      "description": "T-MOBILE",
+      "amount_cents": -7500,
+      "category": "fixed.phone",
+      "why": "rule:T-Mobile",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-20",
+      "description": "SUMMIT CARD SERVICES PAYMENT",
+      "amount_cents": -100000,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "visa-08",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-21",
+      "description": "MERIDIAN CAP ACH PAYROLL",
+      "amount_cents": 341277,
+      "category": "income.salary",
+      "why": "rule:Payroll",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-21",
+      "description": "PEOPLES GAS",
+      "amount_cents": -3890,
+      "category": "fixed.utilities",
+      "why": "rule:Peoples Gas",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-22",
+      "description": "SUMMIT CARD SVCS AMEX PYMT",
+      "amount_cents": -11600,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "amex-08",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-26",
+      "description": "SHELL OIL 57442",
+      "amount_cents": -4890,
+      "category": "variable.fuel",
+      "why": "rule:Shell",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-08-28",
+      "description": "ZELLE PAYMENT TO CHRIS PARK",
+      "amount_cents": -30000,
+      "category": "transfer.loan_repayment",
+      "why": "rule:Repayment to Chris",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-01",
+      "description": "LAKESHORE PROPERTIES RENT",
+      "amount_cents": -240000,
+      "category": "fixed.rent",
+      "why": "rule:Rent",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-02",
+      "description": "ZELLE PAYMENT FROM MORGAN AVERY",
+      "amount_cents": 120000,
+      "category": "fixed.rent",
+      "why": "rule:Rent share from Morgan",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-03",
+      "description": "ONLINE TRANSFER TO SAV ...5678",
+      "amount_cents": -50000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "sav-09",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-04",
+      "description": "MERIDIAN CAP ACH PAYROLL",
+      "amount_cents": 341277,
+      "category": "income.salary",
+      "why": "rule:Payroll",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-08",
+      "description": "COMED ELECTRIC",
+      "amount_cents": -12110,
+      "category": "fixed.utilities",
+      "why": "rule:ComEd",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-12",
+      "description": "XFINITY",
+      "amount_cents": -8999,
+      "category": "fixed.internet",
+      "why": "rule:Xfinity",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-14",
+      "description": "VENMO *MORGAN AVERY",
+      "amount_cents": -8500,
+      "category": null,
+      "why": "heuristic:payment_app_row",
+      "flags": [
+        "needs_review",
+        "payment_app_unknown"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-16",
+      "description": "ACH DEPOSIT HARBOR BROKERAGE",
+      "amount_cents": 250000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "harbor-09",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-18",
+      "description": "T-MOBILE",
+      "amount_cents": -7500,
+      "category": "fixed.phone",
+      "why": "rule:T-Mobile",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-18",
+      "description": "MERIDIAN CAP ACH PAYROLL",
+      "amount_cents": 341277,
+      "category": "income.salary",
+      "why": "rule:Payroll",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-19",
+      "description": "JEWEL-OSCO #3421",
+      "amount_cents": -9452,
+      "category": "variable.groceries",
+      "why": "rule:Jewel-Osco",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-20",
+      "description": "SUMMIT CARD SERVICES PAYMENT",
+      "amount_cents": -120000,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "visa-09",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-21",
+      "description": "PEOPLES GAS",
+      "amount_cents": -3655,
+      "category": "fixed.utilities",
+      "why": "rule:Peoples Gas",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-22",
+      "description": "GEICO AUTO INS ANNUAL",
+      "amount_cents": -128400,
+      "category": "irregular.insurance",
+      "why": "rule:GEICO annual",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-22",
+      "description": "SUMMIT CARD SVCS AMEX PYMT",
+      "amount_cents": -11600,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "amex-09",
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-28",
+      "description": "ZELLE PAYMENT TO CHRIS PARK",
+      "amount_cents": -30000,
+      "category": "transfer.loan_repayment",
+      "why": "rule:Repayment to Chris",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbc",
+      "posted": "2026-09-29",
+      "description": "SHELL OIL 57442",
+      "amount_cents": -5033,
+      "category": "variable.fuel",
+      "why": "rule:Shell",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbs",
+      "posted": "2026-07-02",
+      "description": "ONLINE TRANSFER FROM CHK ...1234",
+      "amount_cents": 50000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "sav-07",
+      "refund_of": null
+    },
+    {
+      "account": "nbs",
+      "posted": "2026-07-31",
+      "description": "INTEREST PAYMENT",
+      "amount_cents": 1023,
+      "category": "income.interest",
+      "why": "rule:Savings interest",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbs",
+      "posted": "2026-08-04",
+      "description": "ONLINE TRANSFER FROM CHK ...1234",
+      "amount_cents": 50000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "sav-08",
+      "refund_of": null
+    },
+    {
+      "account": "nbs",
+      "posted": "2026-08-31",
+      "description": "INTEREST PAYMENT",
+      "amount_cents": 1067,
+      "category": "income.interest",
+      "why": "rule:Savings interest",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "nbs",
+      "posted": "2026-09-03",
+      "description": "ONLINE TRANSFER FROM CHK ...1234",
+      "amount_cents": 50000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "sav-09",
+      "refund_of": null
+    },
+    {
+      "account": "nbs",
+      "posted": "2026-09-30",
+      "description": "INTEREST PAYMENT",
+      "amount_cents": 1109,
+      "category": "income.interest",
+      "why": "rule:Savings interest",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-07-15",
+      "description": "DIRECT DEPOSIT - FREELANCE INVOICE 118",
+      "amount_cents": 45000,
+      "category": "income.other",
+      "why": "rule:Freelance",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-07-23",
+      "description": "COSTCO WHSE #1101",
+      "amount_cents": -14387,
+      "category": "variable.groceries",
+      "why": "rule:Costco",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-08-12",
+      "description": "DIRECT DEPOSIT - FREELANCE INVOICE 121",
+      "amount_cents": 30000,
+      "category": "income.other",
+      "why": "rule:Freelance",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-08-15",
+      "description": "ATM WITHDRAWAL BANCO AZTECA CDMX",
+      "amount_cents": -16342,
+      "category": null,
+      "why": "heuristic:atm_withdrawal",
+      "flags": [
+        "cash_withdrawal",
+        "needs_review"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-08-15",
+      "description": "NON-NETWORK ATM FEE",
+      "amount_cents": -300,
+      "category": "debt.fees",
+      "why": "heuristic:fee_charge",
+      "flags": [
+        "fee"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-08-15",
+      "description": "INTL TRANSACTION FEE",
+      "amount_cents": -490,
+      "category": "debt.fees",
+      "why": "heuristic:fee_charge",
+      "flags": [
+        "fee"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-08-17",
+      "description": "RESTAURANTE EL CARDENAL",
+      "amount_cents": -6215,
+      "category": "variable.dining",
+      "why": "rule:Restaurants abroad",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-09-10",
+      "description": "COSTCO WHSE #1101",
+      "amount_cents": -15790,
+      "category": "variable.groceries",
+      "why": "rule:Costco",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "rvc",
+      "posted": "2026-09-25",
+      "description": "DIRECT DEPOSIT - FREELANCE INVOICE 125",
+      "amount_cents": 60000,
+      "category": "income.other",
+      "why": "rule:Freelance",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-02",
+      "description": "TRADER JOE S #702",
+      "amount_cents": -6431,
+      "category": "variable.groceries",
+      "why": "rule:Trader Joe's",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-05",
+      "description": "CHIPOTLE 1192",
+      "amount_cents": -1388,
+      "category": "variable.dining",
+      "why": "rule:Chipotle",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-09",
+      "description": "AMAZON.COM*HG6 AMZN.COM/BILL",
+      "amount_cents": -4299,
+      "category": "variable.shopping",
+      "why": "rule:Amazon",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-11",
+      "description": "UBER TRIP",
+      "amount_cents": -2314,
+      "category": "variable.transport",
+      "why": "rule:Uber",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-15",
+      "description": "WALGREENS #5821",
+      "amount_cents": -1876,
+      "category": "variable.health",
+      "why": "rule:Walgreens",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-19",
+      "description": "PAYMENT - THANK YOU",
+      "amount_cents": 182040,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "visa-07",
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-22",
+      "description": "TRADER JOE S #702",
+      "amount_cents": -7215,
+      "category": "variable.groceries",
+      "why": "rule:Trader Joe's",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-26",
+      "description": "NETFLIX.COM",
+      "amount_cents": -1549,
+      "category": "fixed.subscriptions",
+      "why": "rule:Netflix",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-29",
+      "description": "CHIPOTLE 1192",
+      "amount_cents": -1527,
+      "category": "variable.dining",
+      "why": "rule:Chipotle",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-07-31",
+      "description": "INTEREST CHARGE ON PURCHASES",
+      "amount_cents": -2287,
+      "category": "debt.interest",
+      "why": "heuristic:interest_charge",
+      "flags": [
+        "interest"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-03",
+      "description": "TRADER JOE S #702",
+      "amount_cents": -5890,
+      "category": "variable.groceries",
+      "why": "rule:Trader Joe's",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-09",
+      "description": "TARGET 00012345",
+      "amount_cents": -8417,
+      "category": "variable.shopping",
+      "why": "rule:Target",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-12",
+      "description": "UBER TRIP",
+      "amount_cents": -1890,
+      "category": "variable.transport",
+      "why": "rule:Uber",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-16",
+      "description": "TRADER JOE S #702",
+      "amount_cents": -6702,
+      "category": "variable.groceries",
+      "why": "rule:Trader Joe's",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-19",
+      "description": "PAYMENT - THANK YOU",
+      "amount_cents": 100000,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "visa-08",
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-20",
+      "description": "TARGET 00012345",
+      "amount_cents": 8417,
+      "category": "variable.shopping",
+      "why": "rule:Target",
+      "flags": [],
+      "pair": null,
+      "refund_of": "TARGET 00012345"
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-24",
+      "description": "CHIPOTLE 1192",
+      "amount_cents": -1412,
+      "category": "variable.dining",
+      "why": "rule:Chipotle",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-26",
+      "description": "NETFLIX.COM",
+      "amount_cents": -1549,
+      "category": "fixed.subscriptions",
+      "why": "rule:Netflix",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-08-31",
+      "description": "INTEREST CHARGE ON PURCHASES",
+      "amount_cents": -1944,
+      "category": "debt.interest",
+      "why": "heuristic:interest_charge",
+      "flags": [
+        "interest"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-01",
+      "description": "AMAZON.COM*2K4 AMZN.COM/BILL",
+      "amount_cents": -6250,
+      "category": "variable.shopping",
+      "why": "rule:Amazon",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-06",
+      "description": "TRADER JOE S #702",
+      "amount_cents": -7340,
+      "category": "variable.groceries",
+      "why": "rule:Trader Joe's",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-10",
+      "description": "WALGREENS #5821",
+      "amount_cents": -2210,
+      "category": "variable.health",
+      "why": "rule:Walgreens",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-13",
+      "description": "UBER TRIP",
+      "amount_cents": -2760,
+      "category": "variable.transport",
+      "why": "rule:Uber",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-19",
+      "description": "PAYMENT - THANK YOU",
+      "amount_cents": 120000,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "visa-09",
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-21",
+      "description": "TRADER JOE S #702",
+      "amount_cents": -6118,
+      "category": "variable.groceries",
+      "why": "rule:Trader Joe's",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-26",
+      "description": "NETFLIX.COM",
+      "amount_cents": -1549,
+      "category": "fixed.subscriptions",
+      "why": "rule:Netflix",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-27",
+      "description": "CHIPOTLE 1192",
+      "amount_cents": -1495,
+      "category": "variable.dining",
+      "why": "rule:Chipotle",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sv",
+      "posted": "2026-09-30",
+      "description": "INTEREST CHARGE ON PURCHASES",
+      "amount_cents": -1872,
+      "category": "debt.interest",
+      "why": "heuristic:interest_charge",
+      "flags": [
+        "interest"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-07-15",
+      "description": "LINEAR.APP",
+      "amount_cents": -9600,
+      "category": "venture.operating_expense",
+      "why": "rule:Linear (Ledgerline)",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-07-15",
+      "description": "VERCEL INC",
+      "amount_cents": -2000,
+      "category": "venture.operating_expense",
+      "why": "rule:Vercel (Ledgerline)",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-07-22",
+      "description": "PAYMENT - THANK YOU",
+      "amount_cents": 31218,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "amex-07",
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-08-15",
+      "description": "LINEAR.APP",
+      "amount_cents": -9600,
+      "category": "venture.operating_expense",
+      "why": "rule:Linear (Ledgerline)",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-08-15",
+      "description": "VERCEL INC",
+      "amount_cents": -2000,
+      "category": "venture.operating_expense",
+      "why": "rule:Vercel (Ledgerline)",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-08-22",
+      "description": "PAYMENT - THANK YOU",
+      "amount_cents": 11600,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "amex-08",
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-09-15",
+      "description": "LINEAR.APP",
+      "amount_cents": -9600,
+      "category": "venture.operating_expense",
+      "why": "rule:Linear (Ledgerline)",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-09-15",
+      "description": "VERCEL INC",
+      "amount_cents": -2000,
+      "category": "venture.operating_expense",
+      "why": "rule:Vercel (Ledgerline)",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "sa",
+      "posted": "2026-09-22",
+      "description": "PAYMENT - THANK YOU",
+      "amount_cents": 11600,
+      "category": "transfer.card_payment",
+      "why": "heuristic:card_payment_pair",
+      "flags": [],
+      "pair": "amex-09",
+      "refund_of": null
+    },
+    {
+      "account": "hb",
+      "posted": "2026-07-15",
+      "description": "DIVIDEND",
+      "amount_cents": 1842,
+      "category": "income.interest",
+      "why": "rule:Dividends",
+      "flags": [],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "hb",
+      "posted": "2026-09-12",
+      "description": "SELL",
+      "amount_cents": 250000,
+      "category": "transfer.securities_sale_proceeds",
+      "why": "heuristic:securities_sale",
+      "flags": [
+        "securities_sale"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "hb",
+      "posted": "2026-09-15",
+      "description": "ACH TRANSFER TO NORTHBANK ...1234",
+      "amount_cents": -250000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [
+        "needs_review"
+      ],
+      "pair": "harbor-09",
+      "refund_of": null
+    },
+    {
+      "account": "vm",
+      "posted": "2026-08-05",
+      "description": "Chris Park",
+      "amount_cents": 60000,
+      "category": null,
+      "why": "heuristic:payment_app_row",
+      "flags": [
+        "needs_review",
+        "payment_app_unknown"
+      ],
+      "pair": null,
+      "refund_of": null
+    },
+    {
+      "account": "vm",
+      "posted": "2026-08-06",
+      "description": "Northbank Bank *1234",
+      "amount_cents": -60000,
+      "category": "transfer.internal",
+      "why": "heuristic:internal_pair",
+      "flags": [],
+      "pair": "venmo-08",
+      "refund_of": null
+    },
+    {
+      "account": "vm",
+      "posted": "2026-09-20",
+      "description": "Morgan Avery",
+      "amount_cents": 4200,
+      "category": null,
+      "why": "heuristic:payment_app_row",
+      "flags": [
+        "needs_review",
+        "payment_app_unknown"
+      ],
+      "pair": null,
+      "refund_of": null
+    }
+  ],
+  "pairs": {
+    "sav-07": {
+      "kind": "internal"
+    },
+    "visa-07": {
+      "kind": "card_payment"
+    },
+    "amex-07": {
+      "kind": "card_payment"
+    },
+    "sav-08": {
+      "kind": "internal"
+    },
+    "venmo-08": {
+      "kind": "internal"
+    },
+    "visa-08": {
+      "kind": "card_payment"
+    },
+    "amex-08": {
+      "kind": "card_payment"
+    },
+    "sav-09": {
+      "kind": "internal"
+    },
+    "harbor-09": {
+      "kind": "internal"
+    },
+    "visa-09": {
+      "kind": "card_payment"
+    },
+    "amex-09": {
+      "kind": "card_payment"
+    }
+  }
+}

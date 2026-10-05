@@ -7,6 +7,8 @@ pub mod normalize;
 pub mod profile;
 pub mod report;
 
+use std::collections::BTreeMap;
+
 use chrono::Duration;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -14,7 +16,7 @@ use sha2::{Digest, Sha256};
 
 use crate::dates::{format_civil, parse_civil, CivilDate};
 use crate::db::audit::{self, Action, Actor};
-use crate::db::repo::{account, batch, txn};
+use crate::db::repo::{account, batch, link, txn};
 use crate::error::{AppError, AppResult};
 use crate::import::csv::{flag_names, ParsedRow, RowStatus};
 use crate::import::dedup::{Candidate, Decision};
@@ -524,6 +526,9 @@ pub fn commit(
         }
     }
 
+    if !report.inserted.is_empty() {
+        report.automation = Some(crate::rules::automate(&tx, &cmd, Some(&report.inserted))?);
+    }
     report.date_from = date_from.map(format_civil);
     report.date_to = date_to.map(format_civil);
     let (inserted, updated, skipped, quarantined) = report.counts();
@@ -559,11 +564,26 @@ pub struct UndoReport {
     pub batch_id: i64,
     pub deleted: usize,
     pub restored: usize,
+    pub unlinked: usize,
     pub quarantine_discarded: usize,
 }
 
-/// Reverse a batch: delete what it inserted, restore what it updated, discard its quarantine
-/// rows. Refused when any touched row changed since (undo later batches and edits first).
+/// What one import command did to one ledger row. Automation can touch a row several times
+/// inside the same command, so undo compares against the state the command left and restores
+/// the state it found.
+struct RowTrail {
+    inserted: bool,
+    first_before: Option<String>,
+    last_after: Option<String>,
+}
+
+fn parse_row(json: &str) -> AppResult<txn::TxnRecord> {
+    Ok(serde_json::from_str(json)?)
+}
+
+/// Reverse a batch: delete what it inserted, restore what it updated, remove the links its
+/// automation made, discard its quarantine rows. Refused when any touched row changed since
+/// (undo later batches and edits first).
 pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
     let b = batch::get(conn, batch_id)?;
     if b.undone_at.is_some() {
@@ -574,7 +594,7 @@ pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
     let tx = conn.transaction()?;
     let mut stmt = tx.prepare(
         "SELECT entity_id, action, before_json, after_json FROM audit_event
-         WHERE command_id = ?1 AND entity = 'txn' ORDER BY id DESC",
+         WHERE command_id = ?1 AND entity = 'txn' ORDER BY id",
     )?;
     let events = stmt
         .query_map([b.command_id], |r| {
@@ -587,21 +607,43 @@ pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
         })?
         .collect::<Result<Vec<_>, _>>()?;
     drop(stmt);
+    let mut trails: BTreeMap<i64, RowTrail> = BTreeMap::new();
+    for (id, action, before_json, after_json) in events {
+        let trail = trails.entry(id).or_insert_with(|| RowTrail {
+            inserted: false,
+            first_before: before_json,
+            last_after: None,
+        });
+        if action == "insert" {
+            trail.inserted = true;
+        }
+        trail.last_after = after_json;
+    }
 
     let mut conflicts = Vec::new();
-    for (id, action, _, after_json) in &events {
-        let expected: txn::TxnRecord = match after_json {
-            Some(j) => serde_json::from_str(j)?,
-            None => continue,
+    for (id, trail) in &trails {
+        let Some(expected_json) = &trail.last_after else {
+            continue;
         };
+        let expected = parse_row(expected_json)?;
         match txn::get(&tx, *id) {
             Ok(current) if current == expected => {}
-            Ok(_) => conflicts.push(format!("row {id} changed after the {action}")),
+            Ok(_) => conflicts.push(format!("row {id} changed after the import")),
             Err(AppError::NotFound { .. }) => conflicts.push(format!("row {id} no longer exists")),
             Err(e) => return Err(e),
         }
         if !txn::children(&tx, *id)?.is_empty() {
             conflicts.push(format!("row {id} has been split"));
+        }
+        if trail.inserted {
+            // a refund linked later points at this row without changing it
+            for l in link::refunds_of_original(&tx, *id)? {
+                if !trails.contains_key(&l.refund_txn_id) {
+                    conflicts.push(format!(
+                        "row {id} was later linked as the original of a refund"
+                    ));
+                }
+            }
         }
     }
     if !conflicts.is_empty() {
@@ -616,32 +658,54 @@ pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
         "UPDATE command SET undoes_command_id = ?1 WHERE id = ?2",
         params![b.command_id, undo_cmd.id],
     )?;
+
+    // Links the command made come off first, so restoring one leg never clobbers the other.
+    // A link that was already there when the command found the row stays.
+    let mut unlinked = 0usize;
+    for (id, trail) in &trails {
+        let current = txn::get(&tx, *id)?;
+        let found = match &trail.first_before {
+            Some(j) => Some(parse_row(j)?),
+            None => None,
+        };
+        if let Some(link_id) = current.transfer_link_id {
+            if found.as_ref().and_then(|f| f.transfer_link_id) != Some(link_id) {
+                link::remove_transfer(&tx, &undo_cmd, link_id)?;
+                unlinked += 1;
+            }
+        }
+        if let Some(link_id) = current.refund_link_id {
+            if found.as_ref().and_then(|f| f.refund_link_id) != Some(link_id) {
+                link::remove_refund(&tx, &undo_cmd, link_id)?;
+                unlinked += 1;
+            }
+        }
+    }
+
     let mut deleted = 0usize;
     let mut restored = 0usize;
-    for (id, action, before_json, _) in &events {
-        match action.as_str() {
-            "insert" => {
-                txn::delete_row(&tx, &undo_cmd, *id)?;
-                deleted += 1;
-            }
-            "update" => {
-                let before: txn::TxnRecord =
-                    serde_json::from_str(before_json.as_deref().unwrap_or("{}"))?;
-                let current = txn::get(&tx, *id)?;
-                txn::write_all_columns(&tx, &before)?;
-                audit::record(
-                    &tx,
-                    &undo_cmd,
-                    "txn",
-                    *id,
-                    Action::Update,
-                    Some(&serde_json::to_value(&current)?),
-                    Some(&serde_json::to_value(&before)?),
-                )?;
-                restored += 1;
-            }
-            _ => {}
+    for (id, trail) in trails.iter().rev() {
+        if trail.inserted {
+            txn::delete_row(&tx, &undo_cmd, *id)?;
+            deleted += 1;
+            continue;
         }
+        let Some(before_json) = &trail.first_before else {
+            continue;
+        };
+        let before = parse_row(before_json)?;
+        let current = txn::get(&tx, *id)?;
+        txn::write_all_columns(&tx, &before)?;
+        audit::record(
+            &tx,
+            &undo_cmd,
+            "txn",
+            *id,
+            Action::Update,
+            Some(&serde_json::to_value(&current)?),
+            Some(&serde_json::to_value(&before)?),
+        )?;
+        restored += 1;
     }
     let mut quarantine_discarded = 0usize;
     for q in batch::quarantine_for_batch(&tx, batch_id)? {
@@ -671,6 +735,7 @@ pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
         batch_id,
         deleted,
         restored,
+        unlinked,
         quarantine_discarded,
         "import batch undone"
     );
@@ -678,6 +743,7 @@ pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
         batch_id,
         deleted,
         restored,
+        unlinked,
         quarantine_discarded,
     })
 }
