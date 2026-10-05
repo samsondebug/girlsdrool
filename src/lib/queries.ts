@@ -26,6 +26,7 @@ import {
   type SettingUpdate,
   type SplitPart,
   type TransferKind,
+  type ReconInput,
   type TxnPatch,
   type VentureInput,
 } from "./ipc";
@@ -61,7 +62,19 @@ export const keys = {
   linkDetailsAll: ["link_details"] as const,
   linkCandidates: (txnId: number) => ["link_candidates", txnId] as const,
   linkCandidatesAll: ["link_candidates"] as const,
+  reconciliations: (accountId: number) => ["reconciliations", accountId] as const,
+  reconciliationsAll: ["reconciliations"] as const,
+  explorer: (id: number) => ["difference_explorer", id] as const,
+  explorerAll: ["difference_explorer"] as const,
+  trust: ["trust_status"] as const,
 };
+
+/** Reconciliation periods, the explorer and trust move whenever a ledger row does. */
+const reconDependent: readonly QueryKey[] = [
+  ["reconciliations"],
+  ["difference_explorer"],
+  ["trust_status"],
+];
 
 /** Everything a changed ledger row can move: rows, totals, the queue, links and both views. */
 const rowDependent: readonly QueryKey[] = [
@@ -72,19 +85,21 @@ const rowDependent: readonly QueryKey[] = [
   keys.cashAll,
   keys.linkDetailsAll,
   keys.linkCandidatesAll,
+  ...reconDependent,
 ];
 
 /** Which query keys an entity change invalidates. */
 const invalidationMap: Record<string, readonly QueryKey[]> = {
-  setting: [keys.settings],
-  account: [keys.accounts, keys.ledgerAll, keys.cashAll],
+  setting: [keys.settings, keys.trust],
+  account: [keys.accounts, keys.ledgerAll, keys.cashAll, ...reconDependent],
+  reconciliation: reconDependent,
   category: [keys.categories, keys.ledgerAll, keys.spendingAll],
   txn: rowDependent,
   transfer_link: rowDependent,
   refund_link: rowDependent,
   firewall_ack: rowDependent,
   import_batch: [keys.batches],
-  import_quarantine: [keys.quarantine],
+  import_quarantine: [keys.quarantine, keys.explorerAll],
   saved_view: [keys.savedViews],
   rule: [keys.rules],
   venture: [keys.ventures, keys.accounts],
@@ -396,4 +411,37 @@ export function useChangeSubscription(): void {
       unlisten?.();
     };
   }, [queryClient]);
+}
+
+// ---- reconciliation and trust (M3) --------------------------------------------------------------
+
+export function useReconciliations(accountId: number | null) {
+  return useQuery({
+    queryKey: keys.reconciliations(accountId ?? 0),
+    queryFn: () => api.listReconciliations(accountId ?? 0),
+    enabled: accountId !== null,
+    staleTime: Infinity,
+  });
+}
+
+export function useExplorer(id: number | null) {
+  return useQuery({
+    queryKey: keys.explorer(id ?? 0),
+    queryFn: () => api.differenceExplorer(id ?? 0),
+    enabled: id !== null,
+    staleTime: Infinity,
+  });
+}
+
+/** Per-account trust and the hero's trust; every figure's untrusted marking reads this. */
+export function useTrust() {
+  return useQuery({ queryKey: keys.trust, queryFn: api.trustStatus, staleTime: Infinity });
+}
+
+export function useReconcile() {
+  return useMutation({ mutationFn: (input: ReconInput) => api.reconcile(input) });
+}
+
+export function useDeleteReconciliation() {
+  return useMutation({ mutationFn: (id: number) => api.deleteReconciliation(id) });
 }

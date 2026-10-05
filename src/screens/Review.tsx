@@ -9,6 +9,7 @@ import { Money } from "../components/Money";
 import { Panel } from "../components/Panel";
 import { Select } from "../components/Select";
 import { TextField } from "../components/TextField";
+import { MarkedMoney } from "../components/Untrusted";
 import { useCorrectionProposal } from "../lib/corrections";
 import type { LedgerRow } from "../lib/ipc";
 import { formatCents } from "../lib/money";
@@ -19,10 +20,12 @@ import {
   useCategories,
   useReviewQueue,
   useSpendingView,
+  useTrust,
   useUpdateTxn,
 } from "../lib/queries";
 import { FLAG_BITS } from "../lib/query-chips";
 import { useUiStore } from "../lib/store";
+import { untrustedAmong, untrustedCash } from "../lib/trust";
 
 const NEEDS_REVIEW = 1;
 const CIVIL_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -271,6 +274,9 @@ function ViewsStrip() {
   const s = spending.data;
   const c = cash.data;
   const error = spending.error ?? cash.error;
+  const trust = useTrust();
+  const allUntrusted = untrustedAmong(trust.data, null);
+  const cashUntrusted = untrustedCash(trust.data);
 
   const apply = (event: FormEvent) => {
     event.preventDefault();
@@ -312,35 +318,56 @@ function ViewsStrip() {
         <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
           <dt className="col-span-2 text-12 text-text-dim">Spending: what was consumed</dt>
           <dt>Gross outflows</dt>
-          <dd className="text-right">{s ? <Money cents={s.gross_outflows_cents} /> : "—"}</dd>
+          <dd className="text-right">
+            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={s.gross_outflows_cents} /> : "—"}
+          </dd>
           <dt>Linked refunds</dt>
-          <dd className="text-right">{s ? <Money cents={-s.linked_refunds_cents} /> : "—"}</dd>
+          <dd className="text-right">
+            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={-s.linked_refunds_cents} /> : "—"}
+          </dd>
           <dt>Same-category reimbursements</dt>
-          <dd className="text-right">{s ? <Money cents={-s.reimbursements_cents} /> : "—"}</dd>
+          <dd className="text-right">
+            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={-s.reimbursements_cents} /> : "—"}
+          </dd>
           <dt className="font-medium">Net spending</dt>
           <dd className="text-right font-medium">
-            {s ? <Money cents={s.net_spending_cents} /> : "—"}
+            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={s.net_spending_cents} /> : "—"}
           </dd>
           <dt className="text-text-dim">Positive rows still in review</dt>
           <dd className="text-right text-text-dim">
-            {s ? <Money cents={s.positive_review_cents} /> : "—"}
+            {s ? <MarkedMoney untrustedBy={allUntrusted} cents={s.positive_review_cents} /> : "—"}
           </dd>
         </dl>
         <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
           <dt className="col-span-2 text-12 text-text-dim">Cash: what left the cash accounts</dt>
           <dt>Outflows</dt>
-          <dd className="text-right">{c ? <Money cents={-c.outflows_cents} /> : "—"}</dd>
+          <dd className="text-right">
+            {c ? <MarkedMoney untrustedBy={cashUntrusted} cents={-c.outflows_cents} /> : "—"}
+          </dd>
           <dt>Inflows</dt>
-          <dd className="text-right">{c ? <Money cents={c.inflows_cents} /> : "—"}</dd>
+          <dd className="text-right">
+            {c ? <MarkedMoney untrustedBy={cashUntrusted} cents={c.inflows_cents} /> : "—"}
+          </dd>
           <dt className="font-medium">Net change</dt>
-          <dd className="text-right font-medium">{c ? <Money cents={c.net_cents} /> : "—"}</dd>
+          <dd className="text-right font-medium">
+            {c ? <MarkedMoney untrustedBy={cashUntrusted} cents={c.net_cents} /> : "—"}
+          </dd>
           <dt className="text-text-dim">Accounts</dt>
           <dd className="text-right text-text-dim">{c ? c.by_account.length : "—"}</dd>
         </dl>
         <div className="flex flex-col gap-1">
           <p className="text-12 text-text-dim">Gross spending − cash outflows</p>
-          <p className="money text-20">
-            {s && c ? formatCents(s.gross_outflows_cents - c.outflows_cents) : "—"}
+          <p className="text-20">
+            {s && c ? (
+              <MarkedMoney
+                cents={s.gross_outflows_cents - c.outflows_cents}
+                size={20}
+                tone={false}
+                untrustedBy={allUntrusted}
+              />
+            ) : (
+              "—"
+            )}
           </p>
           <p className="text-12 text-text-dim">
             A card purchase is spending on its posted date on the card; the card payment is cash

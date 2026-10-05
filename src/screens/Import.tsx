@@ -280,7 +280,7 @@ export function Import() {
               </span>
             ) : null}
           </div>
-          {report ? <ReportView report={report} /> : null}
+          {report ? <ReportView report={report} accountId={accountNum} /> : null}
         </Panel>
       </div>
 
@@ -489,10 +489,33 @@ function PreviewView({ preview }: { preview: Preview }) {
   );
 }
 
-function ReportView({ report }: { report: ImportReport }) {
+function ReportView({ report, accountId }: { report: ImportReport; accountId: number | null }) {
+  const setScreen = useUiStore((s) => s.setScreen);
+  const setReconcileDraft = useUiStore((s) => s.setReconcileDraft);
   return (
     <div className="mt-3 flex flex-col gap-2 text-14">
       <p className="text-text">{report.summary}</p>
+      {report.file_closing_cents !== null &&
+      report.file_closing_date !== null &&
+      accountId !== null ? (
+        <p className="flex items-center gap-2 text-12 text-text-dim">
+          The file's running balance ends at <Money cents={report.file_closing_cents} /> on{" "}
+          <span className="money">{report.file_closing_date}</span>.
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setReconcileDraft({
+                accountId,
+                periodEnd: report.file_closing_date ?? "",
+                statementClosingCents: report.file_closing_cents ?? 0,
+              });
+              setScreen("reconcile");
+            }}
+          >
+            Reconcile with it
+          </Button>
+        </p>
+      ) : null}
       <p className="text-12 text-text-dim">
         batch #{report.batch_id} · profile {report.profile_name} · {report.date_from ?? "—"} …{" "}
         {report.date_to ?? "—"} · threshold {(report.threshold_bps / 100).toFixed(2)}%

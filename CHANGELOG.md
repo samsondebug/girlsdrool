@@ -3,6 +3,49 @@
 Each milestone ends here with a demo note: what you can do now, what was verified in-session
 (command and exit code), and what was not verified on this host.
 
+## M3 — Reconciliation + untrusted marking (unreleased)
+
+### Demo
+
+1. Reconcile: pick an account, enter the statement's closing balance for a period end. The first
+   period opens at the account's opening balance; each next one rolls forward from the last
+   balanced period. `computed = opening + Σ posted rows`; the difference is shown to the cent and
+   the status is `balanced` only at exactly zero. All 21 fixture periods balance against the
+   closings `fixtures/EXPECTED.md` lists.
+2. The difference explorer for a period that is off: the period's rows with a running balance (a
+   row equal to ±difference is pointed out), posted rows within five days on either side, pending
+   rows, and rows still held in quarantine — the places a missing or wrong row hides.
+3. The mutated fixture (`northbank_checking_2026-08_mutated.csv`, one amount transposed): August
+   is off by −9.00; September, entered next, rolls forward from July and is off by −9.00 too.
+   Undoing that batch and importing the real file flips both periods to balanced without
+   re-entering anything, because every write refreshes every period.
+4. Trust: per account `reconciled | stale | off | never reconciled` (stale window 45 days by
+   default, per-account override on the Reconcile screen, the default in Settings); the hero is
+   trusted only when every cash account outside the firewall is reconciled. The dashboard's
+   Reconciliation health panel shows the statuses and names the untrusted accounts; the ledger Σ
+   and the spending and cash views carry the dashed-underline marking with the account names
+   whenever an account behind them is not reconciled.
+5. An import report ends with the file's last running balance and a "Reconcile with it" hand-off
+   that opens Reconcile prefilled (`statement_source = file`).
+
+### Verified in this session (Linux dev container)
+
+- `cargo test --no-default-features` — exit 0: 38 unit, 9 property (new `recon_identity`), 1
+  logging, 9 M0, 6 M1, 3 M2 and 3 M3 acceptance (`tests/m3_recon.rs`: 21 balanced periods,
+  immutability and ordering rules, delete-latest-only; the mutated scenario's figures, explorer
+  counts and hero naming; stale, override and never-reconciled statuses).
+- `cargo clippy -D warnings` for both feature sets, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
+  `scripts/gates.sh` — exit 0.
+- `just check` — exit 0 with `check-core: green` and the explicit `E2E NOT RUN` notice.
+- Debug app under Xvfb against the seeded folder (`seed_fixture_data_folder` now enters every
+  period): `docs/screenshots/m3-reconcile.png` (balanced periods and the explorer),
+  `m3-explorer.png` (a period off by +9.00 after a wrong statement, with the explorer),
+  `m3-dashboard.png` (the health panel).
+
+### Not verified on this host
+
+- Playwright critical path (Windows/WebView2 only); the Windows netstat observation.
+
 ## M2 — Rules, review queue, transfer and refund linking (unreleased)
 
 ### Demo

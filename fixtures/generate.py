@@ -14,6 +14,7 @@ statement months 2026-07, 2026-08 and 2026-09 for one person with:
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -252,6 +253,10 @@ RULES: list[tuple[str, str, str, str | None]] = [
     ("Repayment to Chris", "zelle payment to chris park", "transfer.loan_repayment", None),
 ]
 
+# M3: the mutated August export transposes two digits of one amount (−112.06 → −121.06), so the
+# ledger built from it is 9.00 short of the bank's statement closing.
+MUTATION = ("2026-08-13", "JEWEL-OSCO #3421", -12_106)
+
 PAYMENT_APP_WORDS = ("venmo", "zelle", "cash app", "paypal")
 
 
@@ -312,6 +317,12 @@ def plain(cents: int) -> str:
 def mdy(iso: str) -> str:
     d = date.fromisoformat(iso)
     return f"{d.month:02d}/{d.day:02d}/{d.year}"
+
+
+def month_end(month: str) -> str:
+    import calendar
+    y, m = int(month[:4]), int(month[5:7])
+    return f"{month}-{calendar.monthrange(y, m)[1]:02d}"
 
 
 def month_of(iso: str) -> str:
@@ -402,15 +413,19 @@ def csv_field(s: str) -> str:
     return s
 
 
-def northbank(account: str, rows: list[Row], opening: int, variant: tuple | None = None) -> str:
+def northbank(account: str, rows: list[Row], opening: int, variant: tuple | None = None,
+              mutate: tuple | None = None) -> str:
     lines = ["Date,Description,Amount,Running Bal."]
     bal = opening
     for r in rows:
-        bal += r.amount
+        amount = r.amount
+        if mutate and (r.posted, r.description) == (mutate[0], mutate[1]):
+            amount = mutate[2]
+        bal += amount
         desc = r.description
         if variant and (r.posted, r.description) == (variant[0], variant[1]):
             desc = variant[2]
-        lines.append(",".join([mdy(r.posted), csv_field(desc), csv_field(money(r.amount)), csv_field(money(bal))]))
+        lines.append(",".join([mdy(r.posted), csv_field(desc), csv_field(money(amount)), csv_field(money(bal))]))
     return "\n".join(lines) + "\n"
 
 
@@ -480,6 +495,9 @@ def emit_csvs() -> dict[str, str]:
     # overlapping Aug+Sep export with one descriptor variant
     files["northbank/northbank_checking_2026-08_09_overlap.csv"] = northbank(
         "nbc", rows_for("nbc", "2026-08") + rows_for("nbc", "2026-09"), closing("nbc", "2026-07"), OVERLAP_VARIANT)
+    # August with one amount mutated (M3): never imported alongside the real August file
+    files["northbank/northbank_checking_2026-08_mutated.csv"] = northbank(
+        "nbc", rows_for("nbc", "2026-08"), closing("nbc", "2026-07"), mutate=MUTATION)
 
     for m in MONTHS:
         prev = closing("rvc", f"2026-{int(m[-2:]) - 1:02d}") if m != "2026-07" else ACCOUNTS["rvc"].opening_cents
@@ -536,6 +554,7 @@ def expected_md(files: dict[str, str]) -> str:
     notes = {
         "northbank/northbank_checking_2026-07_copy.csv": "byte-identical to the July file: file-level no-op",
         "northbank/northbank_checking_2026-08_09_overlap.csv": "Aug+Sep rows again; one descriptor variant → quarantine",
+        "northbank/northbank_checking_2026-08_mutated.csv": "August with one amount transposed (−112.06 → −121.06): the M3 off scenario, imported instead of the real August file",
         "riverside/riverside_checking_2026-07_eur.csv": "Currency column reads EUR: whole batch rejected (Unsupported)",
         "summit/summit_visa_2026-08.csv": "carries the pending AMAZON.COM row",
         "summit/summit_visa_2026-09.csv": "carries the same Amazon row posted on 2026-09-01",
@@ -729,6 +748,106 @@ def expected_md(files: dict[str, str]) -> str:
         p(f"| {k} | {cats[k]} |")
     p("")
 
+    # Reconciliation (M3)
+    p("## Reconciliation (M3)")
+    p("")
+    p("A period is `[period_start, period_end]` per account. Its opening is the account's opening balance for the first")
+    p("period, else the statement closing of the last **balanced** period (roll-forward); `computed = opening + Σ posted rows`")
+    p("in the period, `difference = computed − statement`, `balanced` iff the difference is exactly 0 (ADR-0021). The")
+    p("hero's contributing accounts are the cash-kind accounts that are neither firewalled nor archived: "
+      + ", ".join(k for k, a in ACCOUNTS.items() if a.kind in ("checking", "savings", "cash", "payment_app") and not a.firewalled) + ".")
+    p("")
+    p("### Every account, monthly periods (balanced fixture)")
+    p("")
+    p("| account | period | opening | Σ posted | computed closing | statement closing | status |")
+    p("|---|---|---:|---:|---:|---:|---|")
+    recon_periods = []
+    for a in ACCOUNTS.values():
+        prev_close = a.opening_cents
+        for m in MONTHS:
+            start = a.opening_date if m == "2026-07" else f"{m}-01"
+            end = month_end(m)
+            total = sum(r.amount for r in rows_for(a.key, m))
+            computed = prev_close + total
+            statement = closing(a.key, m)
+            assert computed == statement
+            p(f"| {a.key} | {start}..{end} | {money(prev_close)} | {money(total)} | {money(computed)} | {money(statement)} | balanced |")
+            recon_periods.append({"account": a.key, "period_start": start, "period_end": end, "opening_cents": prev_close,
+                                  "sum_cents": total, "computed_cents": computed, "statement_cents": statement})
+            prev_close = statement
+    p("")
+    p("### Mutated fixture: `northbank_checking_2026-08_mutated.csv` instead of the real August file")
+    p("")
+    real = next(r for r in ROWS if (r.account, r.posted, r.description) == ("nbc", MUTATION[0], MUTATION[1]))
+    delta = MUTATION[2] - real.amount
+    aug_sum = sum(r.amount for r in rows_for("nbc", "2026-08")) + delta
+    aug_computed = closing("nbc", "2026-07") + aug_sum
+    aug_diff = aug_computed - closing("nbc", "2026-08")
+    sep_sum = aug_sum + sum(r.amount for r in rows_for("nbc", "2026-09"))
+    sep_computed = closing("nbc", "2026-07") + sep_sum
+    sep_diff = sep_computed - closing("nbc", "2026-09")
+    p(f"- Row {real.posted} `{real.description}` reads {money(MUTATION[2])} instead of {money(real.amount)} (delta {money(delta)}).")
+    p(f"- August: opening {money(closing('nbc', '2026-07'))}, Σ {money(aug_sum)}, computed **{money(aug_computed)}** vs statement")
+    p(f"  {money(closing('nbc', '2026-08'))} → difference **{money(aug_diff)}**, status `off`.")
+    p(f"- September, entered next with statement {money(closing('nbc', '2026-09'))}: it rolls forward from July (the last balanced")
+    p(f"  period), so its period is 2026-08-01..2026-09-30 with opening {money(closing('nbc', '2026-07'))}; computed")
+    p(f"  **{money(sep_computed)}** → difference **{money(sep_diff)}**, status `off`. The difference carries until the row is fixed.")
+    p("- Undoing the mutated batch and importing the real August file recomputes both periods to `balanced` in the")
+    p("  same transaction; no statement is re-entered. The hero is untrusted while nbc is off, naming Northbank Checking.")
+    p("")
+    aug_rows = rows_for("nbc", "2026-08")
+    before = [r for r in rows_for("nbc") if "2026-07-27" <= r.posted <= "2026-07-31"]
+    after = [r for r in rows_for("nbc") if "2026-09-01" <= r.posted <= "2026-09-05"]
+    p("### Difference explorer for the mutated August period")
+    p("")
+    p(f"- Rows in the period: **{len(aug_rows)}**, with a running balance from the opening; the mutated row is among them.")
+    p(f"- Posted rows within 5 days before the period (2026-07-27..2026-07-31): **{len(before)}** — "
+      + "; ".join(f"{r.posted} `{r.description}` {money(r.amount)}" for r in before) + ".")
+    p(f"- Posted rows within 5 days after the period (2026-09-01..2026-09-05): **{len(after)}** — "
+      + "; ".join(f"{r.posted} `{r.description}` {money(r.amount)}" for r in after) + ".")
+    p("- Pending rows on nbc: **0**. Quarantined rows for nbc: **0** (1 when the overlap file was also imported; the explorer lists it).")
+    p("")
+    as_of = "2026-10-05"
+    stale_days = 45
+    def days_between(a: str, b: str) -> int:
+        from datetime import date
+        return (date.fromisoformat(b) - date.fromisoformat(a)).days
+    p(f"### Trust as of {as_of} (stale window {stale_days} days, ADR-0021)")
+    p("")
+    p("| scenario | account | contributes | latest period end | days | status |")
+    p("|---|---|---|---|---:|---|")
+    contrib = {k: a.kind in ("checking", "savings", "cash", "payment_app") and not a.firewalled for k, a in ACCOUNTS.items()}
+    d_sep = days_between("2026-09-30", as_of)
+    d_jul = days_between("2026-07-31", as_of)
+    trust_rows = []
+    for k in ACCOUNTS:
+        p(f"| A: every month balanced | {k} | {'yes' if contrib[k] else 'no'} | 2026-09-30 | {d_sep} | reconciled |")
+        trust_rows.append({"scenario": "A", "account": k, "contributes": contrib[k], "latest_period_end": "2026-09-30", "days": d_sep, "status": "reconciled"})
+    p(f"| B: mutated August on nbc, others as A | nbc | yes | 2026-09-30 (off) | {d_sep} | off |")
+    trust_rows.append({"scenario": "B", "account": "nbc", "contributes": True, "latest_period_end": "2026-09-30", "days": d_sep, "status": "off"})
+    p(f"| C: nbs balanced through July only, others as A | nbs | yes | 2026-07-31 | {d_jul} | stale ({d_jul} > {stale_days}) |")
+    trust_rows.append({"scenario": "C", "account": "nbs", "contributes": True, "latest_period_end": "2026-07-31", "days": d_jul, "status": "stale"})
+    p(f"| C with a 90-day override on nbs | nbs | yes | 2026-07-31 | {d_jul} | reconciled ({d_jul} ≤ 90) |")
+    p("| D: no statement entered | any | — | — | — | never_reconciled |")
+    p("")
+    p("Hero trust: A → trusted. B → untrusted, naming Northbank Checking (off by "
+      + money(aug_diff) + "). C → untrusted, naming Northbank Savings (stale). D → untrusted, naming every contributing account.")
+    p("Cards and the firewalled brokerage never enter the hero's set, so their status marks only their own figures.")
+    p("")
+    global RECON_JSON
+    RECON_JSON = {
+        "periods": recon_periods,
+        "mutated": {"file": "northbank/northbank_checking_2026-08_mutated.csv", "account": "nbc",
+                    "row": {"posted": real.posted, "description": real.description, "real_cents": real.amount, "mutated_cents": MUTATION[2]},
+                    "august": {"period_start": "2026-08-01", "period_end": "2026-08-31", "opening_cents": closing("nbc", "2026-07"),
+                               "computed_cents": aug_computed, "statement_cents": closing("nbc", "2026-08"), "difference_cents": aug_diff},
+                    "september": {"period_start": "2026-08-01", "period_end": "2026-09-30", "opening_cents": closing("nbc", "2026-07"),
+                                  "computed_cents": sep_computed, "statement_cents": closing("nbc", "2026-09"), "difference_cents": sep_diff},
+                    "explorer": {"in_period": len(aug_rows), "before": len(before), "after": len(after), "pending": 0, "quarantine": 0}},
+        "trust": {"as_of": as_of, "stale_after_days": stale_days, "rows": trust_rows,
+                  "hero_contributing": [k for k in ACCOUNTS if contrib[k]]},
+    }
+
     # Plan inputs for M4 (defined now, numbers derived later from these definitions)
     p("## Plan inputs (defined now for M4/M5; their answers are appended at those milestones)")
     p("")
@@ -753,6 +872,13 @@ def emit_rules_json() -> None:
         ],
     }
     write("rules.json", json.dumps(payload, indent=2) + "\n")
+
+
+RECON_JSON: dict = {}
+
+
+def emit_recon_json() -> None:
+    write("recon.json", json.dumps(RECON_JSON, indent=1) + "\n")
 
 
 def emit_automation_json() -> None:
@@ -787,7 +913,8 @@ def main() -> None:
     emit_rules_json()
     emit_automation_json()
     write("EXPECTED.md", expected_md(files))
-    print(f"wrote {len(files)} csv files, rules.json and EXPECTED.md ({len(ROWS)} ledger rows)")
+    emit_recon_json()
+    print(f"wrote {len(files)} csv files, rules.json, automation.json, recon.json and EXPECTED.md ({len(ROWS)} ledger rows)")
 
 
 if __name__ == "__main__":

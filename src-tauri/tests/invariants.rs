@@ -341,3 +341,64 @@ proptest! {
         prop_assert_eq!(c.net_cents, c.inflows_cents - c.outflows_cents);
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(48))]
+
+    /// The reconciliation identity: for any rows and any period end, `computed = opening + Σ posted
+    /// rows through the end`; the statement equal to that balances, and the next period rolls
+    /// forward from it and is off by exactly the gap in its statement.
+    #[test]
+    fn recon_identity(
+        rows in prop::collection::vec(gen_row(), 0..=20),
+        end_day in 1u32..=30,
+        gap in -500_000i64..=500_000,
+    ) {
+        let mut conn = memory_db();
+        let accounts = fixture_accounts(&conn);
+        let nbc = account_id(&accounts, "nbc");
+        let opening = accounts.iter().find(|(k, _)| *k == "nbc").map(|(_, a)| a.opening_balance_cents).unwrap_or(0);
+        let profile = generic_with_memo(&conn);
+        import_text(&mut conn, nbc, profile, "a.csv", &csv_text(&rows));
+        let end = format!("2026-07-{end_day:02}");
+        let sum_to_end: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(amount_cents), 0) FROM txn_leaf WHERE account_id = ?1 AND status = 'posted' AND posted_date <= ?2",
+                rusqlite::params![nbc, end],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let sum_rest: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(amount_cents), 0) FROM txn_leaf WHERE account_id = ?1 AND status = 'posted' AND posted_date > ?2",
+                rusqlite::params![nbc, end],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let cmd = audit::begin(&conn, "test.recon", Actor::User).unwrap();
+        let first = kept::cash::recon::reconcile(&conn, &cmd, &kept::cash::recon::ReconInput {
+            account_id: nbc,
+            period_end: end.clone(),
+            statement_closing_cents: opening + sum_to_end,
+            statement_source: "user".into(),
+        }).unwrap();
+        prop_assert_eq!(first.period_start.as_str(), "2026-07-01");
+        prop_assert_eq!(first.opening_cents, opening);
+        prop_assert_eq!(first.computed_closing_cents, opening + sum_to_end);
+        prop_assert_eq!(first.difference_cents, 0);
+        prop_assert_eq!(first.status.as_str(), "balanced");
+
+        let second = kept::cash::recon::reconcile(&conn, &cmd, &kept::cash::recon::ReconInput {
+            account_id: nbc,
+            period_end: "2026-07-31".into(),
+            statement_closing_cents: opening + sum_to_end + sum_rest + gap,
+            statement_source: "user".into(),
+        }).unwrap();
+        prop_assert_eq!(second.period_start, format!("2026-07-{:02}", end_day + 1));
+        prop_assert_eq!(second.opening_cents, first.statement_closing_cents);
+        prop_assert_eq!(second.computed_closing_cents, opening + sum_to_end + sum_rest);
+        prop_assert_eq!(second.difference_cents, -gap);
+        prop_assert_eq!(second.status.as_str(), if gap == 0 { "balanced" } else { "off" });
+        prop_assert_eq!(second.balanced_at.is_some(), gap == 0);
+    }
+}

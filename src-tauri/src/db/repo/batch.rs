@@ -205,6 +205,20 @@ pub fn quarantine_pending(conn: &Connection) -> AppResult<Vec<QuarantineRow>> {
     Ok(rows)
 }
 
+/// Rows still held for review on one account (the difference explorer lists them).
+pub fn quarantine_pending_for_account(
+    conn: &Connection,
+    account_id: i64,
+) -> AppResult<Vec<QuarantineRow>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {QCOLS} FROM import_quarantine WHERE account_id = ?1 AND resolution = 'pending' ORDER BY id"
+    ))?;
+    let rows = stmt
+        .query_map([account_id], q_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 pub fn quarantine_for_batch(conn: &Connection, batch_id: i64) -> AppResult<Vec<QuarantineRow>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT {QCOLS} FROM import_quarantine WHERE import_batch_id = ?1 ORDER BY id"

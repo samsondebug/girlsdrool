@@ -98,19 +98,19 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] a balanced fixture reconciles
-- [ ] a mutated fixture shows the difference and marks the hero untrusted
+- [x] a balanced fixture reconciles (`tests/m3_recon.rs`: the 21 monthly periods balance against the `EXPECTED.md` closings)
+- [x] a mutated fixture shows the difference and marks the hero untrusted (`northbank_checking_2026-08_mutated.csv`: August off by −9.00, September rolls it forward; the hero names Northbank Checking)
 
 **Engineering checklist**
 
-- [ ] Reconciliation periods: statement balance entry (user or file), roll-forward, identity, zero-tolerance status, cache refresh in the writing transaction
-- [ ] Difference explorer: rows in period, ±5-day neighbors, pending, quarantine
-- [ ] Trust status per account and hero trust (ADR-0021); `Untrusted` component (dashed underline + label naming accounts) used everywhere a figure appears
-- [ ] Reconcile screen
-- [ ] Property test: `recon_identity`
-- [ ] Integration tests: balanced fixture → `balanced`; fixture with one row's amount mutated → `off` with the exact difference, hero untrusted naming the account
+- [x] Reconciliation periods: statement balance entry (user or file), roll-forward, identity, zero-tolerance status, cache refresh in the writing transaction (`cash/recon.rs`; `refresh_all` inside every write, ADR-0040)
+- [x] Difference explorer: rows in period, ±5-day neighbors, pending, quarantine
+- [x] Trust status per account and hero trust (ADR-0021); `Untrusted` component (dashed underline + label naming accounts) used everywhere a figure appears (`MarkedMoney` on the ledger Σ and the spending and cash views; the dashboard health panel)
+- [x] Reconcile screen
+- [x] Property test: `recon_identity`
+- [x] Integration tests: balanced fixture → `balanced`; fixture with one row's amount mutated → `off` with the exact difference, hero untrusted naming the account
 
-**Questions to batch (ADR-0021):** staleness window 45 days? does "stale" mark the hero untrusted?
+**Questions to batch (ADR-0021):** staleness window 45 days? does "stale" mark the hero untrusted? — asked at this boundary with both defaults in force (45 days; yes).
 
 ---
 

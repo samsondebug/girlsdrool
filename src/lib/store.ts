@@ -7,7 +7,14 @@ import { create } from "zustand";
 import type { Theme } from "./ipc";
 
 export type Screen =
-  "dashboard" | "ledger" | "review" | "rules" | "import" | "accounts" | "settings";
+  "dashboard" | "ledger" | "review" | "rules" | "reconcile" | "import" | "accounts" | "settings";
+
+/** A statement balance handed from an import report to the Reconcile screen. */
+export interface ReconcileDraft {
+  accountId: number;
+  periodEnd: string;
+  statementClosingCents: number;
+}
 
 export interface Notice {
   id: number;
@@ -27,6 +34,8 @@ interface UiState {
   dismissNotice: (id: number) => void;
   ledgerQuery: string;
   setLedgerQuery: (text: string) => void;
+  reconcileDraft: ReconcileDraft | null;
+  setReconcileDraft: (draft: ReconcileDraft | null) => void;
 }
 
 let nextNoticeId = 1;
@@ -47,6 +56,10 @@ export const useUiStore = create<UiState>((set) => ({
   ledgerQuery: "",
   setLedgerQuery: (ledgerQuery) => {
     set({ ledgerQuery });
+  },
+  reconcileDraft: null,
+  setReconcileDraft: (reconcileDraft) => {
+    set({ reconcileDraft });
   },
 }));
 

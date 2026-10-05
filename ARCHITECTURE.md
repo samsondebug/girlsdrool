@@ -699,6 +699,7 @@ with the row ids behind them.
 - The difference explorer lists: rows in the period, rows just outside the period (±5 days) that could belong, pending rows, quarantined rows for the account, and the running total.
 - **Trust per account**: `reconciled` iff the latest reconciliation (by `period_end`) is `balanced` and `period_end ≥ today − stale_after_days` (account override, else setting, default 45). Otherwise `never_reconciled | stale | off`, each with the dates behind it.
 - **Hero trust**: trusted iff every account contributing to `available` is `reconciled`. Untrusted rendering names the accounts and the reason.
+- Mechanics (ADR-0040): periods are entered in order; a balanced period is immutable (delete the latest to redo it), an `off` period may be re-entered; `recon::refresh_all` recomputes every period of every account inside every writing transaction (`cmd::write`, import commit, undo, quarantine resolution), each period rolling forward from the last balanced one before it; a file's last running balance reaches the Reconcile screen as a prefilled draft (`statement_source = 'file'`), never as a reconciliation on its own; the hero is trusted only when its set is non-empty and every member is `reconciled`; a figure summing rows from several accounts is untrusted when any of them is not reconciled.
 
 ### 5.4 Safe-to-spend (ADR-0022) — the spec's formula, verbatim
 

@@ -16,6 +16,7 @@ import { LinkDialog } from "../components/LinkDialog";
 import { Money } from "../components/Money";
 import { Select } from "../components/Select";
 import { TextField } from "../components/TextField";
+import { MarkedMoney } from "../components/Untrusted";
 import { useCorrectionProposal } from "../lib/corrections";
 import type { Category, LedgerRow, SplitPart } from "../lib/ipc";
 import { formatCents, parseCentsInput } from "../lib/money";
@@ -28,11 +29,13 @@ import {
   useSaveView,
   useSavedViews,
   useSplit,
+  useTrust,
   useUnsplit,
   useUpdateTxn,
 } from "../lib/queries";
 import { compileQuery, FLAG_BITS } from "../lib/query-chips";
 import { useUiStore } from "../lib/store";
+import { untrustedAmong } from "../lib/trust";
 
 const ROW_HEIGHT = 32;
 
@@ -58,6 +61,7 @@ export function Ledger() {
   const accounts = useAccounts();
   const categories = useCategories();
   const savedViews = useSavedViews();
+  const trust = useTrust();
   const queryText = useUiStore((s) => s.ledgerQuery);
   const setQueryText = useUiStore((s) => s.setLedgerQuery);
   const pushNotice = useUiStore((s) => s.pushNotice);
@@ -399,7 +403,14 @@ export function Ledger() {
           <>
             <span>
               {first.total_rows.toLocaleString("en-US")} rows · Σ{" "}
-              <span className="money text-text">{formatCents(first.total_cents)}</span>
+              <MarkedMoney
+                cents={first.total_cents}
+                tone={false}
+                untrustedBy={untrustedAmong(
+                  trust.data,
+                  compiled.filter.account_ids.length > 0 ? compiled.filter.account_ids : null,
+                )}
+              />
             </span>
             <span>{rows.length < first.total_rows ? `${rows.length} loaded` : "all loaded"}</span>
           </>

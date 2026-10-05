@@ -14,6 +14,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::cash::recon;
 use crate::dates::{format_civil, parse_civil, CivilDate};
 use crate::db::audit::{self, Action, Actor};
 use crate::db::repo::{account, batch, link, txn};
@@ -338,6 +339,15 @@ pub fn commit(
         profile_name: p.name.clone(),
         ..Default::default()
     };
+    if let Some(last) = file
+        .rows
+        .iter()
+        .filter(|r| r.balance_cents.is_some() && r.skipped.is_none())
+        .max_by(|a, b| a.posted_date.cmp(&b.posted_date))
+    {
+        report.file_closing_cents = last.balance_cents;
+        report.file_closing_date = Some(format_civil(last.posted_date));
+    }
 
     if let Some(prev) = batch::find_same_file(&tx, acct.id, p.id, &file_sha256)? {
         let batch_id = batch::insert(
@@ -547,6 +557,7 @@ pub fn commit(
         },
         &json,
     )?;
+    recon::refresh_all(&tx, &cmd)?;
     tx.commit()?;
     tracing::info!(
         batch_id,
@@ -730,6 +741,7 @@ pub fn undo(conn: &mut Connection, batch_id: i64) -> AppResult<UndoReport> {
         "UPDATE command SET undone_by_command_id = ?1 WHERE id = ?2",
         params![undo_cmd.id, b.command_id],
     )?;
+    recon::refresh_all(&tx, &undo_cmd)?;
     tx.commit()?;
     tracing::info!(
         batch_id,
@@ -812,6 +824,7 @@ pub fn resolve_quarantine(
         Some(&serde_json::to_value(&q)?),
         Some(&serde_json::to_value(&after)?),
     )?;
+    recon::refresh_all(&tx, &cmd)?;
     tx.commit()?;
     Ok(inserted)
 }

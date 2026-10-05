@@ -579,8 +579,8 @@ fn rows_outside_the_account_window_are_rejected_before_any_write() {
 }
 
 /// Development aid, never run by `just check`: build a real encrypted data folder with the
-/// fixture rules installed and every fixture imported (plus the overlap file so one quarantine
-/// row exists), for screenshots and manual exploration. `KEPT_SEED_DIR=/path cargo test
+/// fixture rules installed, every fixture imported (plus the overlap file so one quarantine
+/// row exists) and every monthly period reconciled, for screenshots and manual exploration. `KEPT_SEED_DIR=/path cargo test
 /// --no-default-features --test m1_import seed_fixture_data_folder -- --ignored`. Passphrase:
 /// `correct horse battery staple`.
 #[test]
@@ -605,4 +605,28 @@ fn seed_fixture_data_folder() {
         "northbank/northbank_checking_2026-08_09_overlap.csv",
     );
     assert_eq!(count(db.conn(), "SELECT count(*) FROM txn"), 104);
+    // every monthly period balanced (fixtures/recon.json), so trust has something to show
+    let recon: serde_json::Value = load_json("recon.json");
+    let cmd = kept::db::audit::begin(db.conn(), "seed.reconcile", kept::db::audit::Actor::User)
+        .expect("command");
+    for p in recon["periods"].as_array().expect("periods") {
+        kept::cash::recon::reconcile(
+            db.conn(),
+            &cmd,
+            &kept::cash::recon::ReconInput {
+                account_id: account_id(&accounts, p["account"].as_str().expect("account")),
+                period_end: p["period_end"].as_str().expect("period_end").to_string(),
+                statement_closing_cents: p["statement_cents"].as_i64().expect("statement"),
+                statement_source: "user".to_string(),
+            },
+        )
+        .expect("reconcile");
+    }
+    assert_eq!(
+        count(
+            db.conn(),
+            "SELECT count(*) FROM reconciliation WHERE status = 'balanced'"
+        ),
+        21
+    );
 }

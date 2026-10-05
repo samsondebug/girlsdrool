@@ -135,6 +135,11 @@ pub fn run() {
             cmd::list_ventures,
             cmd::create_venture,
             cmd::update_venture,
+            cmd::list_reconciliations,
+            cmd::reconcile,
+            cmd::delete_reconciliation,
+            cmd::difference_explorer,
+            cmd::trust_status,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

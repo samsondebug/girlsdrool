@@ -127,6 +127,22 @@ export function Settings({ status }: SettingsProps) {
           )}
         </Panel>
 
+        <Panel title="Reconciliation">
+          {settings.data ? (
+            <StaleForm
+              key={settings.data.recon_stale_after_days}
+              initial={settings.data.recon_stale_after_days}
+              pending={update.isPending}
+              error={updateError}
+              onSave={(days) => {
+                update.mutate({ key: "recon_stale_after_days", value: days });
+              }}
+            />
+          ) : (
+            <p className="text-14 text-text-dim">Loading…</p>
+          )}
+        </Panel>
+
         <Panel title="About">
           <p className="text-14">Kept v{status.version}</p>
           <p className="mt-1 text-12 text-text-dim">
@@ -167,6 +183,48 @@ function ZoneForm({ initial, pending, error, onSave }: ZoneFormProps) {
         mono
       />
       <Button type="submit" variant="secondary" disabled={pending || zone.trim() === initial}>
+        Save
+      </Button>
+    </form>
+  );
+}
+
+interface StaleFormProps {
+  initial: number;
+  pending: boolean;
+  error: AppError | null;
+  onSave: (days: number) => void;
+}
+
+/** The default stale window (ADR-0021); an account can override it on the Reconcile screen. */
+function StaleForm({ initial, pending, error, onSave }: StaleFormProps) {
+  const [days, setDays] = useState(String(initial));
+  const parsed = Number(days);
+  const valid = /^\d{1,4}$/.test(days.trim()) && parsed >= 1;
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (valid) onSave(parsed);
+  };
+  return (
+    <form onSubmit={submit} className="flex items-end gap-2">
+      <TextField
+        label="Reconciled is stale after (days)"
+        value={days}
+        onChange={(e) => {
+          setDays(e.target.value);
+        }}
+        hint="An account whose last balanced period ended longer ago than this is stale, and the hero is untrusted. Default 45."
+        error={
+          error?.field === "recon_stale_after_days"
+            ? error.message
+            : valid
+              ? null
+              : "1 or more days"
+        }
+        className="flex-1"
+        mono
+      />
+      <Button type="submit" variant="secondary" disabled={pending || !valid || parsed === initial}>
         Save
       </Button>
     </form>

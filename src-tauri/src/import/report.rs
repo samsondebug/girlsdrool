@@ -47,6 +47,12 @@ pub struct ImportReport {
     /// What rules, heuristics and link detection did to the inserted rows.
     #[serde(default)]
     pub automation: Option<crate::rules::AutomationReport>,
+    /// The last running balance the file carried (profile `balance` column) and its date: the
+    /// statement closing a reconciliation can start from.
+    #[serde(default)]
+    pub file_closing_cents: Option<i64>,
+    #[serde(default)]
+    pub file_closing_date: Option<String>,
 }
 
 impl ImportReport {

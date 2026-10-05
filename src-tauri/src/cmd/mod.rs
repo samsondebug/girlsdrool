@@ -8,6 +8,7 @@ use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
+use crate::cash::recon::{self, DifferenceExplorer, ReconInput, Reconciliation, TrustReport};
 use crate::cash::views::{self, CashView, SpendingView};
 use crate::config::{self, DataPaths};
 use crate::dates::{parse_civil, parse_zone, today_in, CivilDate};
@@ -114,6 +115,7 @@ fn write<T>(
         let tx = db.conn_mut().transaction()?;
         let cmd = audit::begin(&tx, name, Actor::User)?;
         let out = f(&tx, &cmd)?;
+        recon::refresh_all(&tx, &cmd)?;
         tx.commit()?;
         Ok(out)
     })
@@ -885,4 +887,57 @@ pub async fn update_venture(
     })?;
     emit_changed(&app, &["venture", "account"]);
     Ok(updated)
+}
+
+// ---- reconciliation and trust -------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_reconciliations(
+    state: State<'_, AppState>,
+    account_id: i64,
+) -> AppResult<Vec<Reconciliation>> {
+    with_db(&state, |db| recon::list(db.conn(), account_id))
+}
+
+/// Enter (or re-enter an off) statement balance; every period of the account recomputes.
+#[tauri::command]
+pub async fn reconcile(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: ReconInput,
+) -> AppResult<Reconciliation> {
+    let r = write(&state, "recon.reconcile", |tx, cmd| {
+        recon::reconcile(tx, cmd, &input)
+    })?;
+    emit_changed(&app, &["reconciliation"]);
+    Ok(r)
+}
+
+#[tauri::command]
+pub async fn delete_reconciliation(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    write(&state, "recon.delete", |tx, cmd| recon::delete(tx, cmd, id))?;
+    emit_changed(&app, &["reconciliation"]);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn difference_explorer(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<DifferenceExplorer> {
+    with_db(&state, |db| recon::explorer(db.conn(), id))
+}
+
+/// Trust per account and for the hero, as of today in the configured zone.
+#[tauri::command]
+pub async fn trust_status(state: State<'_, AppState>) -> AppResult<TrustReport> {
+    with_db(&state, |db| {
+        let today = today(db)?;
+        let stale = settings::load(db.conn())?.recon_stale_after_days;
+        recon::trust(db.conn(), today, stale)
+    })
 }

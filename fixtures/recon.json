@@ -1,0 +1,310 @@
+{
+ "periods": [
+  {
+   "account": "nbc",
+   "period_start": "2026-07-01",
+   "period_end": "2026-07-31",
+   "opening_cents": 321455,
+   "sum_cents": 243293,
+   "computed_cents": 564748,
+   "statement_cents": 564748
+  },
+  {
+   "account": "nbc",
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": 564748,
+   "sum_cents": 380594,
+   "computed_cents": 945342,
+   "statement_cents": 945342
+  },
+  {
+   "account": "nbc",
+   "period_start": "2026-09-01",
+   "period_end": "2026-09-30",
+   "opening_cents": 945342,
+   "sum_cents": 417305,
+   "computed_cents": 1362647,
+   "statement_cents": 1362647
+  },
+  {
+   "account": "nbs",
+   "period_start": "2026-07-01",
+   "period_end": "2026-07-31",
+   "opening_cents": 1200000,
+   "sum_cents": 51023,
+   "computed_cents": 1251023,
+   "statement_cents": 1251023
+  },
+  {
+   "account": "nbs",
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": 1251023,
+   "sum_cents": 51067,
+   "computed_cents": 1302090,
+   "statement_cents": 1302090
+  },
+  {
+   "account": "nbs",
+   "period_start": "2026-09-01",
+   "period_end": "2026-09-30",
+   "opening_cents": 1302090,
+   "sum_cents": 51109,
+   "computed_cents": 1353199,
+   "statement_cents": 1353199
+  },
+  {
+   "account": "rvc",
+   "period_start": "2026-07-01",
+   "period_end": "2026-07-31",
+   "opening_cents": 105000,
+   "sum_cents": 30613,
+   "computed_cents": 135613,
+   "statement_cents": 135613
+  },
+  {
+   "account": "rvc",
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": 135613,
+   "sum_cents": 6653,
+   "computed_cents": 142266,
+   "statement_cents": 142266
+  },
+  {
+   "account": "rvc",
+   "period_start": "2026-09-01",
+   "period_end": "2026-09-30",
+   "opening_cents": 142266,
+   "sum_cents": 44210,
+   "computed_cents": 186476,
+   "statement_cents": 186476
+  },
+  {
+   "account": "sv",
+   "period_start": "2026-07-01",
+   "period_end": "2026-07-31",
+   "opening_cents": -182040,
+   "sum_cents": 153154,
+   "computed_cents": -28886,
+   "statement_cents": -28886
+  },
+  {
+   "account": "sv",
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": -28886,
+   "sum_cents": 80613,
+   "computed_cents": 51727,
+   "statement_cents": 51727
+  },
+  {
+   "account": "sv",
+   "period_start": "2026-09-01",
+   "period_end": "2026-09-30",
+   "opening_cents": 51727,
+   "sum_cents": 90406,
+   "computed_cents": 142133,
+   "statement_cents": 142133
+  },
+  {
+   "account": "sa",
+   "period_start": "2026-07-01",
+   "period_end": "2026-07-31",
+   "opening_cents": -31218,
+   "sum_cents": 19618,
+   "computed_cents": -11600,
+   "statement_cents": -11600
+  },
+  {
+   "account": "sa",
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": -11600,
+   "sum_cents": 0,
+   "computed_cents": -11600,
+   "statement_cents": -11600
+  },
+  {
+   "account": "sa",
+   "period_start": "2026-09-01",
+   "period_end": "2026-09-30",
+   "opening_cents": -11600,
+   "sum_cents": 0,
+   "computed_cents": -11600,
+   "statement_cents": -11600
+  },
+  {
+   "account": "hb",
+   "period_start": "2026-07-01",
+   "period_end": "2026-07-31",
+   "opening_cents": 40000,
+   "sum_cents": 1842,
+   "computed_cents": 41842,
+   "statement_cents": 41842
+  },
+  {
+   "account": "hb",
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": 41842,
+   "sum_cents": 0,
+   "computed_cents": 41842,
+   "statement_cents": 41842
+  },
+  {
+   "account": "hb",
+   "period_start": "2026-09-01",
+   "period_end": "2026-09-30",
+   "opening_cents": 41842,
+   "sum_cents": 0,
+   "computed_cents": 41842,
+   "statement_cents": 41842
+  },
+  {
+   "account": "vm",
+   "period_start": "2026-07-01",
+   "period_end": "2026-07-31",
+   "opening_cents": 0,
+   "sum_cents": 0,
+   "computed_cents": 0,
+   "statement_cents": 0
+  },
+  {
+   "account": "vm",
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": 0,
+   "sum_cents": 0,
+   "computed_cents": 0,
+   "statement_cents": 0
+  },
+  {
+   "account": "vm",
+   "period_start": "2026-09-01",
+   "period_end": "2026-09-30",
+   "opening_cents": 0,
+   "sum_cents": 4200,
+   "computed_cents": 4200,
+   "statement_cents": 4200
+  }
+ ],
+ "mutated": {
+  "file": "northbank/northbank_checking_2026-08_mutated.csv",
+  "account": "nbc",
+  "row": {
+   "posted": "2026-08-13",
+   "description": "JEWEL-OSCO #3421",
+   "real_cents": -11206,
+   "mutated_cents": -12106
+  },
+  "august": {
+   "period_start": "2026-08-01",
+   "period_end": "2026-08-31",
+   "opening_cents": 564748,
+   "computed_cents": 944442,
+   "statement_cents": 945342,
+   "difference_cents": -900
+  },
+  "september": {
+   "period_start": "2026-08-01",
+   "period_end": "2026-09-30",
+   "opening_cents": 564748,
+   "computed_cents": 1361747,
+   "statement_cents": 1362647,
+   "difference_cents": -900
+  },
+  "explorer": {
+   "in_period": 15,
+   "before": 1,
+   "after": 4,
+   "pending": 0,
+   "quarantine": 0
+  }
+ },
+ "trust": {
+  "as_of": "2026-10-05",
+  "stale_after_days": 45,
+  "rows": [
+   {
+    "scenario": "A",
+    "account": "nbc",
+    "contributes": true,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "reconciled"
+   },
+   {
+    "scenario": "A",
+    "account": "nbs",
+    "contributes": true,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "reconciled"
+   },
+   {
+    "scenario": "A",
+    "account": "rvc",
+    "contributes": true,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "reconciled"
+   },
+   {
+    "scenario": "A",
+    "account": "sv",
+    "contributes": false,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "reconciled"
+   },
+   {
+    "scenario": "A",
+    "account": "sa",
+    "contributes": false,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "reconciled"
+   },
+   {
+    "scenario": "A",
+    "account": "hb",
+    "contributes": false,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "reconciled"
+   },
+   {
+    "scenario": "A",
+    "account": "vm",
+    "contributes": true,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "reconciled"
+   },
+   {
+    "scenario": "B",
+    "account": "nbc",
+    "contributes": true,
+    "latest_period_end": "2026-09-30",
+    "days": 5,
+    "status": "off"
+   },
+   {
+    "scenario": "C",
+    "account": "nbs",
+    "contributes": true,
+    "latest_period_end": "2026-07-31",
+    "days": 66,
+    "status": "stale"
+   }
+  ],
+  "hero_contributing": [
+   "nbc",
+   "nbs",
+   "rvc",
+   "vm"
+  ]
+ }
+}

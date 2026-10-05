@@ -563,3 +563,44 @@ spending.
 The heuristic code list in ARCHITECTURE §6.4 is the implemented one; the earlier draft's
 `internal_transfer_pair` and `firewall_touch` names did not survive (the firewall state is a flag
 plus the absence of an acknowledgment, not a classification).
+
+## ADR-0040 — Reconciliation periods: immutable when balanced, refreshed by every write, file closings as drafts
+
+Status: Accepted · Date: 2026-10-05 · Source: tech lead
+
+**Context.** ADR-0021 fixed the tolerance (zero), the roll-forward and the trust rule. Building M3
+left four mechanics open: what a period may overwrite, when the cached status is recomputed, how a
+statement balance gets from an export into a period, and which accounts the hero's trust is
+computed over when none has been reconciled.
+
+**Decision.**
+
+1. **Periods are entered in order and a balanced period is immutable.** A new period ends after
+   the last balanced period and opens at its statement closing (`period_start` is the day after
+   it; the first period opens at the account's opening balance and date). An `off` period can be
+   re-entered with another statement; a balanced one is deleted (latest first, since later
+   periods roll forward from it) and entered again. Re-entering the same balance is a no-op; a
+   different one is `Conflict`.
+2. **Every writing transaction refreshes every period** (`recon::refresh_all` runs inside
+   `cmd::write`, import commit, undo and quarantine resolution), so the stored status never lags
+   the ledger: undoing a batch flips a period to `off`, importing the right file flips it back,
+   nothing is re-entered. Each period is recomputed in order against the last balanced period
+   before it, so a later period's opening and start follow the fix.
+3. **A file's last running balance is a draft, not a reconciliation.** The import report carries
+   `file_closing_cents` and its date when the profile maps a balance column; the Reconcile screen
+   opens with it prefilled and records `statement_source = 'file'` once the person confirms.
+   Nothing reconciles on import.
+4. **The hero's set is the cash-kind accounts that are neither firewalled nor archived** (the
+   `available` set of §5.1); the hero is trusted only when that set is non-empty and every member
+   is `reconciled`. Cards and the firewalled brokerage carry their own status and mark only their
+   own figures. A figure that sums rows from several accounts is untrusted when any of them is not
+   reconciled: the ledger Σ over the filter's accounts, the spending view over every account, the
+   cash view over the cash set.
+5. **The difference explorer is a list, not an auto-fix:** the period's posted rows with a running
+   balance, posted rows within 5 days on either side, pending rows, and pending quarantine rows for
+   the account; rows equal to ±difference are pointed out. The ledger is corrected through the
+   Ledger or by undoing a batch, never by editing a period.
+
+**Consequences.** `tests/m3_recon.rs` and the `recon_identity` property pin the mechanics;
+`fixtures/recon.json` is `EXPECTED.md`'s machine-readable twin for them. The batched M3 question
+(ADR-0021: window 45 days, stale → untrusted) stays open with its defaults in force.

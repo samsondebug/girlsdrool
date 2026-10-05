@@ -27,6 +27,7 @@ Period: 2026-07-01 through 2026-09-30. Money in dollars with cents; the engine h
 | `northbank/northbank_checking_2026-07_copy.csv` | nbc | northbank_csv | 14 | byte-identical to the July file: file-level no-op |
 | `northbank/northbank_checking_2026-08.csv` | nbc | northbank_csv | 15 |  |
 | `northbank/northbank_checking_2026-08_09_overlap.csv` | nbc | northbank_csv | 32 | Aug+Sep rows again; one descriptor variant → quarantine |
+| `northbank/northbank_checking_2026-08_mutated.csv` | nbc | northbank_csv | 15 | August with one amount transposed (−112.06 → −121.06): the M3 off scenario, imported instead of the real August file |
 | `northbank/northbank_checking_2026-09.csv` | nbc | northbank_csv | 17 |  |
 | `northbank/northbank_savings_2026-07.csv` | nbs | northbank_csv | 2 |  |
 | `northbank/northbank_savings_2026-08.csv` | nbs | northbank_csv | 2 |  |
@@ -410,6 +411,76 @@ Rows without a category after M2: **5** (the firewall-touch transfer leg has its
 | variable.transport | 3 |
 | venture.operating_expense | 6 |
 | — | 5 |
+
+## Reconciliation (M3)
+
+A period is `[period_start, period_end]` per account. Its opening is the account's opening balance for the first
+period, else the statement closing of the last **balanced** period (roll-forward); `computed = opening + Σ posted rows`
+in the period, `difference = computed − statement`, `balanced` iff the difference is exactly 0 (ADR-0021). The
+hero's contributing accounts are the cash-kind accounts that are neither firewalled nor archived: nbc, nbs, rvc, vm.
+
+### Every account, monthly periods (balanced fixture)
+
+| account | period | opening | Σ posted | computed closing | statement closing | status |
+|---|---|---:|---:|---:|---:|---|
+| nbc | 2026-07-01..2026-07-31 | 3,214.55 | 2,432.93 | 5,647.48 | 5,647.48 | balanced |
+| nbc | 2026-08-01..2026-08-31 | 5,647.48 | 3,805.94 | 9,453.42 | 9,453.42 | balanced |
+| nbc | 2026-09-01..2026-09-30 | 9,453.42 | 4,173.05 | 13,626.47 | 13,626.47 | balanced |
+| nbs | 2026-07-01..2026-07-31 | 12,000.00 | 510.23 | 12,510.23 | 12,510.23 | balanced |
+| nbs | 2026-08-01..2026-08-31 | 12,510.23 | 510.67 | 13,020.90 | 13,020.90 | balanced |
+| nbs | 2026-09-01..2026-09-30 | 13,020.90 | 511.09 | 13,531.99 | 13,531.99 | balanced |
+| rvc | 2026-07-01..2026-07-31 | 1,050.00 | 306.13 | 1,356.13 | 1,356.13 | balanced |
+| rvc | 2026-08-01..2026-08-31 | 1,356.13 | 66.53 | 1,422.66 | 1,422.66 | balanced |
+| rvc | 2026-09-01..2026-09-30 | 1,422.66 | 442.10 | 1,864.76 | 1,864.76 | balanced |
+| sv | 2026-07-01..2026-07-31 | -1,820.40 | 1,531.54 | -288.86 | -288.86 | balanced |
+| sv | 2026-08-01..2026-08-31 | -288.86 | 806.13 | 517.27 | 517.27 | balanced |
+| sv | 2026-09-01..2026-09-30 | 517.27 | 904.06 | 1,421.33 | 1,421.33 | balanced |
+| sa | 2026-07-01..2026-07-31 | -312.18 | 196.18 | -116.00 | -116.00 | balanced |
+| sa | 2026-08-01..2026-08-31 | -116.00 | 0.00 | -116.00 | -116.00 | balanced |
+| sa | 2026-09-01..2026-09-30 | -116.00 | 0.00 | -116.00 | -116.00 | balanced |
+| hb | 2026-07-01..2026-07-31 | 400.00 | 18.42 | 418.42 | 418.42 | balanced |
+| hb | 2026-08-01..2026-08-31 | 418.42 | 0.00 | 418.42 | 418.42 | balanced |
+| hb | 2026-09-01..2026-09-30 | 418.42 | 0.00 | 418.42 | 418.42 | balanced |
+| vm | 2026-07-01..2026-07-31 | 0.00 | 0.00 | 0.00 | 0.00 | balanced |
+| vm | 2026-08-01..2026-08-31 | 0.00 | 0.00 | 0.00 | 0.00 | balanced |
+| vm | 2026-09-01..2026-09-30 | 0.00 | 42.00 | 42.00 | 42.00 | balanced |
+
+### Mutated fixture: `northbank_checking_2026-08_mutated.csv` instead of the real August file
+
+- Row 2026-08-13 `JEWEL-OSCO #3421` reads -121.06 instead of -112.06 (delta -9.00).
+- August: opening 5,647.48, Σ 3,796.94, computed **9,444.42** vs statement
+  9,453.42 → difference **-9.00**, status `off`.
+- September, entered next with statement 13,626.47: it rolls forward from July (the last balanced
+  period), so its period is 2026-08-01..2026-09-30 with opening 5,647.48; computed
+  **13,617.47** → difference **-9.00**, status `off`. The difference carries until the row is fixed.
+- Undoing the mutated batch and importing the real August file recomputes both periods to `balanced` in the
+  same transaction; no statement is re-entered. The hero is untrusted while nbc is off, naming Northbank Checking.
+
+### Difference explorer for the mutated August period
+
+- Rows in the period: **15**, with a running balance from the opening; the mutated row is among them.
+- Posted rows within 5 days before the period (2026-07-27..2026-07-31): **1** — 2026-07-28 `SHELL OIL 57442` -52.18.
+- Posted rows within 5 days after the period (2026-09-01..2026-09-05): **4** — 2026-09-01 `LAKESHORE PROPERTIES RENT` -2,400.00; 2026-09-02 `ZELLE PAYMENT FROM MORGAN AVERY` 1,200.00; 2026-09-03 `ONLINE TRANSFER TO SAV ...5678` -500.00; 2026-09-04 `MERIDIAN CAP ACH PAYROLL` 3,412.77.
+- Pending rows on nbc: **0**. Quarantined rows for nbc: **0** (1 when the overlap file was also imported; the explorer lists it).
+
+### Trust as of 2026-10-05 (stale window 45 days, ADR-0021)
+
+| scenario | account | contributes | latest period end | days | status |
+|---|---|---|---|---:|---|
+| A: every month balanced | nbc | yes | 2026-09-30 | 5 | reconciled |
+| A: every month balanced | nbs | yes | 2026-09-30 | 5 | reconciled |
+| A: every month balanced | rvc | yes | 2026-09-30 | 5 | reconciled |
+| A: every month balanced | sv | no | 2026-09-30 | 5 | reconciled |
+| A: every month balanced | sa | no | 2026-09-30 | 5 | reconciled |
+| A: every month balanced | hb | no | 2026-09-30 | 5 | reconciled |
+| A: every month balanced | vm | yes | 2026-09-30 | 5 | reconciled |
+| B: mutated August on nbc, others as A | nbc | yes | 2026-09-30 (off) | 5 | off |
+| C: nbs balanced through July only, others as A | nbs | yes | 2026-07-31 | 66 | stale (66 > 45) |
+| C with a 90-day override on nbs | nbs | yes | 2026-07-31 | 66 | reconciled (66 ≤ 90) |
+| D: no statement entered | any | — | — | — | never_reconciled |
+
+Hero trust: A → trusted. B → untrusted, naming Northbank Checking (off by -9.00). C → untrusted, naming Northbank Savings (stale). D → untrusted, naming every contributing account.
+Cards and the firewalled brokerage never enter the hero's set, so their status marks only their own figures.
 
 ## Plan inputs (defined now for M4/M5; their answers are appended at those milestones)
 

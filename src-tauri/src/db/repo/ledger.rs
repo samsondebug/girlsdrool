@@ -297,6 +297,32 @@ pub fn query(
     })
 }
 
+/// Rows matching `filter`, oldest first, up to `limit` (the difference explorer, exports).
+pub fn rows_asc(
+    conn: &Connection,
+    filter: &LedgerFilter,
+    limit: usize,
+) -> AppResult<Vec<LedgerRow>> {
+    let built = build_where(filter)?;
+    let mut params = built.params.clone();
+    params.push(Value::Integer(
+        i64::try_from(limit.clamp(1, 50_000)).map_err(|_| AppError::Overflow)?,
+    ));
+    let limit_param = params.len();
+    let sql = format!(
+        "{ROW_SELECT} WHERE {} ORDER BY t.posted_date, t.id LIMIT ?{limit_param}",
+        built.where_sql
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt
+        .query_map(params_from_iter(params.iter()), row_from)?
+        .collect::<Result<Vec<_>, _>>()?;
+    for row in &mut rows {
+        row.tags = crate::db::repo::txn::tags_of(conn, row.id)?;
+    }
+    Ok(rows)
+}
+
 /// Σ posted leaf amounts per account (opening balance excluded), for balances.
 pub fn posted_sum(conn: &Connection, account_id: i64) -> AppResult<i64> {
     Ok(conn.query_row(

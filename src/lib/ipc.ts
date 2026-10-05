@@ -235,6 +235,9 @@ export interface ImportReport {
   date_to: string | null;
   profile_name: string;
   summary: string;
+  /** The last running balance the file carried, when its profile maps a balance column. */
+  file_closing_cents: number | null;
+  file_closing_date: string | null;
 }
 
 export interface ImportBatch {
@@ -546,6 +549,74 @@ export interface VentureInput {
   stop_condition?: string;
 }
 
+// ---- reconciliation and trust (M3) --------------------------------------------------------------
+
+export type ReconStatus = "balanced" | "off";
+export type StatementSource = "user" | "file";
+
+export interface Reconciliation {
+  id: number;
+  account_id: number;
+  period_start: string;
+  period_end: string;
+  opening_cents: number;
+  statement_closing_cents: number;
+  statement_source: StatementSource;
+  computed_closing_cents: number;
+  difference_cents: number;
+  status: ReconStatus;
+  balanced_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReconInput {
+  account_id: number;
+  period_end: string;
+  statement_closing_cents: number;
+  statement_source: StatementSource;
+}
+
+export interface ExplorerRow extends LedgerRow {
+  running_cents: number;
+}
+
+export interface DifferenceExplorer {
+  reconciliation: Reconciliation;
+  in_period: ExplorerRow[];
+  before: LedgerRow[];
+  after: LedgerRow[];
+  pending: LedgerRow[];
+  quarantine: QuarantineRow[];
+  neighbour_days: number;
+}
+
+export type TrustStatus = "reconciled" | "never_reconciled" | "stale" | "off";
+
+export interface AccountTrust {
+  account_id: number;
+  account_name: string;
+  kind: AccountKind;
+  contributes: boolean;
+  status: TrustStatus;
+  latest_period_end: string | null;
+  difference_cents: number | null;
+  days_since: number | null;
+  stale_after_days: number;
+  reason: string;
+}
+
+export interface HeroTrust {
+  trusted: boolean;
+  untrusted: { account_id: number; account_name: string; status: TrustStatus; reason: string }[];
+}
+
+export interface TrustReport {
+  as_of: string;
+  accounts: AccountTrust[];
+  hero: HeroTrust;
+}
+
 export const api = {
   appStatus: () => call<AppStatus>("app_status"),
   chooseDataDir: (path: string) => call<AppStatus>("choose_data_dir", { path }),
@@ -624,6 +695,13 @@ export const api = {
   createVenture: (input: VentureInput) => call<Venture>("create_venture", { input }),
   updateVenture: (id: number, input: VentureInput) =>
     call<Venture>("update_venture", { id, input }),
+
+  listReconciliations: (accountId: number) =>
+    call<Reconciliation[]>("list_reconciliations", { accountId }),
+  reconcile: (input: ReconInput) => call<Reconciliation>("reconcile", { input }),
+  deleteReconciliation: (id: number) => call<null>("delete_reconciliation", { id }),
+  differenceExplorer: (id: number) => call<DifferenceExplorer>("difference_explorer", { id }),
+  trustStatus: () => call<TrustReport>("trust_status"),
 };
 
 export const CHANGED_EVENT = "kept://changed";
