@@ -4,7 +4,7 @@
  */
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -35,6 +35,15 @@ function exePath(): string {
   return found;
 }
 
+/** The app's own log files, so a failed attach shows what Kept did before the deadline. */
+function readLogTail(dataDir: string): string {
+  const dir = path.join(dataDir, "logs");
+  if (!existsSync(dir)) return "(no logs directory)";
+  return readdirSync(dir)
+    .map((name) => `${name}:\n${readFileSync(path.join(dir, name), "utf8").slice(-4000)}`)
+    .join("\n");
+}
+
 async function connectWithRetry(endpoint: string, deadlineMs: number): Promise<Browser> {
   const deadline = Date.now() + deadlineMs;
   let lastError: unknown = null;
@@ -63,7 +72,17 @@ export async function launchKept(): Promise<KeptApp> {
     },
     stdio: ["ignore", "inherit", "inherit"],
   });
-  const browser = await connectWithRetry(`http://127.0.0.1:${port}`, 60_000);
+  const state: { exited: string | null } = { exited: null };
+  child.on("exit", (code, signal) => {
+    state.exited = `Kept exited early (code ${String(code)}, signal ${String(signal)})`;
+  });
+  let browser: Browser;
+  try {
+    browser = await connectWithRetry(`http://127.0.0.1:${port}`, 60_000);
+  } catch (error: unknown) {
+    const status = state.exited ?? "Kept is still running";
+    throw new Error(`${String(error)}\n${status}\n--- kept logs ---\n${readLogTail(dataDir)}`);
+  }
   const context = browser.contexts()[0] ?? (await browser.newContext());
   const page = context.pages()[0] ?? (await context.waitForEvent("page"));
   await page.waitForLoadState("domcontentloaded");
