@@ -81,7 +81,9 @@ export async function launchKept(): Promise<KeptApp> {
     browser = await connectWithRetry(`http://127.0.0.1:${port}`, 60_000);
   } catch (error: unknown) {
     const status = state.exited ?? "Kept is still running";
-    throw new Error(`${String(error)}\n${status}\n--- kept logs ---\n${readLogTail(dataDir)}`);
+    throw new Error(`${String(error)}\n${status}\n--- kept logs ---\n${readLogTail(dataDir)}`, {
+      cause: error,
+    });
   }
   const context = browser.contexts()[0] ?? (await browser.newContext());
   const page = context.pages()[0] ?? (await context.waitForEvent("page"));
