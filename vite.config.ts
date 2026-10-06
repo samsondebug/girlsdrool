@@ -19,7 +19,7 @@ export default defineConfig({
   build: {
     // WebView2 tracks current Chromium; the only shipping target is Windows 11.
     target: "chrome120",
-    minify: debug ? false : "esbuild",
+    minify: debug ? false : "oxc",
     sourcemap: debug,
   },
 });
