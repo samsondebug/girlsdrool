@@ -79,12 +79,45 @@ pub fn poisoned() -> error::AppError {
     error::AppError::Internal("a lock was poisoned by an earlier panic".into())
 }
 
+/// The browser switches wry passes by default; replaced wholesale by `additional_browser_args`.
+#[cfg(feature = "app")]
+const DEFAULT_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+
+/// Create the main window from its config entry (`create: false` keeps Tauri from doing it
+/// first). Under the E2E harness, `KEPT_E2E_CDP_PORT` opens WebView2's remote-debugging port
+/// so Playwright can attach, with the webview's own data folder inside the scratch data dir;
+/// the switch is a no-op on other platforms, and nothing opens without the variable.
+#[cfg(feature = "app")]
+fn create_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .ok_or("tauri.conf.json has no window labelled main")?;
+    let mut builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+    if let Ok(port) = std::env::var("KEPT_E2E_CDP_PORT") {
+        builder = builder.additional_browser_args(&format!(
+            "{DEFAULT_BROWSER_ARGS} --remote-debugging-port={port}"
+        ));
+        if let Ok(data_dir) = std::env::var("KEPT_DATA_DIR") {
+            builder = builder.data_directory(std::path::PathBuf::from(data_dir).join("webview"));
+        }
+        tracing::info!(port, "remote debugging port requested by the E2E harness");
+    }
+    builder.build()?;
+    Ok(())
+}
+
 #[cfg(feature = "app")]
 pub fn run() {
     let state = AppState::boot();
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
+        .setup(|app| create_main_window(app))
         .invoke_handler(tauri::generate_handler![
             cmd::app_status,
             cmd::choose_data_dir,

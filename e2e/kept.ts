@@ -1,6 +1,8 @@
 /**
  * Launch the built Kept binary with a scratch data folder and attach Playwright over CDP.
- * WebView2 honours WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, which is how the port is opened.
+ * The app opens WebView2's remote-debugging port when KEPT_E2E_CDP_PORT is set (lib.rs builds
+ * the main window with the switch); WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS is set as well for a
+ * binary built without that hook.
  */
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -68,6 +70,8 @@ export async function launchKept(): Promise<KeptApp> {
     env: {
       ...process.env,
       KEPT_DATA_DIR: dataDir,
+      KEPT_E2E_CDP_PORT: String(port),
+      WEBVIEW2_USER_DATA_FOLDER: path.join(dataDir, "webview"),
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
     },
     stdio: ["ignore", "inherit", "inherit"],
