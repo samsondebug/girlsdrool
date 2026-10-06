@@ -5,7 +5,7 @@
  * binary built without that hook.
  */
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -77,8 +77,11 @@ export async function launchKept(): Promise<KeptApp> {
     stdio: ["ignore", "inherit", "inherit"],
   });
   const state: { exited: string | null } = { exited: null };
-  child.on("exit", (code, signal) => {
-    state.exited = `Kept exited early (code ${String(code)}, signal ${String(signal)})`;
+  const exited = new Promise<void>((resolve) => {
+    child.on("exit", (code, signal) => {
+      state.exited = `Kept exited early (code ${String(code)}, signal ${String(signal)})`;
+      resolve();
+    });
   });
   let browser: Browser;
   try {
@@ -101,8 +104,11 @@ export async function launchKept(): Promise<KeptApp> {
       try {
         await browser.close();
       } finally {
-        child.kill();
-        rmSync(dataDir, { recursive: true, force: true });
+        // The whole process tree: WebView2's helper processes hold the data folder open until
+        // they are gone, and the database file until the app is.
+        spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+        await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 10_000))]);
+        rmSync(dataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
       }
     },
   };
