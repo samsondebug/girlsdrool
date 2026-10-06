@@ -28,7 +28,7 @@ jobs:
           workspaces: src-tauri
       - uses: extractions/setup-just@v2
       - run: pnpm install --frozen-lockfile
-      - run: just check
+      - run: just check-core
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

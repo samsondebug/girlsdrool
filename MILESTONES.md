@@ -236,7 +236,7 @@ Legend: `[ ]` open · `[x]` done and verified in-session (command run, exit code
 
 **Acceptance (spec)**
 
-- [ ] critical Playwright path green on the installer build — written (`e2e/m10-critical-path.spec.ts`), type-checked and linted here; it runs only on Windows/WebView2 (CI's Windows job, ADR-0009), so this box stays open until that run is seen
+- [ ] critical Playwright path green on the installer build — written (`e2e/m10-critical-path.spec.ts`), type-checked and linted here; on GitHub's hosted Windows runner Playwright cannot attach to WebView2 (ADR-0049), so the step is advisory there and this box closes on a Windows machine with a desktop session (`just check`)
 
 **Engineering checklist**
 

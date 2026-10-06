@@ -5,16 +5,17 @@ one manual signing step.
 
 ## What CI produces
 
-- Every push: `ci.yml` runs `just check-core` on Linux and the full `just check` (including the
-  Playwright critical path against the real app) on Windows, then uploads
+- Every push: `ci.yml` runs `just check-core` on Linux and on Windows, runs the Playwright
+  critical path on Windows as an advisory step (its outcome is printed on the run and the
+  report is uploaded when it is not green; ADR-0049), then uploads
   `kept-windows-unsigned-installer`.
-- Every `v*` tag: `release.yml` runs `just check` and attaches the unsigned installer to a
+- Every `v*` tag: `release.yml` runs `just check-core` and attaches the unsigned installer to a
   **draft, pre-release** GitHub release via `tauri-apps/tauri-action`.
 
 ## Cutting a release
 
-1. `just check` on a Windows machine. Green means green; a Linux run ends with
-   `E2E NOT RUN` and does not count (ADR-0009).
+1. `just check` on a Windows machine with a desktop session: that is where the Playwright
+   critical path counts (ADR-0009, ADR-0049). A Linux run ends with `E2E NOT RUN`.
 2. Bump `version` in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`
    (the same string in all three), add the release notes to `CHANGELOG.md`, commit
    (`chore(release): v0.x.y`).

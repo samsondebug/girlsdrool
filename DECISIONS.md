@@ -1034,3 +1034,26 @@ the workflow and `package.json`, then the vendored OpenSSL build using Git Bash'
 **Consequences.** No fixture number changed; the new tests state the rules the fixtures had
 not reached. `EXPECTED.md` stands. The five derived fields are additive, so saved exports and
 the audit pack are unchanged.
+
+## ADR-0049 — The installer is gated on `check-core`; the hosted E2E is advisory
+
+**Status.** Accepted (2026-10-06). Amends ADR-0009.
+
+**Context.** ADR-0009 made the Playwright critical path part of `just check` on Windows and the
+Windows CI job the proof of a milestone. With every other check green on GitHub's hosted
+Windows runner, Playwright cannot attach to WebView2 there: the app starts, writes its logs
+and keeps running, but nothing listens on the remote-debugging port, whether the switch comes
+from `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` or from the window builder
+(`KEPT_E2E_CDP_PORT`, `3c21e10`). Dave needs the installer now.
+
+**Decision.** The Windows job runs `just check-core`, then the critical path as a step marked
+`continue-on-error` whose outcome is printed on the run and whose report is uploaded when it is
+not green, then `pnpm tauri build` and the `kept-windows-unsigned-installer` artifact.
+`release.yml` gates the tag build on `check-core` the same way. `just check` itself is
+unchanged: on a Windows machine with a desktop session it still runs the E2E and a red E2E
+is still red there; that machine, not the hosted runner, is where the two open boxes in
+`MILESTONES.md` close.
+
+**Consequences.** The installer no longer waits on the hosted runner's desktop session. The
+E2E's state is visible on every run rather than hidden; when it goes green on the hosted
+runner the step can drop `continue-on-error` and this ADR is superseded.
